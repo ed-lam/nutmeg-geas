@@ -1,0 +1,8 @@
+nanophage - Minimal prototype for phage.
+============================================================
+So, phage looks like a sensible thing to do.
+The problem is, of course, that there's a lot of stuff that needs to be done.
+
+So, nanophage is essentially a proof of concept. A really small CP/LCG solver,
+to test out some ideas.
+It _should_ be easily extensible for additional variable kinds.
