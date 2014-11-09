@@ -19,9 +19,14 @@ public:
 
   BoolVar newVar(void);
 
-  lbool value(bvar_id id) {
+  lbool _value(bvar_id id) {
     assert (0 && "BVarMan::value not yet implemented.");
     return l_Undef;
+  }
+
+  lbool value(_lemma& x)
+  {
+    return _value(x.id);
   }
 
   lemma bvar_true(bvar_id id) {
@@ -85,7 +90,7 @@ public:
     : man(_man), id(_id)
   { }
 
-  lbool value(void) { return man->value(id); }
+  lbool value(void) { return man->_value(id); }
   operator lemma() {
     return man->bvar_true(id);
   }

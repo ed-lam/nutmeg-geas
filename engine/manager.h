@@ -35,6 +35,9 @@ public:
   // Can we do this more cheaply?
   // virtual lit undo(_lemma& x) = 0;
 
+  // Evaluate a lemma under the current state.
+  virtual lbool value(_lemma& x) = 0;
+
   // x -> y?
   virtual bool le(_lemma& x, _lemma& y) = 0;
 

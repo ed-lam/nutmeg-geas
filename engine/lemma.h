@@ -37,6 +37,11 @@ inline lemma operator~(const lemma& l)
   return mk_lem(l.kind, l.data.id^1, l.data.info);
 }
 
+inline bool lem_sign(const lemma& l)
+{
+  return (l.data.id&1) == 0;
+}
+
 inline lemma lem_undef(void) {
   lemma l;
   l.kind = -1;

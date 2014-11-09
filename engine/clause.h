@@ -2,16 +2,18 @@
 #define __PHAGE_CLAUSE_H__
 
 #include "mtl/Vec.h"
-#include "engine/lemma.h"
+#include "engine/sat.h"
+
+enum ClauseTags { Cl_Learnt = 1 };
 
 typedef struct {
   int sz;
   int tags;
-  lemma ls[0];  
+  lit ls[0];  
 } clause;
 
+#include "engine/lemma.h"
 #include "engine/env.h"
 
-clause* _mk_clause(vec<lemma>& ls);
 clause* mk_clause(env* e, vec<lemma>& ls);
 #endif

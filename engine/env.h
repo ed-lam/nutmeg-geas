@@ -5,16 +5,17 @@
 // managers, and the trail.
 class env;
 
+typedef struct {
+  char v;
+} lbool;
+
 #include "mtl/Vec.h"
+#include "utils/cache.h"
 #include "engine/lemma.h"
 #include "engine/manager.h"
 #include "engine/propagator.h"
 #include "engine/trail.h"
 #include  "engine/clause.h"
-
-typedef struct {
-  char v;
-} lbool;
 
 static lbool mk_lbool(int v) { lbool l; l.v = v; return l; }
 static lbool l_False = mk_lbool(-1);
@@ -55,6 +56,8 @@ inline lem_inf mk_inf(lemma l, expln ex) {
   lem_inf inf; inf.l = l; inf.ex = ex; return inf;
 }
 
+typedef AutoC<lemma, int>::cache lem_map_t;
+
 class env {
 public:
   env(void) { }
@@ -79,7 +82,17 @@ public:
     while(lem_trail.size() > lim)
       lem_trail.pop();
   }
-  
+
+   
+  lit lit_of_lemma(lemma& l);
+
+  lemma lemma_of_lit(lit l)
+  {
+    lemma lem(c_lems[lvar(l)]);
+    return lsgn(l) ? lem : ~lem;
+  }
+
+  lbool lem_val(lemma& l);
 
   int level(void) { return lem_tlim.size(); }
 
@@ -92,6 +105,13 @@ public:
   // Trail of inferences that were made.
   vec<int> lem_tlim;
   vec<lem_inf> lem_trail;
+
+  // SAT subproblem
+  vec<lemma> c_lems; // Concretely instantiated lemmas
+  vec< vec<clause*> > ws;
+
+  vec<clause*> clauses;
+  vec<clause*> learnts;
 
   // Data trail
   Trail gen_trail;

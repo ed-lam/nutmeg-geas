@@ -70,7 +70,7 @@ bool conflict_state::update(lem_inf& inf, vec<lemma>& learnt_out)
     
     // Add all the other elements.
     for(int li = 1; li < cl->sz; cl++)
-      add_lemma(cl->ls[li]);
+      add_lemma(e->lemma_of_lit(cl->ls[li]));
   } else {
     // It's a thunk.
     ex_thunk et(ex.ex); 
