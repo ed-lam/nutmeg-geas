@@ -2,6 +2,11 @@
 #include "vars/boolvar.h"
 
 BoolVar BVarMan::newVar(void) {
-  assert (0 && "BVMan::newVar not implemented.");
-  return BoolVar(this, 0);
+  // WARNING: This is a bit dangerous; if you
+  // assign new variables after assignments have
+  // been made, you may end up with segfaults.
+  bvar_id id = assigns.size();
+  assigns.push(TrInt(&(e->gen_trail), 0));
+
+  return BoolVar(this, id);
 }

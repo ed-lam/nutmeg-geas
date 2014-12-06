@@ -12,8 +12,8 @@ typedef struct {
   lit ls[0];  
 } clause;
 
-#include "engine/lemma.h"
+#include "engine/atom.h"
 #include "engine/env.h"
 
-clause* mk_clause(env* e, vec<lemma>& ls);
+clause* mk_clause(env* e, vec<atom>& ls);
 #endif

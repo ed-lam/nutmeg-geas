@@ -1,38 +1,38 @@
 #ifndef __PHAGE_CONFLICT_H__
 #define __PHAGE_CONFLICT_H__
 #include "utils/cache.h"
-#include "engine/lemma.h"
+#include "engine/atom.h"
 
 // Class declarations for handling
 // conflict analysis.
 
-// conflict_state manages the store of 'seen' lemmas.
+// conflict_state manages the store of 'seen' atoms.
 class conflict_state {
-  class lem_sig {
+  class atom_sig {
   public:
-    lem_sig(lem_kind _kind, lem_id _id)
+    atom_sig(atom_kind _kind, atom_id _id)
       : kind(_kind), id(_id)
     { }
-    lem_kind kind;
-    lem_id id;
+    atom_kind kind;
+    atom_id id;
   };
-  typedef typename AutoC<lem_sig, int>::cache lem_table;
+  typedef typename AutoC<atom_sig, int>::cache atom_table;
 
 public:
   conflict_state(env* _e)
     : e(_e)
   { }
 
-  // Update the conflict clause with a trail element.
-  bool update(lem_inf& inf, vec<lemma>& out_learnt);
-  void add_lemma(lemma l);
+  // Update the conflict clause with a trail eatoment.
+  bool update(atom_inf& inf, vec<atom>& out_learnt);
+  void add_atom(atom l);
 
   int seen_count(void) { return count; }
 protected:
   env* e;
 
-  lem_table tab;
-  vec<lem_val> data;
+  atom_table tab;
+  vec<atom_val> data;
   int count;
 };
 

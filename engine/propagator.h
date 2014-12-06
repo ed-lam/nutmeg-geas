@@ -3,7 +3,7 @@
 
 class Propagator;
 
-#include "engine/lemma.h"
+#include "engine/atom.h"
 #include "engine/env.h"
 
 class Propagator {
@@ -12,7 +12,7 @@ public:
     : e(_e), in_queue(false)
   { }
 
-  virtual bool propagate(vec<lemma>& confl) = 0;
+  virtual bool propagate(vec<atom>& confl) = 0;
 
   void cleanup(void) {
     in_queue = false;

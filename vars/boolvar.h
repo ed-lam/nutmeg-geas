@@ -1,87 +1,128 @@
 #ifndef __PHAGE_BOOLVAR_H__
 #define __PHAGE_BOOLVAR_H__
-#include "engine/lemma.h"
+#include "engine/atom.h"
 #include "engine/manager.h"
 
 typedef int bvar_id;
 
 class BoolVar;
 
-// A Boolean lemma is represented as
-// id: var_id
-// val: {0, 1}
+// A Boolean atom is represented as
+// id: (var_id|sign)
+// val: 0
 
-class BVarMan : public LemmaManager {
+class BVarMan : public AtomManager {
 public:
   BVarMan(env* _e)
-    : LemmaManager(_e)
+    : AtomManager(_e)
   { }
 
   BoolVar newVar(void);
 
   lbool _value(bvar_id id) {
-    assert (0 && "BVarMan::value not yet implemented.");
-    return l_Undef;
+    return mk_lbool(assigns[id]);
   }
 
-  lbool value(_lemma& x)
+  lbool value(_atom& x)
   {
     return _value(x.id);
   }
 
-  lemma bvar_true(bvar_id id) {
-    return mk_lem(kind, id<<1, 0);  
+  atom bvar_false(bvar_id id) {
+    return mk_atom(kind, id<<1, 0);  
   }
 
-  lemma bvar_false(bvar_id id)
+  atom bvar_true(bvar_id id)
   {
-    return ~bvar_true(id);
+    return mk_atom(kind, id<<1|1, 0);
   }
 
   // Get a concrete lit for the corresponding
-  // lemma. May already exist.
-  lit bind(_lemma& x) {
-    assert (0 && "BVarMan::bind not yet implemented.");
-    return mk_lit(-1, 0);
+  // atom. May already exist.
+  lit bind(_atom& x) {
+    bvar_id id(x.id>>1);
+
+    int v = binding[id];
+    if(v == -1)
+    {
+      // Get a new concrete variable
+      // from the env.
+      v = e->new_catom(mk_atom(kind, x.id, x.info));
+      binding[id] = v;
+    }
+
+    return mk_lit(v, x.id&1);
   }
 
-  // Mark a lemma as no longer persistent
-  void unbind(_lemma& x) { }
+  // Mark a atom as no longer persistent
+  void unbind(_atom& x) { }
 
-  // Assert a lemma
-  bool post(_lemma& x, vec<lemma>& out_confl)
+  // Assert a atom
+  bool post(_atom& x, vec<atom>& out_confl)
   {
-    assert(0 && "BVarMan::post not yet implemented.");
+    bvar_id id(x.id>>1); 
+    int asg = 2*(x.id&1) - 1;
+    if(assigns[id] == -asg)
+    {
+      // Failure.
+      atom l(mk_atom(kind, x.id, 0));
+      out_confl.push(l);
+      out_confl.push(~l);
+      return false;
+    }
+    if(assigns[id] == 0)
+      assigns[id] = asg;
+
+    fprintf(stderr, "WARNING: Wake up clauses and propagators from BVarMan::post.\n");
     return true; 
   }
+
   // Can we do this more cheaply?
-  // lit undo(_lemma& x) { }
+  // lit undo(_atom& x) { }
 
   // x -> y?
-  bool le(_lemma& x, _lemma& y)
+  bool le(_atom& x, _atom& y)
   {
     return x.id == y.id;
   }
 
   // Are all variables managed by this fixed?
   bool is_fixed(void) {
-    assert (0 && "is_fixed not yet implemented.");
+    // Dumb approach; fix this later.
+    for(int vi = 0; vi < assigns.size(); vi++)
+    {
+      if(assigns[vi] == 0)
+        return false;
+    }
+    return true;
   }
 
   // Choose a branch literal. Extend to handle
   // branches later.
-  _lemma branch(void) {
-    assert(0 && "Branching not yet implemented.");
+  atom branch(void) {
+    // Again, dumb approach.
+    for(int vi = 0; vi < assigns.size(); vi++)
+    {
+      if(assigns[vi] == 0)
+        return bvar_true(vi);
+    }
+    return atom_undef();
   }
 
-  // Conflict clause resolution; lem_val is always zero.
-  ResolvableT is_resolvable(lem_id id, lem_val val, lem_val prev) {
+  // Conflict clause resolution; atom_val is always zero.
+  ResolvableT is_resolvable(atom_id id, atom_val val, atom_val prev) {
     return R_ResolveElim;
   }
 
-  void collect(lem_id id, lem_val v, vec<lemma>& learnt_out) {
-    learnt_out.push(mk_lem(kind, id, v));   
+  void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
+    learnt_out.push(mk_atom(kind, id, v));   
   };
+
+protected:
+  // Since I haven't impatomented sub-int trail eatoments,
+  // we represent our assignments as ints.
+  vec<TrInt> assigns;
+  vec<int> binding;
 };
 
 class BoolVar {
@@ -91,7 +132,8 @@ public:
   { }
 
   lbool value(void) { return man->_value(id); }
-  operator lemma() {
+
+  operator atom() {
     return man->bvar_true(id);
   }
 

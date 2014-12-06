@@ -69,6 +69,6 @@ $(TARGETS):
 
 ## Clean rule
 clean:
-	@rm -f $(TARGETS) $(COBJS) $(SATOBJS) $(TESTOBJS) $(SCMOBJS) *.core $(CDEPS) $(SATDEPS) $(SCMDEPS)
+	@rm -f $(TARGETS) $(COBJS) $(SATOBJS) $(TESTOBJS) $(SCMOBJS) *.core $(CDEPS) $(SATDEPS) $(SCMDEPS) $(TESTDEPS)
 
 -include $(CDEPS) $(TESTDEPS) $(SATDEPS) $(SCMDEPS)

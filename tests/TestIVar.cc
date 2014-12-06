@@ -5,6 +5,7 @@
 #include "engine/solver.h"
 
 #include "vars/boolvar.h"
+#include "vars/intvar.h"
 
 int main(int argc, char** argv)
 {

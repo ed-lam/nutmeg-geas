@@ -13,14 +13,14 @@ int main(int argc, char** argv)
   fprintf(stdout, "Level: %d\n", t.level());
 
   fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
-  t.end_prop();
+  t.commit();
   fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
   t.push_level();
   fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
   
   i = 18;
   fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
-  t.end_prop();
+  t.commit();
   fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
 
   t.restore_level();

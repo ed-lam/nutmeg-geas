@@ -8,7 +8,7 @@ static expln expl_none = {
 
 solver::RESULT solver::solve(void)
 {
-  vec<lemma> confl;
+  vec<atom> confl;
 
   while(1)
   {
@@ -18,38 +18,41 @@ solver::RESULT solver::solve(void)
       if(decisionLevel() == root)
         return UNSAT;
 
-      vec<lemma> out_learnt;
+      vec<atom> out_learnt;
       // Compute a conflict clause.
       analyzeConflict(confl, out_learnt);
       // Unroll the solver to the appropriate level
       backtrack_with(out_learnt);
-      // Instantiate the lemma literals and add
+      // Instantiate the atom literals and add
       // it to the clause database.
       post_learnt(out_learnt);
     } else {
-      lemma d = pick_branch(); 
-      if(lem_is_undef(d))
+      atom d = pick_branch(); 
+      if(atom_is_undef(d))
         return SAT;
       
       post_branch(d);
     }
   }
   // Should never be reached.
+  assert(0 && "Unreachable.");
   return UNSAT;
 }
 
-bool solver::propagate(vec<lemma>& confl)
+bool solver::propagate(vec<atom>& confl)
 {
   // Walk the trail, dispatching to each of the managers
   // FIXME: Handle propagator cleanup on failure.
   do
   {
-    while(lem_head < e->lem_trail.size())
+    while(atom_head < e->atom_trail.size())
     {
-      lemma l(e->lem_trail[lem_head++].l); 
+      atom l(e->atom_trail[atom_head++].l); 
 
       if(!(e->managers[l.kind]->post(l.data, confl)))
         return false;
+      
+      e->gen_trail.commit();
     }
 
     if(!prop_queue.empty())
@@ -58,47 +61,56 @@ bool solver::propagate(vec<lemma>& confl)
 
       if(!p->propagate(confl))
         return false;
+
+      e->gen_trail.commit();
     }
-  } while(lem_head < e->lem_trail.size() || !prop_queue.empty());
+  } while(atom_head < e->atom_trail.size() || !prop_queue.empty());
   
   return true;
 }
 
-lemma solver::pick_branch(void)
+atom solver::pick_branch(void)
 {
-  return lem_undef();
+  // Do something clever here.
+  for(int mi = 0; mi < e->managers.size(); mi++)
+  {
+    atom l(e->managers[mi]->branch());
+    if(!atom_is_undef(l))
+      return l;
+  }
+  return atom_undef();
 }
 
-void solver::post_branch(lemma l)
+void solver::post_branch(atom l)
 {
   e->push_level();
-  post_lemma(l, expl_none); 
+  post_atom(l, expl_none); 
 }
 
-void solver::analyzeConflict(vec<lemma>& confl, vec<lemma>& out_learnt)
+void solver::analyzeConflict(vec<atom>& confl, vec<atom>& out_learnt)
 {
   conflict_state cstate(e);
   for(int li = 0; li < confl.size(); li++)
-    cstate.add_lemma(confl[li]);
+    cstate.add_atom(confl[li]);
 
-  lem_inf inf(e->lem_trail.last());
+  atom_inf inf(e->atom_trail.last());
   while(!cstate.update(inf, out_learnt))
   {
     // Handle backtracking somewhere.
-    e->lem_trail.pop();
-    inf = e->lem_trail.last();
+    e->atom_trail.pop();
+    inf = e->atom_trail.last();
   }
   // conflict_state::update should have left the 1-UIP clause in out_learnt.
   return;
 }
 
 // Find the backtrack level for a given 
-void solver::backtrack_with(vec<lemma>& out_learnt)
+void solver::backtrack_with(vec<atom>& out_learnt)
 {
-  assert (0 && "backtrack_with not implemented.");
+  assert (0 && "backtrack_with not impatomented.");
 }
 
-void solver::post_learnt(vec<lemma>& out_learnt)
+void solver::post_learnt(vec<atom>& out_learnt)
 {
-  assert (0 && "post_learnt not implemented.");
+  assert (0 && "post_learnt not impatomented.");
 }

@@ -38,7 +38,8 @@ public:
     data_lim.push(data.size());
   }
 
-  void end_prop(void)
+  // Signal the end of an 'atomic' change.
+  void commit(void)
   {
     for(int ii = 0; ii < changed_prop.size(); ii++)
       (*changed_prop[ii]) = 0;
@@ -169,4 +170,7 @@ protected:
 
   Trail* t;
 };
+
+typedef Trailed<int> TrInt;
+
 #endif

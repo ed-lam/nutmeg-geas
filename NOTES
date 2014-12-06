@@ -1,8 +1,10 @@
 nanophage - Minimal prototype for phage.
 ============================================================
-So, phage looks like a sensible thing to do.
-The problem is, of course, that there's a lot of stuff that needs to be done.
 
-So, nanophage is essentially a proof of concept. A really small CP/LCG solver,
-to test out some ideas.
-It _should_ be easily extensible for additional variable kinds.
+DEV NOTES
+---------
+- For introduced atomic constraint identifiers,
+  we need to be able to:
+  + Evaluate it at levels before it was introduced
+  + Switch to a cheaper evaluation method thereafter
+  + Detect, during conflict analysis, when it would become false.

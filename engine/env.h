@@ -1,7 +1,7 @@
 #ifndef __PHAGE_ENV_H__
 #define __PHAGE_ENV_H__
 // Solver environment.
-// Mostly stores mapping of lemma-kinds to
+// Mostly stores mapping of atom-kinds to
 // managers, and the trail.
 class env;
 
@@ -11,10 +11,11 @@ typedef struct {
 
 #include "mtl/Vec.h"
 #include "utils/cache.h"
-#include "engine/lemma.h"
+#include "engine/atom.h"
 #include "engine/manager.h"
 #include "engine/propagator.h"
 #include "engine/trail.h"
+#include "engine/vTrail.h"
 #include  "engine/clause.h"
 
 static lbool mk_lbool(int v) { lbool l; l.v = v; return l; }
@@ -30,7 +31,7 @@ enum expl_tag { Ex_Keep = 1 };
 typedef int expl_cookie;
 
 // Definition of deferred explanations.
-typedef void(*expl_fun)(void* data, expl_cookie cookie, vec<lemma>& out_expl);
+typedef void(*expl_fun)(void* data, expl_cookie cookie, vec<atom>& out_expl);
 typedef int expl_cookie;
 typedef struct {
   expl_fun fun;       // The function to call
@@ -47,67 +48,76 @@ typedef struct {
 } expln;
 
 typedef struct {
-  lemma l; 
+  atom l; 
   // Explanation thunk
   expln ex;
-} lem_inf;
+} atom_inf;
 
-inline lem_inf mk_inf(lemma l, expln ex) {
-  lem_inf inf; inf.l = l; inf.ex = ex; return inf;
+inline atom_inf mk_inf(atom l, expln ex) {
+  atom_inf inf; inf.l = l; inf.ex = ex; return inf;
 }
 
-typedef AutoC<lemma, int>::cache lem_map_t;
+typedef AutoC<atom, int>::cache atom_map_t;
 
 class env {
 public:
   env(void) { }
 
   // Register a manager.
-  lem_kind reg(LemmaManager* man)
+  atom_kind reg(AtomManager* man)
   {
-    lem_kind ret(managers.size());
+    atom_kind ret(managers.size());
     managers.push(man);
     return ret;
   }
 
   void push_level(void) {
     gen_trail.push_level();
-    lem_tlim.push(lem_trail.size());
+    atom_tlim.push(atom_trail.size());
   }
 
   void pop_level(void) {
     gen_trail.restore_level();
 
-    int lim = lem_tlim.last();
-    while(lem_trail.size() > lim)
-      lem_trail.pop();
+    int lim = atom_tlim.last();
+    while(atom_trail.size() > lim)
+      atom_trail.pop();
   }
 
-   
-  lit lit_of_lemma(lemma& l);
+  lit lit_of_atom(atom& l);
 
-  lemma lemma_of_lit(lit l)
+  atom atom_of_lit(lit l)
   {
-    lemma lem(c_lems[lvar(l)]);
-    return lsgn(l) ? lem : ~lem;
+    atom atom(c_atoms[lvar(l)]);
+    return lsgn(l) ? atom : ~atom;
   }
 
-  lbool lem_val(lemma& l);
+  // ALlocate a new clause-variable
+  // identifier.
+  int new_catom(atom l)
+  {
+    int id = c_atoms.size();
+    c_atoms.push(l); 
+    ws.push();
+    return id;
+  }
 
-  int level(void) { return lem_tlim.size(); }
+  lbool atom_val(atom& l);
 
-  // Mapping of managers for lemmas
-  vec<LemmaManager*> managers;
+  int level(void) { return atom_tlim.size(); }
+
+  // Mapping of managers for atoms
+  vec<AtomManager*> managers;
 
   // List of propagators
   vec<Propagator*> propagators;
 
   // Trail of inferences that were made.
-  vec<int> lem_tlim;
-  vec<lem_inf> lem_trail;
+  vec<int> atom_tlim;
+  vec<atom_inf> atom_trail;
 
-  // SAT subproblem
-  vec<lemma> c_lems; // Concretely instantiated lemmas
+  // SAT subprobatom
+  vec<atom> c_atoms; // Concretely instantiated atoms
   vec< vec<clause*> > ws;
 
   vec<clause*> clauses;
@@ -115,6 +125,7 @@ public:
 
   // Data trail
   Trail gen_trail;
+  VTrail::Trail gen_vtrail;
 };
 
 #endif

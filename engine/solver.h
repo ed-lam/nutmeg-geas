@@ -1,17 +1,17 @@
 #ifndef __PHAGE_SOLVER_H__
 #define __PHAGE_SOLVER_H__
 #include "mtl/Queue.h"
-#include "engine/lemma.h"
+#include "engine/atom.h"
 #include "engine/manager.h"
 #include "engine/env.h"
 
 // Class for performing the search.
 class solver {
 public:
-  enum RESULT { SAT, UNSAT };
+  enum RESULT { UNSAT = 0, SAT = 1 };
 
   solver(env* _e)
-    : e(_e), root(0), lem_head(0)
+    : e(_e), root(0), atom_head(0)
   {
 
   }
@@ -20,22 +20,22 @@ public:
 
   int decisionLevel(void) { return e->level(); } 
 
-  void post_lemma(lemma d, expln ex) {
-    e->lem_trail.push(mk_inf(d, ex));
+  void post_atom(atom d, expln ex) {
+    e->atom_trail.push(mk_inf(d, ex));
   }
   
 protected:
-  bool propagate(vec<lemma>& confl);
-  lemma pick_branch(void);
-  void post_branch(lemma l);
-  void analyzeConflict(vec<lemma>& confl, vec<lemma>& out_learnt);
-  void backtrack_with(vec<lemma>& out_learnt);
-  void post_learnt(vec<lemma>& out_learnt);
+  bool propagate(vec<atom>& confl);
+  atom pick_branch(void);
+  void post_branch(atom l);
+  void analyzeConflict(vec<atom>& confl, vec<atom>& out_learnt);
+  void backtrack_with(vec<atom>& out_learnt);
+  void post_learnt(vec<atom>& out_learnt);
 
   env* e;
   int root;
 
-  int lem_head;
+  int atom_head;
 
   Queue<int> prop_queue;
 };
