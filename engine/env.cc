@@ -20,7 +20,19 @@ lit env::lit_of_atom(atom& l)
 
 // To evaluate a atom, we just dispatch
 // to the relevant manager.
+
+AtomManager* env::atom_man(atom& l)
+{
+  return atid_info[l.id].man;
+}
+
+_atom env::to_atom_(atom& l)
+{
+  return mk_atom_(atid_info[l.id].ref, l.info);
+}
+
 lbool env::atom_val(atom& l)
 {
-  return managers[l.kind]->value(l.data); 
+  _atom _l(to_atom_(l));
+  return atom_man(l)->value(_l);
 }

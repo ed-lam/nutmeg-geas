@@ -23,49 +23,49 @@ public:
     return mk_lbool(assigns[id]);
   }
 
-  lbool value(_atom& x)
+  lbool value(_atom x)
   {
-    return _value(x.id);
+    return _value(x.tok);
   }
 
   atom bvar_false(bvar_id id) {
-    return mk_atom(kind, id<<1, 0);  
+    return mk_atom(tok_ids[id]<<1, 0);
   }
 
   atom bvar_true(bvar_id id)
   {
-    return mk_atom(kind, id<<1|1, 0);
+    return mk_atom(tok_ids[id]<<1|1, 0);
   }
 
   // Get a concrete lit for the corresponding
   // atom. May already exist.
-  lit bind(_atom& x) {
-    bvar_id id(x.id>>1);
+  lit bind(_atom x) {
+    bvar_id id(x.tok>>1);
 
     int v = binding[id];
     if(v == -1)
     {
       // Get a new concrete variable
       // from the env.
-      v = e->new_catom(mk_atom(kind, x.id, x.info));
+      v = e->new_catom(mk_atom(tok_ids[id], x.info));
       binding[id] = v;
     }
 
-    return mk_lit(v, x.id&1);
+    return mk_lit(v, x.tok&1);
   }
 
   // Mark a atom as no longer persistent
-  void unbind(_atom& x) { }
+  void unbind(_atom x) { }
 
   // Assert a atom
-  bool post(_atom& x, vec<atom>& out_confl)
+  bool post(_atom x, vec<atom>& out_confl)
   {
-    bvar_id id(x.id>>1); 
-    int asg = 2*(x.id&1) - 1;
+    bvar_id id(x.tok>>1); 
+    int asg = 2*(x.tok&1) - 1;
     if(assigns[id] == -asg)
     {
       // Failure.
-      atom l(mk_atom(kind, x.id, 0));
+      atom l(from_atom_(x));
       out_confl.push(l);
       out_confl.push(~l);
       return false;
@@ -81,9 +81,9 @@ public:
   // lit undo(_atom& x) { }
 
   // x -> y?
-  bool le(_atom& x, _atom& y)
+  bool le(_atom x, _atom y)
   {
-    return x.id == y.id;
+    return x.tok == y.tok;
   }
 
   // Are all variables managed by this fixed?
@@ -115,7 +115,7 @@ public:
   }
 
   void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
-    learnt_out.push(mk_atom(kind, id, v));   
+    learnt_out.push(mk_atom(id, v));   
   };
 
 protected:

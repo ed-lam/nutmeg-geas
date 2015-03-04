@@ -13,11 +13,9 @@ int main(int argc, char** argv)
   solver s(e);
 
   BVarMan bman(e);
+  IVarManager* iman(newIVarMan(e, IV_Lazy));
 
-  Trailed<int> i(&(e->gen_trail), 0);
-
-  BoolVar b(bman.newVar());
-  BoolVar b2(bman.newVar());
+  IntVar v(iman->newVar(0, 10));
 
   if(s.solve() == solver::SAT)
   {

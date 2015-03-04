@@ -20,26 +20,28 @@ typedef struct {
 class AtomManager {
 public:
   AtomManager(env* _e);
+
+  atom from_atom_(_atom x);
   
   // Get a concrete lit for the corresponding
   // atom. May already exist.
-  virtual lit bind(_atom& x) = 0;
+  virtual lit bind(_atom x) = 0;
   // Mark a atom as no longer persistent
-  virtual void unbind(_atom& x) { }
+  virtual void unbind(_atom x) { }
 
   // Attach an event 
   // virtual void watch(atom_id id, watch_thunk& c) = 0;
 
   // Assert a atom
-  virtual bool post(_atom& x, vec<atom>& out_confl) = 0;
+  virtual bool post(_atom x, vec<atom>& out_confl) = 0;
   // Can we do this more cheaply?
-  // virtual lit undo(_atom& x) = 0;
+  // virtual lit undo(_atom x) = 0;
 
   // Evaluate a atom under the current state.
-  virtual lbool value(_atom& x) = 0;
+  virtual lbool value(_atom x) = 0;
 
   // x -> y?
-  virtual bool le(_atom& x, _atom& y) = 0;
+  virtual bool le(_atom x, _atom y) = 0;
 
   // Are all variables managed by this fixed?
   virtual bool is_fixed(void) = 0;
@@ -54,8 +56,11 @@ public:
   virtual void collect(atom_id id, atom_val v, vec<atom>& learnt_out) = 0;
 
   protected:
+    // Allocate a new atom-token.
+    atom_tok new_atom_tok(void);
+
+    vec<atom_id> tok_ids;
     env* e;
-    atom_kind kind;
 };
 
 #endif

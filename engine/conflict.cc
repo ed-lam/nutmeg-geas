@@ -3,35 +3,27 @@
 #include "engine/conflict.h"
 
 // Add a atom to the current resolution state.
-void conflict_state::add_atom(atom l)
+void conflict_state::add_atom(env* e, atom l)
 {
 //  AtomManager* man(e->managers[l.kind]); 
   assert(0 && "add_atom not yet impatomented.");
 }
 
 // Update a the conflict state with an inference.
-bool conflict_state::update(atom_inf& inf, vec<atom>& learnt_out)
+bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_out)
 {
   atom l(inf.l);
-  atom_sig sig(l.kind, l.data.id);
-  atom_table::iterator it(tab.find(sig));
-
-  // Definitely not in the conflict clause.
-  if(it == tab.end())
+  if(!seen[l.id])
     return false;
 
   // Ask the manager how to update the table.
   // May cause side-effects if the manager is
   // abusing the meaning of data[idx].
-  int idx = (*it).second;
-  AtomManager* man(e->managers[l.kind]);
-  ResolvableT r(man->is_resolvable(l.data.id, l.data.info, data[idx]));
+  AtomManager* man(e->atom_man(l));
+  atom_tok tok(e->atid_info[l.id].ref);
+  ResolvableT r(man->is_resolvable(tok, l.info, e->conflict_cookie[l.id]));
   if(r == R_NotResolvable)
     return false;
-
-  // Entry is to be erased from the table.
-  if(r == R_ResolveElim)
-    tab.erase(it);
 
   // Either way, the atom has been resolved, and
   // is at the current level.
@@ -42,21 +34,8 @@ bool conflict_state::update(atom_inf& inf, vec<atom>& learnt_out)
   // instead of 
   if(count == 0)
   {
-    learnt_out.clear();
     learnt_out.push(l);
     
-    atom_table::iterator it(tab.begin());
-
-    // Now ask the relevant managers
-    // for the remainder of the learnt clause.
-    for(; it != tab.end(); ++it)
-    {
-      atom_sig sig((*it).first);
-      int idx = (*it).second;
-      AtomManager* lman(e->managers[sig.kind]);
-      lman->collect(sig.id, data[idx], learnt_out);
-    }
-     
     return true;
   }
 
@@ -70,7 +49,7 @@ bool conflict_state::update(atom_inf& inf, vec<atom>& learnt_out)
     
     // Add all the other eatoments.
     for(int li = 1; li < cl->sz; cl++)
-      add_atom(e->atom_of_lit(cl->ls[li]));
+      add_atom(e, e->atom_of_lit(cl->ls[li]));
   } else {
     // It's a thunk.
     ex_thunk et(ex.ex); 
@@ -81,7 +60,26 @@ bool conflict_state::update(atom_inf& inf, vec<atom>& learnt_out)
     
     // Add each eatoment in the explanation
     for(int li = 0; li < expln.size(); li++)
-      add_atom(expln[li]);
+      add_atom(e, expln[li]);
   }
   return false;
+}
+
+void conflict_state::analyze_conflict(env* e, vec<atom>& confl, vec<atom>& out_learnt)
+{
+  /*
+  conflict_state cstate(e);
+  for(int li = 0; li < confl.size(); li++)
+    cstate.add_atom(confl[li]);
+    */
+
+  atom_inf inf(e->atom_trail.last());
+  while(!update_resolvent(e, inf, out_learnt))
+  {
+    // Handle backtracking somewhere.
+    e->atom_trail.pop();
+    inf = e->atom_trail.last();
+  }
+  // conflict_state::update should have left the 1-UIP clause in out_learnt.
+  return;
 }

@@ -6,6 +6,11 @@ static expln expl_none = {
   Ex_Dec  
 };
 
+solver::solver(env* _e)
+    : e(_e), root(0), atom_head(0)
+{
+}
+
 solver::RESULT solver::solve(void)
 {
   vec<atom> confl;
@@ -20,7 +25,7 @@ solver::RESULT solver::solve(void)
 
       vec<atom> out_learnt;
       // Compute a conflict clause.
-      analyzeConflict(confl, out_learnt);
+      confl_info.analyze_conflict(e, confl, out_learnt);
       // Unroll the solver to the appropriate level
       backtrack_with(out_learnt);
       // Instantiate the atom literals and add
@@ -48,8 +53,8 @@ bool solver::propagate(vec<atom>& confl)
     while(atom_head < e->atom_trail.size())
     {
       atom l(e->atom_trail[atom_head++].l); 
-
-      if(!(e->managers[l.kind]->post(l.data, confl)))
+      AtomManager* lman(e->atom_man(l));
+      if(!(lman->post(e->to_atom_(l), confl)))
         return false;
       
       e->gen_trail.commit();
@@ -72,9 +77,9 @@ bool solver::propagate(vec<atom>& confl)
 atom solver::pick_branch(void)
 {
   // Do something clever here.
-  for(int mi = 0; mi < e->managers.size(); mi++)
+  for(int bi = 0; bi < e->branchers.size(); bi++)
   {
-    atom l(e->managers[mi]->branch());
+    atom l(e->branchers[bi]->branch());
     if(!atom_is_undef(l))
       return l;
   }
@@ -85,23 +90,6 @@ void solver::post_branch(atom l)
 {
   e->push_level();
   post_atom(l, expl_none); 
-}
-
-void solver::analyzeConflict(vec<atom>& confl, vec<atom>& out_learnt)
-{
-  conflict_state cstate(e);
-  for(int li = 0; li < confl.size(); li++)
-    cstate.add_atom(confl[li]);
-
-  atom_inf inf(e->atom_trail.last());
-  while(!cstate.update(inf, out_learnt))
-  {
-    // Handle backtracking somewhere.
-    e->atom_trail.pop();
-    inf = e->atom_trail.last();
-  }
-  // conflict_state::update should have left the 1-UIP clause in out_learnt.
-  return;
 }
 
 // Find the backtrack level for a given 

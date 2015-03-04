@@ -23,23 +23,22 @@ public:
   IMan_lazy(env* e)
     : IVarManager(e)
   { } 
-
   
   // General Atom-management stuff.
-  lit bind(_atom& x)
+  lit bind(_atom x)
   {
     assert(0 && "Not implemented.");
     return mk_lit(-1, 1);
   }
 
   // Mark a atom as no longer persistent
-  void unbind(_atom& x) { }
+  void unbind(_atom x) { }
 
   // Attach an event 
   // virtual void watch(atom_id id, watch_thunk& c) = 0;
 
   // Assert an atom
-  bool post(_atom& x, vec<atom>& out_confl) 
+  bool post(_atom x, vec<atom>& out_confl) 
   {
     assert(0 && "Not implemented.");
     return true;
@@ -48,13 +47,13 @@ public:
   // virtual lit undo(_atom& x) = 0;
 
   // Evaluate a atom under the current state.
-  lbool value(_atom& x) {
+  lbool value(_atom x) {
     assert(0 && "Not implemented.");
     return l_Undef; 
   }
 
   // x -> y?
-  bool le(_atom& x, _atom& y) {
+  bool le(_atom x, _atom y) {
     assert(0 && "Not implemented.");
     return false;
   }
@@ -76,7 +75,6 @@ public:
     return atom_undef();
   }
 
-
   // Conflict clause resolution
   ResolvableT is_resolvable(atom_id id, atom_val val, atom_val prev) {
     assert(0 && "Not implemented.");
@@ -89,7 +87,6 @@ public:
 
   // Specific IntVar methods
   IntVar newVar(int lb, int ub) {
-    assert(0 && "Not implemented.");     
     int id = ivars.size();
     ivars.push(IVar_impl(e, lb, ub));
     return IntVar(this, id);
@@ -108,10 +105,19 @@ public:
     return ivars[id].lb <= k && k <= ivars[id].ub;
   }
 
-  atom le_atom(ivar_id id, int k) = 0;
-  atom eq_atom(ivar_id id, int k) = 0;
+  atom le_atom(ivar_id id, int k) {
+    return mk_atom(tok_ids[id]<<1, k);
+  }
+  atom eq_atom(ivar_id id, int k) {
+    return mk_atom((tok_ids[id]<<1|1), k);
+  }
 
 protected:
   vec<IVar_impl> ivars;
 };
 
+IVarManager* newIVarMan(env* e, IManKind kind)
+{
+  assert(kind == IV_Lazy);
+  return new IMan_lazy(e);
+}

@@ -1,5 +1,6 @@
-#CXX       = g++
-CXX       = g++-4.9
+CXX       = g++
+#CXX       = g++-4.9
+#CXX       = clang
 MTL       = ./mtl
 ENGINE	  = ./engine
 UTILS     = ./utils

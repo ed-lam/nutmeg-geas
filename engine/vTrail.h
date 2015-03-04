@@ -16,11 +16,11 @@ enum TrailTags { T_CHANGED_PROP = 1, T_CHANGED_LEVEL = 2, T_CHANGED_ALL = 3 };
 
 class _Trailed {
   public:
-    virtual void commit();
-    virtual void finish_level();
+    virtual void commit() = 0;
+    virtual void finish_level() = 0;
 
-    virtual void undo();
-    virtual void pop_level();
+    virtual void undo() = 0;
+    virtual void pop_level() = 0;
 };
 
 class Trail {
@@ -125,7 +125,7 @@ public:
     changed_prop = 0;
   }
 
-  void commit_level(void)
+  void finish_level(void)
   {
     changed_prop = 0;
     changed_level = 0;

@@ -23,7 +23,7 @@ public:
   virtual IntVar newVar(int lb, int ub) = 0;
 
   virtual void add_watch(ivar_id id, int events,
-    Propagator* p, int ref);
+    Propagator* p, int ref) = 0;
 
   virtual int lb(ivar_id id) = 0;
   virtual int ub(ivar_id id) = 0;
@@ -31,6 +31,19 @@ public:
 
   virtual atom le_atom(ivar_id id, int k) = 0;
   virtual atom eq_atom(ivar_id id, int k) = 0;
+
+  // Standard atom-manager operations.
+//  virtual lit bind(_atom& x) = 0;
+//  virtual void unbind(_atom& x) { }
+
+//  virtual bool post(_atom& x, vec<atom>& out_confl) = 0;
+//  virtual lbool value(_atom& x) = 0;
+//  virtual bool le(_atom& x, _atom& y) = 0;
+
+//  virtual bool is_fixed(void) = 0;
+//  virtual atom branch(void) = 0;
+//  virtual ResolvableT is_resolvable(atom_id id, atom_val val, atom_val prev) = 0;
+//  virtual void collect(atom_id id, atom_val v, vec<atom>& learnt_out) = 0;
 };
 
 class IntVar {
@@ -54,5 +67,5 @@ protected:
   ivar_id id;
 };
 
-IVarManager* newIVarMan(env* e, IManKind& kind);
+IVarManager* newIVarMan(env* e, IManKind kind);
 #endif

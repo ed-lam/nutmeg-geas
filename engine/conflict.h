@@ -2,38 +2,38 @@
 #define __PHAGE_CONFLICT_H__
 #include "utils/cache.h"
 #include "engine/atom.h"
+#include "engine/env.h"
 
 // Class declarations for handling
 // conflict analysis.
 
 // conflict_state manages the store of 'seen' atoms.
 class conflict_state {
-  class atom_sig {
-  public:
-    atom_sig(atom_kind _kind, atom_id _id)
-      : kind(_kind), id(_id)
-    { }
-    atom_kind kind;
-    atom_id id;
-  };
-  typedef typename AutoC<atom_sig, int>::cache atom_table;
-
 public:
-  conflict_state(env* _e)
-    : e(_e)
+  conflict_state(void)
+    : count(0)
   { }
 
-  // Update the conflict clause with a trail eatoment.
-  bool update(atom_inf& inf, vec<atom>& out_learnt);
-  void add_atom(atom l);
+  void grow_to(int sz)
+  {
+    while(seen.size() < sz)
+    {
+      seen.push(false);
+      data.push(0);
+      cookie.push(0);
+    }
+  }
 
-  int seen_count(void) { return count; }
-protected:
-  env* e;
+  void add_atom(env* e, atom inf);
+  bool update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_out);
+  void analyze_conflict(env* e, vec<atom>& confl, vec<atom>& out_learnt);
 
-  atom_table tab;
+  vec<bool> seen;
   vec<atom_val> data;
+  vec<atom_val> cookie; 
   int count;
+
+  vec<atom> out_learnt;
 };
 
 #endif

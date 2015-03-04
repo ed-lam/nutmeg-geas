@@ -16,7 +16,8 @@ typedef struct {
 #include "engine/propagator.h"
 #include "engine/trail.h"
 #include "engine/vTrail.h"
-#include  "engine/clause.h"
+#include "engine/clause.h"
+#include "engine/branch.h"
 
 static lbool mk_lbool(int v) { lbool l; l.v = v; return l; }
 static lbool l_False = mk_lbool(-1);
@@ -57,18 +58,41 @@ inline atom_inf mk_inf(atom l, expln ex) {
   atom_inf inf; inf.l = l; inf.ex = ex; return inf;
 }
 
+typedef struct {
+  AtomManager* man;
+  int ref;
+} atomid_info;
+
 typedef AutoC<atom, int>::cache atom_map_t;
 
 class env {
 public:
   env(void) { }
 
+  /*
   // Register a manager.
   atom_kind reg(AtomManager* man)
   {
     atom_kind ret(managers.size());
     managers.push(man);
     return ret;
+  }
+  */
+
+  // Allocate a new atom identifier, and
+  // initialize the data-structures.
+  atom_id new_atom_id(AtomManager* man, int ref)
+  {
+    atom_id id(atid_info.size()); 
+    atomid_info info = { man, ref };
+    
+    atid_info.push(info);
+    seen.push(false);
+    seen.push(false);
+    conflict_cookie.push(0);
+    conflict_cookie.push(0);
+
+    return id;
   }
 
   void push_level(void) {
@@ -102,15 +126,25 @@ public:
     return id;
   }
 
+  AtomManager* atom_man(atom& l);
+  _atom to_atom_(atom& l);
+
   lbool atom_val(atom& l);
 
   int level(void) { return atom_tlim.size(); }
 
   // Mapping of managers for atoms
-  vec<AtomManager*> managers;
+  // vec<AtomManager*> managers;
+  vec<Brancher*> branchers;
 
   // List of propagators
   vec<Propagator*> propagators;
+
+  // Information about allocated atom-ids.
+  vec<atomid_info> atid_info;
+  vec<bool> seen;
+  vec<int> conflict_cookie;
+  int num_seen;
 
   // Trail of inferences that were made.
   vec<int> atom_tlim;
