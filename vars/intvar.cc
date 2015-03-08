@@ -5,6 +5,19 @@
 class IMan_lazy : public IVarManager {
   class IVar_impl {
   public:
+/*
+    IVar_impl(env* e, int min, int max)
+      : lb(min), ub(max)
+    { }
+
+    IVar_impl& operator=(const IVar_impl& v)
+    {
+      return *this;
+    }
+    int lb;
+    int ub;
+    */
+  
     IVar_impl(env* e, int min, int max)
       : lb(&(e->gen_vtrail), min), ub(&(e->gen_vtrail), max)
     { }
@@ -62,8 +75,8 @@ public:
   bool is_fixed(void) {
     for(int ii = 0; ii < ivars.size(); ii++)
     {
-      if(ivars[ii].lb.val() != ivars[ii].ub.val())
-        return false;
+//      if(ivars[ii].lb.val() != ivars[ii].ub.val())
+//        return false;
     }
     return true;
   }
@@ -87,6 +100,8 @@ public:
 
   // Specific IntVar methods
   IntVar newVar(int lb, int ub) {
+    std::cout << e << std::endl;
+
     int id = ivars.size();
     ivars.push(IVar_impl(e, lb, ub));
     return IntVar(this, id);

@@ -5,6 +5,7 @@
 #include "engine/propagator.h"
 #include "engine/vTrail.h"
 #include "engine/env.h"
+#include "vars/var-interface.h"
 
 typedef int ivar_id;
 
@@ -46,7 +47,7 @@ public:
 //  virtual void collect(atom_id id, atom_val v, vec<atom>& learnt_out) = 0;
 };
 
-class IntVar {
+class IntVar : public NumVar<int, IntVar> {
 public:
   IntVar(IVarManager* _man,  ivar_id _id)
     : man(_man), id(_id)
@@ -54,14 +55,14 @@ public:
 
   atom le(int k) { return man->le_atom(id, k); }
   atom lt(int k) { return man->le_atom(id, k-1); }
-  atom ge(int k) { return ~ man->le_atom(id, k-1); }
-  atom gt(int k) { return ~ man->le_atom(id, k); }
+//  atom ge(int k) { return ~ man->le_atom(id, k-1); }
+//  atom gt(int k) { return ~ man->le_atom(id, k); }
   atom eq(int k) { return man->eq_atom(id, k); }
-  atom ne(int k) { return ~ man->eq_atom(id, k); }
+//  atom ne(int k) { return ~ man->eq_atom(id, k); }
 
   int lb(void) { return man->lb(id); }
   int ub(void) { return man->ub(id); }
-  bool indom(int v) { return man->indom(id, v); }
+  bool in_domain(int v) { return man->indom(id, v); }
 protected:
   IVarManager* man;
   ivar_id id;
