@@ -1,9 +1,10 @@
 #ifndef __PHAGE_INTVAR_H__
 #define __PHAGE_INTVAR_H__
 #include "engine/atom.h"
+#include "engine/base-types.h"
 #include "engine/manager.h"
 #include "engine/propagator.h"
-#include "engine/vTrail.h"
+#include "engine/trail.h"
 #include "engine/env.h"
 #include "vars/var-interface.h"
 
@@ -23,8 +24,8 @@ public:
 
   virtual IntVar newVar(int lb, int ub) = 0;
 
-  virtual void add_watch(ivar_id id, int events,
-    Propagator* p, int ref) = 0;
+  virtual void add_watch(ivar_id id, WatcherT<char>* w,
+    int ref, char events) = 0;
 
   virtual int lb(ivar_id id) = 0;
   virtual int ub(ivar_id id) = 0;
@@ -34,8 +35,8 @@ public:
   virtual atom eq_atom(ivar_id id, int k) = 0;
 
   // Standard atom-manager operations.
-//  virtual lit bind(_atom& x) = 0;
-//  virtual void unbind(_atom& x) { }
+//  virtual void attach(_atom& x, Watcher* w, int k) = 0;
+//  virtual void detach(_atom& x) { }
 
 //  virtual bool post(_atom& x, vec<atom>& out_confl) = 0;
 //  virtual lbool value(_atom& x) = 0;
@@ -63,6 +64,9 @@ public:
   int lb(void) { return man->lb(id); }
   int ub(void) { return man->ub(id); }
   bool in_domain(int v) { return man->indom(id, v); }
+
+  void add_watch(WatcherT<char>* w, int ref, char events);
+
 protected:
   IVarManager* man;
   ivar_id id;

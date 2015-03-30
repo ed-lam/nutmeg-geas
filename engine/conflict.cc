@@ -1,5 +1,4 @@
 // Wrapper for conflict analysis.
-#include "engine/clause.h"
 #include "engine/conflict.h"
 
 // Add a atom to the current resolution state.
@@ -44,12 +43,14 @@ bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_o
   assert(ex.kind != Ex_Dec);
   if(ex.kind == Ex_Cl)
   {
-    // An existing clause. l should be the 0th eatoment.
+    // An existing clause. l should be the 0th element.
+    /*
     clause* cl(ex.cl);
     
     // Add all the other eatoments.
     for(int li = 1; li < cl->sz; cl++)
       add_atom(e, e->atom_of_lit(cl->ls[li]));
+      */
   } else {
     // It's a thunk.
     ex_thunk et(ex.ex); 

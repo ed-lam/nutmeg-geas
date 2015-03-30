@@ -91,6 +91,8 @@ public:
     const T& last  (void) const        { return data[sz-1]; }
     T&       last  (void)              { return data[sz-1]; }
 
+    T* begin(void) { return data; }
+    T* end(void)   { return data+sz; }
     // Vector interface:
     const T& operator [] (int index) const  { return data[index]; }
     T&       operator [] (int index)        { return data[index]; }

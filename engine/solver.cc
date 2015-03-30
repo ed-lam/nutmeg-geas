@@ -2,12 +2,10 @@
 #include "engine/solver.h"
 #include "engine/conflict.h"
 
-static expln expl_none = {
-  Ex_Dec  
-};
+static expln expl_none;
 
 solver::solver(env* _e)
-    : e(_e), root(0), atom_head(0)
+    : e(_e), sat(e), root(0), atom_head(0)
 {
 }
 
@@ -52,12 +50,15 @@ bool solver::propagate(vec<atom>& confl)
   {
     while(atom_head < e->atom_trail.size())
     {
-      atom l(e->atom_trail[atom_head++].l); 
+      e->gen_trail.tick();
+      atom_inf& inf(e->atom_trail[atom_head++]);
+      atom l(inf.l);
       AtomManager* lman(e->atom_man(l));
-      if(!(lman->post(e->to_atom_(l), confl)))
+      if(!(lman->post(e->to_atom_(l))))
+      {
+        inf.ex(confl);
         return false;
-      
-      e->gen_trail.commit();
+      }
     }
 
     if(!prop_queue.empty())
@@ -67,7 +68,7 @@ bool solver::propagate(vec<atom>& confl)
       if(!p->propagate(confl))
         return false;
 
-      e->gen_trail.commit();
+      e->gen_trail.tick();
     }
   } while(atom_head < e->atom_trail.size() || !prop_queue.empty());
   

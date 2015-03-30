@@ -39,41 +39,31 @@ public:
 
   // Get a concrete lit for the corresponding
   // atom. May already exist.
-  lit bind(_atom x) {
-    bvar_id id(x.tok>>1);
-
-    int v = binding[id];
-    if(v == -1)
-    {
-      // Get a new concrete variable
-      // from the env.
-      v = e->new_catom(mk_atom(tok_ids[id], x.info));
-      binding[id] = v;
-    }
-
-    return mk_lit(v, x.tok&1);
+  void attach(_atom x, Watcher* w, int k) {
+    ws[x.tok].push(Watcher::Info(w, k));
   }
 
   // Mark a atom as no longer persistent
-  void unbind(_atom x) { }
+  void detach(_atom x) {
+    ws[x.tok].clear();
+  }
 
   // Assert a atom
-  bool post(_atom x, vec<atom>& out_confl)
+  bool post(_atom x)
   {
     bvar_id id(x.tok>>1); 
     int asg = 2*(x.tok&1) - 1;
     if(assigns[id] == -asg)
     {
-      // Failure.
-      atom l(from_atom_(x));
-      out_confl.push(l);
-      out_confl.push(~l);
       return false;
     }
     if(assigns[id] == 0)
       assigns[id] = asg;
 
-    fprintf(stderr, "WARNING: Wake up clauses and propagators from BVarMan::post.\n");
+    // Call watchers for the literal
+    for(Watcher::Info& w : ws[x.tok])
+      w();
+
     return true; 
   }
 
@@ -122,7 +112,7 @@ protected:
   // Since I haven't impatomented sub-int trail eatoments,
   // we represent our assignments as ints.
   vec<TrInt> assigns;
-  vec<int> binding;
+  vec< vec<Watcher::Info> > ws;
 };
 
 class BoolVar {
@@ -138,6 +128,8 @@ public:
   }
 
 protected:
+//  vec< vec<Watcher::Info> > watchers;
+
   BVarMan* man; 
   bvar_id id;
 };

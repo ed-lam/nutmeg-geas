@@ -1,30 +1,28 @@
 #include "engine/env.h"
-
-lit env::lit_of_atom(atom& l)
-{
-  /*
-  bool sign = atom_sign(l);
-  atom pos = sign ? l : ~l;
   
-  atom_map_t::iterator it(atom_map.find(pos));
-  if(it != atom_map.end())
-  {
+atom_id env::new_atom_id(AtomManager* man, int ref)
+{
+  atom_id id(atid_info.size()); 
+  atomid_info info = { man, ref };
+  
+  atid_info.push(info);
+  seen.push(false);
+  seen.push(false);
+  conflict_cookie.push(0);
+  conflict_cookie.push(0);
 
-  } else {
-
-  }
-  */
-  assert(0 && "lit_of_atom not yet impatomented.");
-  return mk_lit(0, 1);
+  return id;
 }
-
-// To evaluate a atom, we just dispatch
-// to the relevant manager.
 
 AtomManager* env::atom_man(atom& l)
 {
   return atid_info[l.id].man;
 }
+
+void env::attach(atom& a, Watcher* w, int tok)
+  {
+    atom_man(a)->attach(to_atom_(a), w, tok);
+  }
 
 _atom env::to_atom_(atom& l)
 {

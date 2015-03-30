@@ -3,12 +3,14 @@
 
 class AtomManager;
 
+#include "engine/base-types.h"
 #include "engine/atom.h"
 #include "engine/env.h"
 #include "engine/sat.h"
 
 // Registering callbacks for when a atom
 // becomes true.
+/*
 typedef int watch_tag;
 typedef bool(*watch_callback)(void* data, watch_tag tag, atom_data l_data);
 typedef struct {
@@ -16,6 +18,15 @@ typedef struct {
   void* data;         // Typically the propagator
   watch_tag tag;      // Typically the variable index
 } watch_thunk;
+*/
+class WatchElt {
+public:
+  WatchElt(Watcher* _w, int _k)
+    : w(_w), k(_k)
+  { }
+  Watcher* w;
+  int k;
+};
 
 class AtomManager {
 public:
@@ -23,17 +34,16 @@ public:
 
   atom from_atom_(_atom x);
   
-  // Get a concrete lit for the corresponding
-  // atom. May already exist.
-  virtual lit bind(_atom x) = 0;
+  // Must be able to trigger on specific atoms.
+  virtual void attach(_atom x, Watcher* w, int id) = 0;
   // Mark a atom as no longer persistent
-  virtual void unbind(_atom x) { }
+  virtual void detach(_atom x) { }
 
   // Attach an event 
   // virtual void watch(atom_id id, watch_thunk& c) = 0;
 
   // Assert a atom
-  virtual bool post(_atom x, vec<atom>& out_confl) = 0;
+  virtual bool post(_atom x) = 0;
   // Can we do this more cheaply?
   // virtual lit undo(_atom x) = 0;
 

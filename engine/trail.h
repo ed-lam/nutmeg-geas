@@ -1,176 +1,195 @@
-#ifndef __PHAGE_TRAIL_H__
-#define __PHAGE_TRAIL_H__
+#ifndef __PHAGE_VTRAIL_H__
+#define __PHAGE_VTRAIL_H__
 #include <mtl/Vec.h>
-
+#include <iostream>
+//namespace Trail {
 // Automatic trail handling, with constant-time
 // access to prev_value and prev_level_value.
+
+// Vector-backed implementation, which also
+// permits O(log n) history checking.
 
 // Assumption -- we're dealing with simple
 // memory-copyable types.
 
 enum TrailTags { T_CHANGED_PROP = 1, T_CHANGED_LEVEL = 2, T_CHANGED_ALL = 3 }; 
 
-// Voodoo to make sure there's enough space for either an
-// int or a pointer.
-typedef union {
-  int* p;
-  int v; 
-} trail_elt;
+class _Trailed {
+  public:
+    _Trailed(unsigned int _t, unsigned int _lt)
+      : time_stamp(_t), l_time_stamp(_lt)
+    { }
+    virtual void restore_to(int past_sz) = 0;
 
-inline trail_elt ptr_elt(int* p) { trail_elt e; e.p = p; return e; }
-inline trail_elt val_elt(int v) { trail_elt e; e.v = v; return e; }
-inline trail_elt flip_elt(int* p) {
-  trail_elt e;
-  e.p = (int*) (((uintptr_t) p)|1) ; return e;
-}
+    unsigned int time_stamp;
+    unsigned int l_time_stamp;
+};
 
 class Trail {
+  class t_elt {
+  public:
+    t_elt(_Trailed* _ptr, int _sz)
+      : ptr(_ptr), sz(_sz)
+    { }
+    _Trailed* ptr;
+    int sz;
+  };
 public:
   Trail(void)
-    : data_lim(), data(), changed_prop()
+    : time(0), l_time(0)
   { }
+
+  void tick(void)
+  {
+    // Make sure that time-stamps can't be
+    // ignored long enough to overflow.
+    if(registered.size() > 0)
+    {
+      registered[idx]->time_stamp = time;
+      idx = (idx+1)%registered.size();
+    }
+    time++;
+  }
+
+  void push(_Trailed* t, int sz)
+  {
+    history.push(t_elt(t, sz)); 
+  }
+  void l_push(_Trailed* t, int sz)
+  {
+    l_history.push(t_elt(t, sz));
+  }
 
   void push_level(void)
   {
-    // Clear the prop tags.
-    assert(changed_prop.size() == 0);
-
-    data_lim.push(data.size());
-  }
-
-  // Signal the end of an 'atomic' change.
-  void commit(void)
-  {
-    for(int ii = 0; ii < changed_prop.size(); ii++)
-      (*changed_prop[ii]) = 0;
-    changed_prop.clear();
-  }
-   
-  void save_word(int* word)
-  {
-    data.push(val_elt(*word));
-    data.push(ptr_elt(word));
-  }
-
-  void save_flip(int* idx, int* word)
-  {
-    save_word(word);
-    data.push(flip_elt(idx)); 
-  }
-
-  void restore(void)
-  {
-    int* ptr = data.last().p;
-    data.pop();
-     
-    if(((intptr_t) ptr)&1)
+    tick();
+    if(registered.size() > 0)
     {
-      // Flip entry.
-      ptr = (int*) (((intptr_t) ptr)^1);
-      (*ptr) ^= 1;
-    } else {
-      (*ptr) = data.last().v;  
-      data.pop();
+      registered[l_idx]->l_time_stamp = l_time;
+      l_idx = (l_idx+1)%registered.size();
     }
-  }
-
-  void mark_changed(int* ptr)
-  {
-    changed_prop.push(ptr);
+    l_time++;
+    l_hist_lim.push(l_history.size());
   }
 
   void restore_level(void)
   {
-    int lim = data_lim.last();
-    data_lim.pop();      
+    int lim = l_hist_lim.last();
+    l_hist_lim.pop();
 
-    while(data.size() > lim)
-      restore();
+    while(l_history.size() > lim)
+    {
+      undo(l_history.last());
+      l_history.pop();
+    }
   }
 
-  int level(void) const { return data_lim.size(); }
+  void undo(t_elt& elt)
+  {
+    elt.ptr->restore_to(elt.sz);
+  }
+
+  int level(void) const { return l_hist_lim.size(); }
+
+  void reg(_Trailed* t) { registered.push(t); }
+protected:
+  vec<_Trailed*> registered;
+
+  // History entries for time-steps and levels.
+  vec<t_elt> history;
+  vec<t_elt> l_history;
+  vec<int> l_hist_lim;
+public:
+  int time;
+  int l_time;
 
 protected:
-  // Data limit for a given level.
-  vec<int> data_lim;
-  vec<trail_elt> data;
-
-  vec<int*> changed_prop;
+  int idx;
+  int l_idx;
 };
 
 template<class T>
-void save_raw(Trail* t, T* val)
-{
-  // We can chunk T up into a series of ints.
-  assert(sizeof(T)%(sizeof(int)) == 0);
-
-  int* val_intptr = static_cast<int*>(val);
-  for(unsigned int ii = 0; ii < sizeof(T)/sizeof(int); ii++)
-    t->save_word(val_intptr);
-}
-
-template<class T>
-class Trailed {
+class Trailed : public _Trailed {
 public:
   Trailed<T>(Trail* _t, const T& _val)
-    : changed_level(0), changed_prop(0), idx(0), t(_t)
+    : _Trailed(_t->time-1, _t->l_time-1),
+      elt(_val),
+      t(_t)
   {
-    // Initialize the default value.
-    for(int ii = 0; ii < 3; ii++)
-      elts[ii] = _val;
+    _t->reg(this);
+    history.push(_val);
   }
 
-  Trailed<T>& operator=(const T& val)
+  Trailed<T>(const Trailed<T>& x)
+    : _Trailed(x.t.time-1, x.t.l_time-1),
+      elt(x.elt), t(x.t)
   {
-    // fprintf(stderr,"Changed: %d; current: %d\n", changed_level, t->level());
-    if(changed_level != t->level())
+    history.push(x.elt);
+  }
+
+  Trailed<T>& operator=(const Trailed<T>& x)
+  {
+    t = x.t;
+    elt = x.elt;
+
+    history.clear();
+    history.push(x.elt);
+
+    time_stamp = t->time-1;
+    l_time_stamp = t->l_time-1;
+
+    return *this;
+  }
+
+  Trailed<T>& operator=(const T& e)
+  {
+    std::cout << this << "," << t << "," << e << std::endl;
+
+    if(time_stamp != t->time)
     {
-      // Need to trail the value
-      // at the end of the last level.
-      save_raw(t, &(changed_level));
-      changed_level = t->level();
+      time_stamp = t->time;
 
-      save_raw(t, &(elts[2]));
-      elts[2] = elts[idx];
+      t->push(this, history.size());
+      if(l_time_stamp != t->l_time)
+      {
+        t->l_push(this, history.size());
+      }
+
+      history.push(elt);
     }
-
-    if(!(changed_prop))
-    {
-      idx ^= 1;
-      t->save_flip(&idx, &(elts[idx]));
-      t->mark_changed(&changed_prop);
-      changed_prop = 1;
-    }
-
-    // fprintf(stderr, "idx: %d\n", idx);
-    elts[idx] = val;
+    elt = e;
 
     return *this;
   }
   
-  operator T() { return elts[idx]; }
+  void restore_to(int past_sz)
+  {
+    assert(past_sz < history.size());
+    elt = history[past_sz];
+    history.shrink(history.size()-past_sz);
+  }
+
+  operator T() const { return elt; }
 
   T val(void) const {
-    return elts[idx];
+    return elt;
   }
+
   T prev_val(void) const {
-    return (changed_prop) ? elts[idx^1] : elts[idx];
-  }
-  T prev_level_val(void) const {
-    // fprintf(stderr, "clev: %d, lev: %d, elts[2]: %d, elts[idx]: %d\n",
-    //  changed_level, t->level(), elts[2], elts[idx]);
-    return (changed_level == t->level()) ? elts[2] : elts[idx];
+    assert(history.size() > 0);
+    return history.last();
   }
 
 protected:
-  int changed_level;
-  int changed_prop;
-  int idx; 
-  T elts[3];
-
+  T elt;
+  vec<T> history;
   Trail* t;
+
+  unsigned int time_stamp;
+  unsigned int l_time_stamp;
 };
 
 typedef Trailed<int> TrInt;
 
+// };
 #endif

@@ -8,22 +8,32 @@ int main(int argc, char** argv)
 
   Trailed<int> i(&t, 0);
 
+  fprintf(stdout, "Level: %d, i = %d\n\n", t.level(), (int) i);
   i = 7;
 
-  fprintf(stdout, "Level: %d\n", t.level());
-
-  fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
-  t.commit();
-  fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
+  fprintf(stdout, "Level: %d, i = %d\n\n", t.level(), (int) i);
   t.push_level();
-  fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
-  
+
   i = 18;
-  fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
-  t.commit();
-  fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
+  fprintf(stdout, "Level: %d, i = %d\n", t.level(), (int) i);
+
+  t.tick();
+
+  i = 22;
+  fprintf(stdout, "Level: %d, i = %d\n", t.level(), (int) i);
+
+  t.push_level();
+  i = 120;
+  fprintf(stdout, "Level: %d, i = %d\n", t.level(), (int) i);
 
   t.restore_level();
-  fprintf(stdout, "%d <- %d <- %d\n", (int) i, i.prev_val(), i.prev_level_val());
+  fprintf(stdout, "Level: %d, i = %d\n", t.level(), (int) i);
+
+  i = 77;
+  fprintf(stdout, "Level: %d, i = %d\n", t.level(), (int) i);
+
+  t.restore_level();
+  fprintf(stdout, "Level: %d, i = %d\n", t.level(), (int) i);
+
   return 0;
 }

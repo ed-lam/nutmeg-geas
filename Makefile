@@ -6,6 +6,7 @@ ENGINE	  = ./engine
 UTILS     = ./utils
 VARS      = ./vars
 CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
+CXXFLAGS += --std=c++11
 CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
 CXXFLAGS += $(shell guile-config compile)
 LFLAGS    = -lz -Wall -Wno-deprecated
