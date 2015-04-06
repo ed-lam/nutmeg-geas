@@ -15,8 +15,16 @@ int main(int argc, char** argv)
 
   Trailed<int> i(&(e->gen_trail), 0);
 
-  BoolVar b(bman.newVar());
-  BoolVar b2(bman.newVar());
+  BoolVar x(bman.newVar());
+  BoolVar y(bman.newVar());
+  BoolVar z(bman.newVar());
+  
+  e->addClause(x, y, z);
+
+  e->addClause(~x, ~y);
+  e->addClause(~x, ~z);
+  e->addClause(~y, ~z);
+  e->addClause(~x, y);
 
   if(s.solve() == solver::SAT)
   {

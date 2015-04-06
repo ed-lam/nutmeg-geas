@@ -1,15 +1,15 @@
 #ifndef __PHAGE_PROPAGATOR_H__
 #define __PHAGE_PROPAGATOR_H__
 
-class Propagator;
+// class Propagator;
 
 #include "engine/atom.h"
-#include "engine/env.h"
 
+template<class Host>
 class Propagator {
 public:
-  Propagator(env* _e)
-    : e(_e), in_queue(false)
+  Propagator(Host* _h)
+    : h(_h), in_queue(false)
   { }
 
   virtual bool propagate(vec<atom>& confl) = 0;
@@ -18,10 +18,19 @@ public:
     in_queue = false;
     _cleanup();
   }
+
+  void enqueue(void) {
+    if(!in_queue)
+    {
+      in_queue = true;
+      h->enqueue(this);
+    }
+  }
+
 protected:
   virtual void _cleanup(void) { }
 
-  env* e;
+  Host* h;
   bool in_queue;    
 };
 

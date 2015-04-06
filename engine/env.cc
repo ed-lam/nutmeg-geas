@@ -16,7 +16,7 @@ atom_id env::new_atom_id(AtomManager* man, int ref)
 
 AtomManager* env::atom_man(atom& l)
 {
-  return atid_info[l.id].man;
+  return atid_info[l.id>>1].man;
 }
 
 void env::attach(atom& a, Watcher* w, int tok)
@@ -26,11 +26,18 @@ void env::attach(atom& a, Watcher* w, int tok)
 
 _atom env::to_atom_(atom& l)
 {
-  return mk_atom_(atid_info[l.id].ref, l.info);
+  atom_tok tok = atid_info[l.id>>1].ref<<1|(l.id&1);
+  return mk_atom_(tok, l.info);
 }
 
 lbool env::atom_val(atom& l)
 {
   _atom _l(to_atom_(l));
   return atom_man(l)->value(_l);
+}
+
+int env::false_level(atom& l)
+{
+  _atom _l(to_atom_(l));
+  return atom_man(l)->false_level(_l);
 }

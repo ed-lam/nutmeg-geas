@@ -15,7 +15,6 @@ static SCM scm_solver_status(void)
   return SCM_UNSPECIFIED;
 }
 
-// Mark walls as non-traversable
 static SCM scm_getprop(SCM p)
 {
   /*

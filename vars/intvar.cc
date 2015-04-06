@@ -187,6 +187,12 @@ public:
     }
   }
 
+  int false_level(_atom x)
+  {
+    assert(0 && "IVarMan::false_level not yet implemented.");
+    return 0;
+  }
+
   // x -> y?
   bool le(_atom x, _atom y) {
     assert(0 && "Not implemented.");

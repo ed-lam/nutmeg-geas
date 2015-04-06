@@ -2,10 +2,12 @@
 #include "engine/solver.h"
 #include "engine/conflict.h"
 
+typedef Propagator<env> prop_t;
+
 static expln expl_none;
 
 solver::solver(env* _e)
-    : e(_e), sat(e), root(0), atom_head(0)
+    : e(_e), root(0), atom_head(0)
 {
 }
 
@@ -23,7 +25,11 @@ solver::RESULT solver::solve(void)
 
       vec<atom> out_learnt;
       // Compute a conflict clause.
-      confl_info.analyze_conflict(e, confl, out_learnt);
+//      confl_info.analyze_conflict(e, confl, out_learnt);
+      // NAIVE: Just pick the decision nogood.
+      for(int ll = 0; ll < e->level(); ll++)
+        out_learnt.push(~(e->atom_trail[e->atom_tlim[ll]].l));
+
       // Unroll the solver to the appropriate level
       backtrack_with(out_learnt);
       // Instantiate the atom literals and add
@@ -61,16 +67,18 @@ bool solver::propagate(vec<atom>& confl)
       }
     }
 
-    if(!prop_queue.empty())
+    if(!e->prop_queue.empty())
     {
-      Propagator* p(e->propagators[prop_queue._pop()]);
+      prop_t* p(e->prop_queue._pop());
 
       if(!p->propagate(confl))
         return false;
 
+      p->cleanup();
+
       e->gen_trail.tick();
     }
-  } while(atom_head < e->atom_trail.size() || !prop_queue.empty());
+  } while(atom_head < e->atom_trail.size() || !e->prop_queue.empty());
   
   return true;
 }
@@ -78,9 +86,9 @@ bool solver::propagate(vec<atom>& confl)
 atom solver::pick_branch(void)
 {
   // Do something clever here.
-  for(int bi = 0; bi < e->branchers.size(); bi++)
+  for(Brancher* b : e->branchers)
   {
-    atom l(e->branchers[bi]->branch());
+    atom l(b->branch());
     if(!atom_is_undef(l))
       return l;
   }
@@ -93,13 +101,51 @@ void solver::post_branch(atom l)
   post_atom(l, expl_none); 
 }
 
-// Find the backtrack level for a given 
+// Find the backtrack level for a given learnt clause.
+// Also ensures the watches are in the correct locations.
+int solver::find_btlevel(vec<atom>& out_learnt)
+{
+  if(out_learnt.size() < 2)
+    return root;
+  
+  assert(e->false_level(out_learnt[0]) == e->level());
+
+  int lev_id = 1;
+  int lev = e->false_level(out_learnt[1]);
+
+  for(int li = 2; li < out_learnt.size(); li++)
+  {
+    int llev = e->false_level(out_learnt[li]); 
+    if(llev > lev)
+    {
+      lev_id = li;
+      lev = llev;
+    }
+  }
+  assert(lev < e->level());
+  std::swap(out_learnt[1], out_learnt[lev_id]);
+  return lev;
+}
+
 void solver::backtrack_with(vec<atom>& out_learnt)
 {
-  assert (0 && "backtrack_with not impatomented.");
+//  assert (0 && "backtrack_with not impatomented.");
+  assert(e->false_level(out_learnt[0]) == e->level());
+  int btlevel = find_btlevel(out_learnt);
+
+  printf("Backtracking from %d to %d.\n", e->level(), btlevel);
+  for(int l = e->level(); btlevel < l; l--)
+    e->pop_level();
+  assert(e->level() == btlevel);
 }
 
 void solver::post_learnt(vec<atom>& out_learnt)
 {
-  assert (0 && "post_learnt not impatomented.");
+  assert(out_learnt.size() > 0);
+  assert(e->value(out_learnt[0]) == l_Undef);
+
+  if(out_learnt.size() == 1)
+    post_atom(out_learnt[0], expl_none); // Fix explanation
+  else
+    e->sat.addClause(out_learnt, true);
 }

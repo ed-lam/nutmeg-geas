@@ -8,6 +8,7 @@ BoolVar BVarMan::newVar(void) {
   atom_tok id = new_atom_tok();
   assert(id == assigns.size());
   assigns.push(TrInt(&(e->gen_trail), 0));
+  level.push(0);
   ws.push();
   ws.push();
 

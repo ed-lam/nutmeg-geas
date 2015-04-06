@@ -11,8 +11,6 @@ public:
   Brancher(env* e);
 
   virtual atom branch(void) = 0;
-protected:
-  env* e;
 };
 
 #endif

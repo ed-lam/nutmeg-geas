@@ -34,6 +34,16 @@ inline atom mk_atom(atom_id id, atom_val info) {
   return l;
 }
 
+inline bool operator==(const atom& x, const atom& y)
+{
+  return x.id == y.id && x.info == y.info;
+}
+
+inline bool operator!=(const atom& x, const atom& y)
+{
+  return x.id != y.id || x.info != y.info;
+}
+
 inline atom operator~(const atom& l)
 {
   return mk_atom(l.id^1, l.info);
@@ -63,7 +73,7 @@ inline atom operator^(atom a, int x) {
 }
 
 typedef struct {
-  bool operator()(atom x, atom y)
+  bool operator()(const atom& x, const atom& y) const
   {
     if(x.id != y.id)
       return x.id < y.id;
@@ -72,7 +82,7 @@ typedef struct {
 } Atom_lt;
 
 typedef struct {
-  bool operator()(atom x, atom y)
+  bool operator()(const atom& x, const atom& y) const
   {
     return x.id == y.id && x.info == y.info;
   }

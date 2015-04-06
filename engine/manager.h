@@ -50,6 +50,9 @@ public:
   // Evaluate a atom under the current state.
   virtual lbool value(_atom x) = 0;
 
+  // What level did x become false?
+  virtual int false_level(_atom x) = 0;
+
   // x -> y?
   virtual bool le(_atom x, _atom y) = 0;
 
@@ -58,8 +61,7 @@ public:
 
   // Choose a branch literal. Extend to handle
   // branches later.
-  virtual atom branch(void) = 0;
-
+//  virtual atom branch(void) = 0;
 
   // Conflict clause resolution
   virtual ResolvableT is_resolvable(atom_id id, atom_val val, atom_val prev) = 0;

@@ -5,7 +5,6 @@
 #include "engine/manager.h"
 #include "engine/env.h"
 #include "engine/conflict.h"
-#include "engine/sat.h"
 
 // Class for performing the search.
 class solver {
@@ -19,7 +18,7 @@ public:
   int decisionLevel(void) { return e->level(); } 
 
   void post_atom(atom d, expln ex) {
-    e->atom_trail.push(atom_inf(d, ex));
+    e->post(d, ex);
   }
   
 protected:
@@ -28,17 +27,15 @@ protected:
   void post_branch(atom l);
 
   void backtrack_with(vec<atom>& out_learnt);
+  int find_btlevel(vec<atom>& out_learnt);
   void post_learnt(vec<atom>& out_learnt);
 
   env* e;
-  Sat<env> sat;
 
   int root;
 
   int atom_head;
 
   conflict_state confl_info;
-
-  Queue<int> prop_queue;
 };
 #endif

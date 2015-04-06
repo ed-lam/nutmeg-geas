@@ -1,7 +1,9 @@
 #ifndef __PHAGE_BOOLVAR_H__
 #define __PHAGE_BOOLVAR_H__
+#include <cstdio>
 #include "engine/atom.h"
 #include "engine/manager.h"
+#include "engine/branch.h"
 
 typedef int bvar_id;
 
@@ -11,11 +13,14 @@ class BoolVar;
 // id: (var_id|sign)
 // val: 0
 
-class BVarMan : public AtomManager {
+class BVarMan : public AtomManager, public Brancher {
 public:
   BVarMan(env* _e)
-    : AtomManager(_e)
+    : AtomManager(_e), Brancher(_e)
   { }
+
+  bvar_id tok_var(atom_tok tok) { return tok>>1; }
+  bool tok_sign(atom_tok tok) { return tok&1; }
 
   BoolVar newVar(void);
 
@@ -25,7 +30,14 @@ public:
 
   lbool value(_atom x)
   {
-    return _value(x.tok);
+    lbool val = _value(tok_var(x.tok));
+    return tok_sign(x.tok) ? val : ~val;
+  }
+
+  int false_level(_atom x)
+  {
+    assert(value(x) == l_False);
+    return level[tok_var(x.tok)];
   }
 
   atom bvar_false(bvar_id id) {
@@ -58,7 +70,12 @@ public:
       return false;
     }
     if(assigns[id] == 0)
+    {
       assigns[id] = asg;
+      level[id] = e->level();
+    }
+
+    fprintf(stdout, "Waking %d watchers for %sb%d\n", ws[x.tok].size(), x.tok&1 ? "" : "-", id);
 
     // Call watchers for the literal
     for(Watcher::Info& w : ws[x.tok])
@@ -112,6 +129,7 @@ protected:
   // Since I haven't impatomented sub-int trail eatoments,
   // we represent our assignments as ints.
   vec<TrInt> assigns;
+  vec<int> level;
   vec< vec<Watcher::Info> > ws;
 };
 
@@ -123,7 +141,7 @@ public:
 
   lbool value(void) { return man->_value(id); }
 
-  operator atom() {
+  operator atom() const {
     return man->bvar_true(id);
   }
 
