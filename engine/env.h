@@ -3,6 +3,8 @@
 // Solver environment.
 // Mostly stores mapping of atom-kinds to
 // managers, and the trail.
+#define VERBOSE
+
 class env;
 
 #include "mtl/Vec.h"
@@ -143,10 +145,7 @@ public:
     return sat.addClause(ps, true);
   }
 
-  void post(atom at, const expln& ex)
-  {
-    atom_trail.push(atom_inf(at, ex));
-  }
+  void post(atom at, const expln& ex);
 
   AtomManager* atom_man(atom& l);
   _atom to_atom_(atom& l);

@@ -6,29 +6,33 @@
 
 #include "vars/boolvar.h"
 #include "vars/intvar.h"
+#include "constraints/linear.h"
 
 int main(int argc, char** argv)
 {
   env* e = new env;
   solver s(e);
 
-//  std::cout << &(e->gen_vtrail) << std::endl;
-
   BVarMan bman(e);
   IVarManager* iman(newIVarMan(e, IV_Lazy));
 
-  IntVar v(iman->newVar(0, 10));
+  IntVar x(iman->newVar(2, 10));
+  IntVar y(iman->newVar(2, 10));
+  IntVar z(iman->newVar(1, 10));
 
+  vec<int> coeffs;
+  vec<IntVar> xs;
 
-  fprintf(stdout, "lb(v) = %d\n", lb(v));
-  
-  e->post(v.ge(5), expln());
-  fprintf(stdout, "lb(v[>=5]) = %d\n", lb(v));
+  coeffs.push(1); coeffs.push(1); coeffs.push(-1);
+  xs.push(x); xs.push(y); xs.push(z);
+
+  new LinearLE<env,IntVar,int>(e, coeffs, xs, 1);
 
   if(s.solve() == solver::SAT)
   {
     fprintf(stdout, "SAT\n");
-    fprintf(stdout, "{v -> %d}\n", v.value());
+    fprintf(stdout, "{x -> %d, y -> %d, z -> %d}\n",
+      x.value(), y.value(), z.value());
   } else {
     fprintf(stdout, "UNSAT\n");
   }

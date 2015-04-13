@@ -6,6 +6,7 @@
 #include "engine/propagator.h"
 #include "engine/trail.h"
 #include "engine/env.h"
+#include "engine/branch.h"
 #include "vars/var-interface.h"
 
 typedef int ivar_id;
@@ -16,10 +17,10 @@ enum IManKind { IV_Eager, IV_Lazy };
 
 enum IVarEvent { IVE_LB = 1, IVE_UB = 2, IVE_LU = 3, IVE_FIX = 4 };
 
-class IVarManager : public AtomManager {
+class IVarManager : public AtomManager, public Brancher {
 public:
   IVarManager(env* e)
-    : AtomManager(e)
+    : AtomManager(e), Brancher(e)
   { }
 
   virtual IntVar newVar(int lb, int ub) = 0;
@@ -56,8 +57,8 @@ public:
 
   atom le(int k) { return man->le_atom(id, k); }
   atom lt(int k) { return man->le_atom(id, k-1); }
-//  atom ge(int k) { return ~ man->le_atom(id, k-1); }
-//  atom gt(int k) { return ~ man->le_atom(id, k); }
+  atom ge(int k) { return ~ man->le_atom(id, k-1); }
+  atom gt(int k) { return ~ man->le_atom(id, k); }
   atom eq(int k) { return man->eq_atom(id, k); }
 //  atom ne(int k) { return ~ man->eq_atom(id, k); }
 
@@ -65,7 +66,12 @@ public:
   int ub(void) { return man->ub(id); }
   bool in_domain(int v) { return man->indom(id, v); }
 
-  void add_watch(WatcherT<char>* w, int ref, char events);
+  int value(void) { assert(lb() == ub()); return lb(); }
+
+  void add_watch(WatcherT<char>* w, int ref, char events)
+  {
+    man->add_watch(id, w, ref, events);
+  }
 
 protected:
   IVarManager* man;

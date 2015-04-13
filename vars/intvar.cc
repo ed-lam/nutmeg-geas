@@ -35,7 +35,30 @@ public:
   // General Atom-management stuff.
   void attach(_atom x, Watcher* w, int k)
   {
-       
+    int xi = x.tok>>2; 
+    int val = x.info;
+
+    switch(x.tok&3)
+    {
+      case 0: // x <= val
+        ub_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+        break;
+
+      case 1: // x > val
+        lb_atmap[xi].insert(std::make_pair(val+1, Watcher::Info(w, k)));
+        break;
+
+      case 2: // x = val
+        eq_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+        break;
+
+      case 3: // x != val
+        neq_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+        break;
+
+      default:
+        assert(0 && "Not reachable.");
+    }
   }
 
   // Mark a atom as no longer persistent
@@ -54,15 +77,19 @@ public:
     switch(at.tok&3)
     {
       case 0: // x <= val
+        printf("  posting v%d <= %d\n", xi, val);
         return set_ub(xi, val);
 
       case 1: // x > val
+        printf("  posting v%d > %d\n", xi, val);
         return set_lb(xi, val+1);
 
       case 2: // x = val
+        printf("  posting v%d = %d\n", xi, val);
         return set_val(xi, val);
 
       case 3: // x != val
+        printf("  posting v%d != %d\n", xi, val);
         return rem_val(xi, val);
 
       default:
@@ -73,7 +100,7 @@ public:
 
   bool set_ub(int xi, int val)
   {
-    IVar_impl& x(ivars[xi]);
+    IVar_impl& x(*ivars[xi]);
 
     int lb = x.lb.val();
     if(lb > val)
@@ -110,7 +137,40 @@ public:
 
   bool set_lb(int xi, int val)
   {
-    // FIXME
+    IVar_impl& x(*ivars[xi]);
+
+    int ub = x.ub.val();
+    if(ub < val)
+      return false;
+
+    char evt = IVE_UB;
+    if(ub == val)
+      evt |= IVE_FIX;
+
+    // Update the bounds
+    int old_lb = x.lb.val();
+    x.lb = val;
+
+    // Call general watchers
+    for(evt_watch& w : lb_watchers[xi])
+      w(evt);
+
+    if(ub == val)
+    {
+      for(evt_watch& w : fix_watchers[xi])
+        w(evt);
+    }
+
+    // Call atom watchers
+    atwatch_map& atmap(lb_atmap[xi]);
+    auto at_low(atmap.lower_bound(old_lb));
+    auto at_high(atmap.upper_bound(val));
+
+    for(; at_low != at_high; ++at_low)
+      (*at_low).second();
+
+    return true;
+
     return false;
   }
 
@@ -138,7 +198,7 @@ public:
     int val = at.info;
 
     // Determine the kind of atom
-    IVar_impl& x_impl(ivars[x]);
+    IVar_impl& x_impl(*ivars[x]);
 
     int lb = x_impl.lb.val();
     int ub = x_impl.ub.val();
@@ -201,9 +261,9 @@ public:
 
   // Are all variables managed by this fixed?
   bool is_fixed(void) {
-    for(IVar_impl& v : ivars)
+    for(IVar_impl* v : ivars)
     {
-      if(v.lb.val() != v.ub.val())
+      if(v->lb.val() != v->ub.val())
         return false;
     }
     return true;
@@ -213,12 +273,15 @@ public:
   // branches later.
   atom branch(void) {
     // Pick a variable that isn't fixed.
+    printf("Selecting branch.\n");
     for(int vi = 0; vi < ivars.size(); vi++)
     {
-      IVar_impl& v(ivars[vi]);
+      printf("  trying v%d.\n", vi);
+      IVar_impl& v(*ivars[vi]);
       if(v.lb.val() != v.ub.val())
       {
         // Pick an atom
+        printf("  branching on [v%d <= %d].\n", vi, v.lb.val());
         return le_atom(vi, v.lb.val());
       }
     }
@@ -240,7 +303,11 @@ public:
     std::cout << e << std::endl;
 
     int id = ivars.size();
-    ivars.push(IVar_impl(e, lb, ub));
+    atom_tok at_tok = new_atom_tok();
+    new_atom_tok(); // eq_atom
+    assert(at_tok == 2*id);
+
+    ivars.push(new IVar_impl(e, lb, ub));
     lb_watchers.push();
     ub_watchers.push();
     fix_watchers.push();
@@ -265,21 +332,21 @@ public:
   }
 
   // TrInt can be casted implicitly to int.
-  int lb(ivar_id id) { return ivars[id].lb; }
-  int ub(ivar_id id) { return ivars[id].ub; }
+  int lb(ivar_id id) { return ivars[id]->lb; }
+  int ub(ivar_id id) { return ivars[id]->ub; }
   bool indom(ivar_id id, int k) {
-    return ivars[id].lb <= k && k <= ivars[id].ub;
+    return ivars[id]->lb <= k && k <= ivars[id]->ub;
   }
 
   atom le_atom(ivar_id id, int k) {
-    return mk_atom(tok_ids[id]<<2, k);
+    return mk_atom(tok_ids[2*id]<<1, k);
   }
   atom eq_atom(ivar_id id, int k) {
-    return mk_atom((tok_ids[id]<<2|2), k);
+    return mk_atom((tok_ids[2*id+1]<<1), k);
   }
 
 protected:
-  vec<IVar_impl> ivars;
+  vec<IVar_impl*> ivars;
 
   // Ugh, ugly.
   vec< vec<evt_watch> > lb_watchers;

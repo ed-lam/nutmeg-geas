@@ -30,8 +30,13 @@ solver::RESULT solver::solve(void)
       for(int ll = 0; ll < e->level(); ll++)
         out_learnt.push(~(e->atom_trail[e->atom_tlim[ll]].l));
 
+      printf("Learnt: [");
+      for(atom at : out_learnt)
+        printf(" %s(%d, %d)", at.id&1 ? "" : "-", at.id>>1, at.info);
+      printf(" ]\n");
       // Unroll the solver to the appropriate level
       backtrack_with(out_learnt);
+      atom_head = e->atom_trail.size();
       // Instantiate the atom literals and add
       // it to the clause database.
       post_learnt(out_learnt);
@@ -40,6 +45,7 @@ solver::RESULT solver::solve(void)
       if(atom_is_undef(d))
         return SAT;
       
+      printf("Branch: %s(%d, %d)\n", d.id&1 ? "" : "-", d.id, d.id>>1);
       post_branch(d);
     }
   }
@@ -48,10 +54,17 @@ solver::RESULT solver::solve(void)
   return UNSAT;
 }
 
+void solver::cleanup_props(void)
+{
+  while(!e->prop_queue.empty())
+  {
+    e->prop_queue._pop()->cleanup();
+  }
+}
+
 bool solver::propagate(vec<atom>& confl)
 {
   // Walk the trail, dispatching to each of the managers
-  // FIXME: Handle propagator cleanup on failure.
   do
   {
     while(atom_head < e->atom_trail.size())
@@ -72,8 +85,11 @@ bool solver::propagate(vec<atom>& confl)
       prop_t* p(e->prop_queue._pop());
 
       if(!p->propagate(confl))
+      {
+        p->cleanup();
+        cleanup_props();
         return false;
-
+      }
       p->cleanup();
 
       e->gen_trail.tick();

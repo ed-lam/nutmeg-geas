@@ -116,9 +116,14 @@ public:
     printf("Propagating SAT.\n");
 
     int qhead = 0; 
-
+    
     for(; qhead < queue.size(); qhead++)
     {
+      printf("queue: [");
+      for(lit l : queue)
+        printf(" %s%d", lsgn(l) ? "" : "-", lvar(l));
+      printf("]\n");
+
       lit l(queue[qhead]);
       assert(int_of_lit(l) < watches.size());
 
@@ -177,7 +182,7 @@ public:
           queue.push(l0);
           reason[lvar(l0)] = &w;
           
-          h->post(lit_atom(l0), make_reason(l0)); 
+          h->post(lit_atom(l0), make_reason(l0));
           continue;
         }
 watch_found:
@@ -189,6 +194,7 @@ watch_found:
       }
       ws.shrink(jj-ii);
     }
+    
     return true;
   }
 

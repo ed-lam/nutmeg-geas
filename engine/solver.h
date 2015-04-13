@@ -26,6 +26,8 @@ protected:
   atom pick_branch(void);
   void post_branch(atom l);
 
+  void cleanup_props(void);
+
   void backtrack_with(vec<atom>& out_learnt);
   int find_btlevel(vec<atom>& out_learnt);
   void post_learnt(vec<atom>& out_learnt);

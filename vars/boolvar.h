@@ -1,6 +1,7 @@
 #ifndef __PHAGE_BOOLVAR_H__
 #define __PHAGE_BOOLVAR_H__
 #include <cstdio>
+#include "engine/trail.h"
 #include "engine/atom.h"
 #include "engine/manager.h"
 #include "engine/branch.h"
@@ -13,10 +14,50 @@ class BoolVar;
 // id: (var_id|sign)
 // val: 0
 
+class TrLbVec : public _Trailed {
+public:
+  TrLbVec(Trail* _t)
+    : _Trailed(0, 0), t(_t)
+  {
+  
+  }
+
+  void set(int id, lbool val)
+  {
+    assert(vals[id] == l_Undef);
+    assert(val != l_Undef);
+    vals[id] = val;
+    t->push(this, id);
+    t->l_push(this, id);
+  }
+
+  lbool val(int idx) const {
+    return vals[idx];
+  }
+
+  void restore_to(int idx)
+  {
+    vals[idx] = l_Undef;
+  }
+  
+  int size(void) const {
+    return vals.size();
+  }
+  void push(void) {
+    vals.push(l_Undef);
+  }
+  void push(lbool v) {
+    vals.push(v);
+  }
+protected:
+  vec<lbool> vals;
+  Trail* t;
+};
+
 class BVarMan : public AtomManager, public Brancher {
 public:
   BVarMan(env* _e)
-    : AtomManager(_e), Brancher(_e)
+    : AtomManager(_e), Brancher(_e), assigns(&(_e->gen_trail))
   { }
 
   bvar_id tok_var(atom_tok tok) { return tok>>1; }
@@ -25,7 +66,7 @@ public:
   BoolVar newVar(void);
 
   lbool _value(bvar_id id) {
-    return mk_lbool(assigns[id]);
+    return assigns.val(id);
   }
 
   lbool value(_atom x)
@@ -64,16 +105,18 @@ public:
   bool post(_atom x)
   {
     bvar_id id(x.tok>>1); 
-    int asg = 2*(x.tok&1) - 1;
-    if(assigns[id] == -asg)
+    lbool asg = x.tok&1 ? l_True : l_False;
+    if(assigns.val(id) == ~asg)
     {
       return false;
     }
-    if(assigns[id] == 0)
+    if(assigns.val(id) == asg)
     {
-      assigns[id] = asg;
-      level[id] = e->level();
+      return true;
     }
+
+    assigns.set(id, asg);
+    level[id] = e->level();
 
     fprintf(stdout, "Waking %d watchers for %sb%d\n", ws[x.tok].size(), x.tok&1 ? "" : "-", id);
 
@@ -98,7 +141,7 @@ public:
     // Dumb approach; fix this later.
     for(int vi = 0; vi < assigns.size(); vi++)
     {
-      if(assigns[vi] == 0)
+      if(assigns.val(vi) == l_Undef)
         return false;
     }
     return true;
@@ -110,7 +153,7 @@ public:
     // Again, dumb approach.
     for(int vi = 0; vi < assigns.size(); vi++)
     {
-      if(assigns[vi] == 0)
+      if(assigns.val(vi) == l_Undef)
         return bvar_true(vi);
     }
     return atom_undef();
@@ -126,9 +169,9 @@ public:
   };
 
 protected:
-  // Since I haven't impatomented sub-int trail eatoments,
-  // we represent our assignments as ints.
-  vec<TrInt> assigns;
+  // Use a custom trailing scheme for lbools, because Tr(*) values
+  // can't be moved in memory.
+  TrLbVec assigns;
   vec<int> level;
   vec< vec<Watcher::Info> > ws;
 };
