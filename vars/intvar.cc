@@ -247,9 +247,42 @@ public:
     }
   }
 
-  int false_level(_atom x)
+  int false_level(_atom at)
   {
-    assert(0 && "IVarMan::false_level not yet implemented.");
+    // Determine the variable id.
+    int x = at.tok>>2;
+    // And the value
+    int val = at.info;
+
+    // Determine the kind of atom
+    IVar_impl& x_impl(*ivars[x]);
+
+    // Determine the kind of literal
+    switch(at.tok&3)
+    {
+      case 0: // x <= val
+      {
+        return x_impl.lb.le_level(val);
+      }
+      case 1: // x > val
+      {
+        return x_impl.ub.ge_level(val+1);
+      }
+      case 2: // x = val
+      {
+        assert( 0 && "Not yet implemented.");
+        return 0;
+      }
+      case 3: // x != val
+      {
+        assert( 0 && "Not yet implemented.");
+        return 0;
+      }
+      default:
+        assert(0 && "Unreachable.");
+        return 0;
+    }
+
     return 0;
   }
 

@@ -118,6 +118,7 @@ public:
   {
     _t->reg(this);
     history.push(_val);
+    e_lev.push(t->level());
   }
 
   Trailed<T>(const Trailed<T>& x)
@@ -125,6 +126,7 @@ public:
       elt(x.elt), t(x.t)
   {
     history.push(x.elt);
+    e_lev.push(t->level());
   }
 
   Trailed<T>& operator=(const Trailed<T>& x)
@@ -134,6 +136,9 @@ public:
 
     history.clear();
     history.push(x.elt);
+
+    e_lev.clear();
+    e_lev.push(t->level());
 
     time_stamp = t->time-1;
     l_time_stamp = t->l_time-1;
@@ -156,6 +161,7 @@ public:
       }
 
       history.push(elt);
+      e_lev.push(t->level());
     }
     elt = e;
 
@@ -167,6 +173,7 @@ public:
     assert(past_sz < history.size());
     elt = history[past_sz];
     history.shrink(history.size()-past_sz);
+    e_lev.shrink(e_lev.size()-past_sz);
   }
 
   operator T() const { return elt; }
@@ -180,9 +187,25 @@ public:
     return history.last();
   }
 
+  int le_level(const T& k) const
+  {
+    int idx = history.size()-1;
+    while(history[idx] > k && idx > 0)
+      idx--;
+    return e_lev[idx];
+  }
+
+  int ge_level(const T& k)
+  {
+    int idx = history.size()-1;
+    while(history[idx] < k && idx > 0)
+      idx--;
+    return e_lev[idx];
+  }
 protected:
   T elt;
   vec<T> history;
+  vec<int> e_lev;
   Trail* t;
 
   unsigned int time_stamp;

@@ -13,11 +13,6 @@ class LinearLE : public Propagator<Host>, public Watcher
 
 public:
 
-/*
-   expln make_reason(lit l) {
-    return expln(explain, this, (expl_cookie) int_of_lit(l));
-  }
-  */
   LinearLE(Host* _h, vec<Cst>& coeffs, vec<V>& vs, Cst _c)
     : Propagator<Host>(_h), h(_h), c(_c)
   {
@@ -90,7 +85,7 @@ public:
       slack -= x_coeffs[xi]*lb(xs[xi]);
      
     for(int yi = 0; yi < ys.size(); yi++)
-      slack += y_coeffs[yi]*ub(xs[yi]);
+      slack += y_coeffs[yi]*ub(ys[yi]);
      
     if(slack < 0)
       return false;

@@ -75,7 +75,7 @@ bool solver::propagate(vec<atom>& confl)
       AtomManager* lman(e->atom_man(l));
       if(!(lman->post(e->to_atom_(l))))
       {
-        inf.ex(confl);
+//        inf.ex(confl);
         return false;
       }
     }
