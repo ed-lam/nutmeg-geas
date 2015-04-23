@@ -67,6 +67,7 @@ bool solver::propagate(vec<atom>& confl)
   // Walk the trail, dispatching to each of the managers
   do
   {
+    /*
     while(atom_head < e->atom_trail.size())
     {
       e->gen_trail.tick();
@@ -79,6 +80,7 @@ bool solver::propagate(vec<atom>& confl)
         return false;
       }
     }
+    */
 
     if(!e->prop_queue.empty())
     {
@@ -94,7 +96,8 @@ bool solver::propagate(vec<atom>& confl)
 
       e->gen_trail.tick();
     }
-  } while(atom_head < e->atom_trail.size() || !e->prop_queue.empty());
+  // } while(atom_head < e->atom_trail.size() || !e->prop_queue.empty());
+  } while(!e->prop_queue.empty());
   
   return true;
 }

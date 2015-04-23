@@ -29,7 +29,7 @@ int main(int argc, char** argv)
   new LinearLE<env,IntVar,int>(e, coeffs, xs, 1);
 
   coeffs[0] = -1; coeffs[1] = -1; coeffs[2] = 1;
-  new LinearLE<env,IntVar,int>(e, coeffs, xs, -2);
+  new LinearLE<env,IntVar,int>(e, coeffs, xs, -1);
 
   if(s.solve() == solver::SAT)
   {

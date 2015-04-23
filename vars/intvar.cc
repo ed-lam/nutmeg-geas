@@ -69,7 +69,7 @@ public:
 
   // Assert an atom
   // Pre: value(x) != l_False.
-  bool post(_atom at)
+  bool post(_atom at, void* origin)
   {
     int xi = at.tok>>2;
     int val = at.info;
@@ -78,19 +78,19 @@ public:
     {
       case 0: // x <= val
         printf("  posting v%d <= %d\n", xi, val);
-        return set_ub(xi, val);
+        return set_ub(xi, val, origin);
 
       case 1: // x > val
         printf("  posting v%d > %d\n", xi, val);
-        return set_lb(xi, val+1);
+        return set_lb(xi, val+1, origin);
 
       case 2: // x = val
         printf("  posting v%d = %d\n", xi, val);
-        return set_val(xi, val);
+        return set_val(xi, val, origin);
 
       case 3: // x != val
         printf("  posting v%d != %d\n", xi, val);
-        return rem_val(xi, val);
+        return rem_val(xi, val, origin);
 
       default:
         assert(0 && "Not reachable.");
@@ -98,7 +98,7 @@ public:
     }
   }
 
-  bool set_ub(int xi, int val)
+  bool set_ub(int xi, int val, void* origin)
   {
     IVar_impl& x(*ivars[xi]);
 
@@ -116,12 +116,12 @@ public:
 
     // Call general watchers
     for(evt_watch& w : ub_watchers[xi])
-      w(evt);
+      w(evt, origin);
 
     if(lb == val)
     {
       for(evt_watch& w : fix_watchers[xi])
-        w(evt);
+        w(evt, origin);
     }
 
     // Call atom watchers
@@ -130,12 +130,12 @@ public:
     auto at_high(atmap.upper_bound(old_ub));
 
     for(; at_low != at_high; --at_high)
-      (*at_high).second();
+      (*at_high).second(origin);
 
     return true;
   }
 
-  bool set_lb(int xi, int val)
+  bool set_lb(int xi, int val, void* origin)
   {
     IVar_impl& x(*ivars[xi]);
 
@@ -153,12 +153,12 @@ public:
 
     // Call general watchers
     for(evt_watch& w : lb_watchers[xi])
-      w(evt);
+      w(evt, origin);
 
     if(ub == val)
     {
       for(evt_watch& w : fix_watchers[xi])
-        w(evt);
+        w(evt, origin);
     }
 
     // Call atom watchers
@@ -167,22 +167,22 @@ public:
     auto at_high(atmap.upper_bound(val));
 
     for(; at_low != at_high; ++at_low)
-      (*at_low).second();
+      (*at_low).second(origin);
 
     return true;
 
     return false;
   }
 
-  bool set_val(int xi, int val)
+  bool set_val(int xi, int val, void* origin)
   {
-    // FIXME
-    return false;
+    return set_lb(xi, val, origin) && set_ub(xi, val, origin);
   }
 
-  bool rem_val(int xi, int val)
+  bool rem_val(int xi, int val, void* origin)
   {
     // FIXME
+    assert(0 && "rem_val not implemented.\n");
     return false;
   }
 

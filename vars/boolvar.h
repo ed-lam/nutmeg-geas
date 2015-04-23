@@ -102,7 +102,7 @@ public:
   }
 
   // Assert a atom
-  bool post(_atom x)
+  bool post(_atom x, void* origin)
   {
     bvar_id id(x.tok>>1); 
     lbool asg = x.tok&1 ? l_True : l_False;
@@ -122,7 +122,7 @@ public:
 
     // Call watchers for the literal
     for(Watcher::Info& w : ws[x.tok])
-      w();
+      w(origin);
 
     return true; 
   }

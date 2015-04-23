@@ -43,7 +43,7 @@ public:
   // virtual void watch(atom_id id, watch_thunk& c) = 0;
 
   // Assert a atom
-  virtual bool post(_atom x) = 0;
+  virtual bool post(_atom x, void* origin) = 0;
   // Can we do this more cheaply?
   // virtual lit undo(_atom x) = 0;
 

@@ -145,7 +145,7 @@ public:
     return sat.addClause(ps, true);
   }
 
-  void post(atom at, const expln& ex);
+  void post(atom at, const expln& ex, void* origin = NULL);
 
   AtomManager* atom_man(atom& l);
   _atom to_atom_(atom& l);

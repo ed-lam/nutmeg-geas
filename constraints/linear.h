@@ -6,7 +6,7 @@
 #include "vars/var-interface.h"
 
 template<class Host, class V, class Cst>
-class LinearLE : public Propagator<Host>, public Watcher
+class LinearLE : public Propagator<Host>, public WatcherT<char>
 {
 //  typedef NumVar<V, Cst> var_t;
   typedef LinearLE<Host,V,Cst> lin_le_t;
@@ -35,7 +35,7 @@ public:
   }
 
   // 
-  void wakeup(int _l)
+  void wakeup(int _l, char& evt)
   {
     ((Propagator<Host>*) this)->enqueue();
   }
@@ -88,7 +88,10 @@ public:
       slack += y_coeffs[yi]*ub(ys[yi]);
      
     if(slack < 0)
+    {
+      printf(" ...conflict.\n");
       return false;
+    }
 
     // Propagate bounds
     for(int xi = 0; xi < xs.size(); xi++)
@@ -96,7 +99,7 @@ public:
       Cst x_ub = lb(xs[xi]) + (slack/x_coeffs[xi]);
       if(x_ub < ub(xs[xi]))
       {
-        h->post(xs[xi].le(x_ub), make_reason_x(xi));
+        h->post(xs[xi].le(x_ub), make_reason_x(xi), this);
       }
     }
     for(int yi = 0; yi < ys.size(); yi++)
@@ -104,10 +107,11 @@ public:
       Cst y_lb = ub(ys[yi]) - (slack/y_coeffs[yi]);
       if(lb(ys[yi]) < y_lb)
       {
-        h->post(ys[yi].ge(y_lb), make_reason_y(yi));
+        h->post(ys[yi].ge(y_lb), make_reason_y(yi), this);
       }
     }
 
+    printf(" ...done.\n");
     return true;
   }
 

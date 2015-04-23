@@ -182,7 +182,7 @@ public:
           queue.push(l0);
           reason[lvar(l0)] = &w;
           
-          h->post(lit_atom(l0), make_reason(l0));
+          h->post(lit_atom(l0), make_reason(l0), this);
           continue;
         }
 watch_found:

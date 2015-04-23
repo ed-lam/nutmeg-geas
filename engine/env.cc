@@ -19,11 +19,11 @@ AtomManager* env::atom_man(atom& l)
   return atid_info[l.id>>1].man;
 }
 
-void env::post(atom a, const expln& ex)
+void env::post(atom a, const expln& ex, void* origin)
 {
   atom_trail.push(atom_inf(a, ex));
-//  bool okay = atom_man(a)->post(to_atom_(a));
-//  assert(okay);
+  bool okay = atom_man(a)->post(to_atom_(a), origin);
+  assert(okay);
 }
 
 void env::attach(atom& a, Watcher* w, int tok)

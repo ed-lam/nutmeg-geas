@@ -49,7 +49,9 @@ public:
       : w(_w), pid(_pid)
     { }
 
-    void operator()(void) { w->wakeup(pid); }
+    void operator()(void* origin) {
+      if(w != origin) w->wakeup(pid);
+    }
     
     Watcher* w;
     int pid;
@@ -67,8 +69,9 @@ public:
     Info(WatcherT<Event>* _w, int _pid)
       : w(_w), pid(_pid)
     { }
-    void operator()(Event& e) {
-      w->wakeup(pid, e);
+
+    void operator()(Event& e, void* origin) {
+      if(w != origin) w->wakeup(pid, e);
     }
     WatcherT<Event>* w;
     int pid;
