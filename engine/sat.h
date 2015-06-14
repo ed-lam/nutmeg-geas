@@ -135,7 +135,7 @@ public:
       for(; jj < ws.size(); jj++)
       {
         Clause& w(*(ws[jj]));
-        printf("  checking watch for clause %lx. (%d watches)\n", (intptr_t) (&w), ws.size());
+        printf("  checking watch for clause %p. (%d watches)\n", (void *) (&w), ws.size());
         // Ensure ~l is second watch.
         if(w[1] != ~l)
         {

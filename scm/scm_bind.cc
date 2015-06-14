@@ -43,15 +43,19 @@ void init_scm_types(void)
 {
   // No additional space necessary.
   // Just references/identifiers
+  /*
   bvar_tag = scm_make_smob_type("boolvar", 0);
   ivar_tag = scm_make_smob_type("intvar", 0);
   prop_tag = scm_make_smob_type("propagator", 0);
+  */
 }
 
 void scm_init_bindings(void)
 {
   init_scm_types();
+  /*
   scm_c_define_gsubr("status", 0, 0, 0, (scm_t_subr) scm_solver_status);
   scm_c_define_gsubr("get-prop", 1, 0, 0,  (scm_t_subr) scm_getprop);
   scm_c_define_gsubr("bool-var", 0, 0, 0,  (scm_t_subr) scm_newbool);
+  */
 }

@@ -1,5 +1,6 @@
 // Switch to more efficient representation.
-#include <map>
+//#include <map>
+#include "mtl/int-triemap.h"
 
 #include "engine/env.h"
 #include "engine/trail.h"
@@ -9,12 +10,18 @@ class IMan_lazy : public IVarManager {
   typedef Watcher::Info atom_watch;
   typedef WatcherT<char>::Info evt_watch;
 
-  typedef std::map<int, atom_watch> atwatch_map; 
+//  typedef std::map<int, atom_watch> atwatch_map; 
+//  typedef int_triemap<atom_watch> atwatch_map;
+  typedef uint_triemap<int, atom_watch, IntOps> atwatch_map;
 
   class IVar_impl {
+    typedef atwatch_map::leaf_t** aw_ptr;
+    typedef Trailed<aw_ptr> Tr_aw_ptr;
   public:
     IVar_impl(env* e, int min, int max)
-      : lb(&(e->gen_trail), min), ub(&(e->gen_trail), max)
+      : lb(&(e->gen_trail), min), ub(&(e->gen_trail), max),
+        lb_next(&(e->gen_trail), &(lb_atmap.head)),
+        ub_prev(&(e->gen_trail), &(ub_atmap.tail))
     { }
 
     IVar_impl& operator=(const IVar_impl& v)
@@ -24,8 +31,14 @@ class IMan_lazy : public IVarManager {
       return *this;
     }
 
-    TrInt lb;    
+    TrInt lb;
     TrInt ub;
+
+    // Landmarks for changes of lb/ub.
+    atwatch_map lb_atmap;
+    atwatch_map ub_atmap;
+    Tr_aw_ptr lb_next;
+    Tr_aw_ptr ub_prev;
   };
 public:
   IMan_lazy(env* e)
@@ -41,19 +54,25 @@ public:
     switch(x.tok&3)
     {
       case 0: // x <= val
-        ub_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+//        ub_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+        ivars[xi]->ub_atmap.add(val, Watcher::Info(w, k));
         break;
 
       case 1: // x > val
-        lb_atmap[xi].insert(std::make_pair(val+1, Watcher::Info(w, k)));
+//        lb_atmap[xi].insert(std::make_pair(val+1, Watcher::Info(w, k)));
+        ivars[xi]->lb_atmap.add(val+1, Watcher::Info(w, k));
         break;
 
       case 2: // x = val
-        eq_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+//        eq_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+//        ivars[xi]->lb_atmap.add(val+1, Watcher::Info(w, k));
+        assert(0 && "FIXME");
         break;
 
       case 3: // x != val
-        neq_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+//        neq_atmap[xi].insert(std::make_pair(val, Watcher::Info(w, k)));
+//        ivars[xi]->lb_atmap.add(val+1, Watcher::Info(w, k));
+        assert(0 && "FIXME");
         break;
 
       default:
@@ -111,7 +130,7 @@ public:
       evt |= IVE_FIX;
 
     // Update the bounds
-    int old_ub = x.ub.val();
+//    int old_ub = x.ub.val();
     x.ub = val;
 
     // Call general watchers
@@ -125,12 +144,21 @@ public:
     }
 
     // Call atom watchers
+    atwatch_map::leaf_t* leaf = *(x.lb_next);
+    while(leaf && leaf->ref.key <= val)
+    {
+      leaf->ref.value(origin);
+      x.lb_next = &(leaf->next);
+      leaf = leaf->next;
+    }
+    /*
     atwatch_map& atmap(ub_atmap[xi]);
     auto at_low(atmap.lower_bound(val));
     auto at_high(atmap.upper_bound(old_ub));
 
     for(; at_low != at_high; --at_high)
       (*at_high).second(origin);
+    */
 
     return true;
   }
@@ -148,7 +176,7 @@ public:
       evt |= IVE_FIX;
 
     // Update the bounds
-    int old_lb = x.lb.val();
+//    int old_lb = x.lb.val();
     x.lb = val;
 
     // Call general watchers
@@ -162,16 +190,23 @@ public:
     }
 
     // Call atom watchers
+    /*
     atwatch_map& atmap(lb_atmap[xi]);
     auto at_low(atmap.lower_bound(old_lb));
     auto at_high(atmap.upper_bound(val));
 
     for(; at_low != at_high; ++at_low)
       (*at_low).second(origin);
+    */
+    atwatch_map::leaf_t* leaf = *(x.ub_prev);
+    while(leaf && leaf->ref.key >= val)
+    {
+      leaf->ref.value(origin);
+      x.ub_prev = &(leaf->prev);
+      leaf = leaf->next;
+    }
 
     return true;
-
-    return false;
   }
 
   bool set_val(int xi, int val, void* origin)
@@ -345,10 +380,10 @@ public:
     ub_watchers.push();
     fix_watchers.push();
 
-    lb_atmap.push();
-    ub_atmap.push();
-    eq_atmap.push();
-    neq_atmap.push();
+//    lb_atmap.push();
+//    ub_atmap.push();
+//    eq_atmap.push();
+//    neq_atmap.push();
 
     return IntVar(this, id);
   }
@@ -386,10 +421,10 @@ protected:
   vec< vec<evt_watch> > ub_watchers;
   vec< vec<evt_watch> > fix_watchers;
 
-  vec<atwatch_map> lb_atmap;
-  vec<atwatch_map> ub_atmap;
-  vec<atwatch_map> eq_atmap;
-  vec<atwatch_map> neq_atmap;
+//  vec<atwatch_map> lb_atmap;
+//  vec<atwatch_map> ub_atmap;
+//  vec<atwatch_map> eq_atmap;
+//  vec<atwatch_map> neq_atmap;
 };
 
 IVarManager* newIVarMan(env* e, IManKind kind)

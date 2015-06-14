@@ -12,6 +12,12 @@
 // Assumption -- we're dealing with simple
 // memory-copyable types.
 
+// Note that with this implementation, elements of
+// type _Trailed (and specifically Trailed<T>) are
+// emphatically _not_ movable; trail entries store
+// a direct pointer to the object, so will segfault
+// if the object is moved or freed.
+
 enum TrailTags { T_CHANGED_PROP = 1, T_CHANGED_LEVEL = 2, T_CHANGED_ALL = 3 }; 
 
 class _Trailed {
@@ -19,6 +25,7 @@ class _Trailed {
     _Trailed(unsigned int _t, unsigned int _lt)
       : time_stamp(_t), l_time_stamp(_lt)
     { }
+
     virtual void restore_to(int past_sz) = 0;
 
     unsigned int time_stamp;
@@ -92,6 +99,22 @@ public:
   int level(void) const { return l_hist_lim.size(); }
 
   void reg(_Trailed* t) { registered.push(t); }
+
+  // Avoid updating counters for expired T-vars.
+  // Doesn't help with stale entries, though; so
+  // it's only safe at the root level.
+  void dereg(_Trailed* t) {
+    // Linear scan. Can be fixed if it turns out to be a problem.
+    for(int ri = 0; ri < registered.size(); ri++)
+    {
+      if(registered[ri] == t)
+      {
+        registered[ri] = registered.last();
+        registered.pop();
+        break;
+      }
+    }
+  }
 protected:
   vec<_Trailed*> registered;
 
@@ -121,10 +144,15 @@ public:
     e_lev.push(t->level());
   }
 
+  ~Trailed<T>() {
+    t->dereg(this);
+  }
+
   Trailed<T>(const Trailed<T>& x)
     : _Trailed(x.t.time-1, x.t.l_time-1),
       elt(x.elt), t(x.t)
   {
+    t->reg(this);
     history.push(x.elt);
     e_lev.push(t->level());
   }
@@ -208,8 +236,8 @@ protected:
   vec<int> e_lev;
   Trail* t;
 
-  unsigned int time_stamp;
-  unsigned int l_time_stamp;
+//  unsigned int time_stamp;
+//  unsigned int l_time_stamp;
 };
 
 typedef Trailed<int> TrInt;
