@@ -281,7 +281,7 @@ protected:
   {
     // Table stores the negative
     // form of atoms. Because of reasons.
-    bool a_sign = atom_sign(a);
+    bool a_sign = a.sign();
     atom a_low = a^a_sign;
     auto it = atom_names.find(a_low);
     if(it != atom_names.end())

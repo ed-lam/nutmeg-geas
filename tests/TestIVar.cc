@@ -19,7 +19,6 @@ int main(int argc, char** argv)
 
   IntVar v(iman->newVar(0, 10));
 
-
   fprintf(stdout, "lb(v) = %d\n", lb(v));
   
   e->post(v.ge(5), expln());

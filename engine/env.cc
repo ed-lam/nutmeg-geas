@@ -33,8 +33,8 @@ void env::attach(atom& a, Watcher* w, int tok)
 
 _atom env::to_atom_(atom& l)
 {
-  atom_tok tok = atid_info[l.id>>1].ref<<1|(l.id&1);
-  return mk_atom_(tok, l.info);
+  atom_tok tok = atid_info[l.id>>1].ref;
+  return _atom(tok, l.info, l.id&1);
 }
 
 lbool env::atom_val(atom& l)

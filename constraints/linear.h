@@ -90,6 +90,11 @@ public:
     if(slack < 0)
     {
       printf(" ...conflict.\n");
+      // Set conflict
+      for(int xi = 0; xi < xs.size(); xi++)
+        confl.push(xs[xi].lt(lb(xs[xi])));
+      for(int yi = 0; yi < ys.size(); yi++)
+        confl.push(ys[yi].gt(ub(ys[yi])));
       return false;
     }
 

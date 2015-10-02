@@ -31,6 +31,7 @@ protected:
   void backtrack_with(vec<atom>& out_learnt);
   int find_btlevel(vec<atom>& out_learnt);
   void post_learnt(vec<atom>& out_learnt);
+  void analyze_conflict(vec<atom>& confl, vec<atom>& out_learnt);
 
   env* e;
 

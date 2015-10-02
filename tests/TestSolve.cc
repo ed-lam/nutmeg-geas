@@ -17,8 +17,11 @@ int main(int argc, char** argv)
 
   Trailed<int> i(&(e->gen_trail), 0);
 
-  BoolVar x(bman.newVar());
-  BoolVar y(bman.newVar());
+  BoolVar var_x(bman.newVar());
+  BoolVar var_y(bman.newVar());
+
+  atom x(var_x);
+  atom y(var_y);
 //  BoolVar z(bman.newVar());
   
   /*
@@ -38,8 +41,8 @@ int main(int argc, char** argv)
   {
     fprintf(stdout, "SAT:");
     printf("x -> %s, y -> %s\n",
-      lbool_str[1+x.value().v],
-      lbool_str[1+y.value().v]);
+      lbool_str[1+var_x.value().v],
+      lbool_str[1+var_x.value().v]);
   } else {
     fprintf(stdout, "UNSAT\n");
   }

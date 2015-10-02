@@ -31,6 +31,14 @@ int main(int argc, char** argv)
   coeffs[0] = -1; coeffs[1] = -1; coeffs[2] = 1;
   new LinearLE<env,IntVar,int>(e, coeffs, xs, -1);
 
+  assert(s.solve() == solver::SAT);
+
+  fprintf(stdout, "SAT\n");
+  fprintf(stdout, "{x -> %d, y -> %d, z -> %d}\n",
+    x.value(), y.value(), z.value());
+  
+  new LinearLE<env,IntVar,int>(e, coeffs, xs, -2);
+
   if(s.solve() == solver::SAT)
   {
     fprintf(stdout, "SAT\n");

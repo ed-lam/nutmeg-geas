@@ -6,6 +6,8 @@
 #include "engine/manager.h"
 #include "engine/branch.h"
 
+#define WARN(x) fprintf(stderr, "WARNING: %s\n", (x))
+
 typedef int bvar_id;
 
 class BoolVar;
@@ -82,12 +84,12 @@ public:
   }
 
   atom bvar_false(bvar_id id) {
-    return mk_atom(tok_ids[id]<<1, 0);
+    return atom(tok_ids[id], 0 , false);
   }
 
   atom bvar_true(bvar_id id)
   {
-    return mk_atom(tok_ids[id]<<1|1, 0);
+    return atom(tok_ids[id], 0, true);
   }
 
   // Get a concrete lit for the corresponding
@@ -104,8 +106,8 @@ public:
   // Assert a atom
   bool post(_atom x, void* origin)
   {
-    bvar_id id(x.tok>>1); 
-    lbool asg = x.tok&1 ? l_True : l_False;
+    bvar_id id(x.token());
+    lbool asg = x.sign() ? l_True : l_False;
     if(assigns.val(id) == ~asg)
     {
       return false;
@@ -118,7 +120,7 @@ public:
     assigns.set(id, asg);
     level[id] = e->level();
 
-    fprintf(stdout, "Waking %d watchers for %sb%d\n", ws[x.tok].size(), x.tok&1 ? "" : "-", id);
+    fprintf(stdout, "Waking %d watchers for %sb%d\n", ws[x.tok].size(), x.sign() ? "" : "-", id);
 
     // Call watchers for the literal
     for(Watcher::Info& w : ws[x.tok])
@@ -127,12 +129,10 @@ public:
     return true; 
   }
 
-  // Can we do this more cheaply?
-  // lit undo(_atom& x) { }
-
   // x -> y?
   bool le(_atom x, _atom y)
   {
+    WARN("{le : atom_data -> atom_data -> bool} not fully implemented.");
     return x.tok == y.tok;
   }
 
@@ -165,7 +165,8 @@ public:
   }
 
   void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
-    learnt_out.push(mk_atom(id, v));   
+//    learnt_out.push(mk_atom(id, v));   
+    learnt_out.push(atom(id>>1, v, id&1)); // FIXME
   };
 
 protected:

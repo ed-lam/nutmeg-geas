@@ -4,8 +4,10 @@
 // Add a atom to the current resolution state.
 void conflict_state::add_atom(env* e, atom l)
 {
-//  AtomManager* man(e->managers[l.kind]); 
-  assert(0 && "add_atom not yet impatomented.");
+  AtomManager* man(e->atom_man(l));
+  man->add_conflict_atom(e->to_atom_(l)); 
+  seen[l.id] = true;
+//  assert(0 && "add_atom not yet impatomented.");
 }
 
 // Update a the conflict state with an inference.
@@ -29,12 +31,12 @@ bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_o
   count--;
 
   // If this is the last thing at the
-  // current decision level, top here
-  // instead of 
+  // current decision level, stop here
+  // instead of continuing to resolve.
   if(count == 0)
   {
     learnt_out.push(l);
-    
+      
     return true;
   }
 
@@ -43,11 +45,12 @@ bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_o
   assert(ex.kind != Ex_Dec);
   if(ex.kind == Ex_Cl)
   {
+    assert(0 && "Special-case resolution for clauses not implemented.");
     // An existing clause. l should be the 0th element.
     /*
     clause* cl(ex.cl);
     
-    // Add all the other eatoments.
+    // Add all the other elements.
     for(int li = 1; li < cl->sz; cl++)
       add_atom(e, e->atom_of_lit(cl->ls[li]));
       */
@@ -68,19 +71,22 @@ bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_o
 
 void conflict_state::analyze_conflict(env* e, vec<atom>& confl, vec<atom>& out_learnt)
 {
+  assert(0 && "conflict_state::analyze_conflict not implemented.");
   /*
-  conflict_state cstate(e);
-  for(int li = 0; li < confl.size(); li++)
-    cstate.add_atom(confl[li]);
-    */
+  conflict_state.clear();
 
-  atom_inf inf(e->atom_trail.last());
-  while(!update_resolvent(e, inf, out_learnt))
+  for(atom at : confl)
+    conflict_state.add_atom(e, at);
+  
+  size_t idx = atom_trail.size();
+  while(conflict_state.curr_level_count() > 1)
   {
-    // Handle backtracking somewhere.
+    atom_inf inf = e->atom_trail[--idx];
+    if(conflict_state.must_resolve(inf))
+      conflict_state.resolve(inf);
     e->atom_trail.pop();
-    inf = e->atom_trail.last();
   }
-  // conflict_state::update should have left the 1-UIP clause in out_learnt.
-  return;
+
+  conflict_state.retrieve_learnt(out_learnt);
+  */
 }

@@ -64,8 +64,22 @@ public:
 //  virtual atom branch(void) = 0;
 
   // Conflict clause resolution
+  /*
   virtual ResolvableT is_resolvable(atom_id id, atom_val val, atom_val prev) = 0;
+  virtual void add_conflict_atom(_atom x) = 0;
   virtual void collect(atom_id id, atom_val v, vec<atom>& learnt_out) = 0;
+  */
+  virtual ResolvableT is_resolvable(atom_id id, atom_val val, atom_val prev)  {
+    assert(0 && "Not implemented.");
+    return R_NotResolvable;  
+  }
+  virtual void add_conflict_atom(_atom x) {
+    assert(0 && "Not implemented.");
+  }
+  virtual void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
+    assert(0 && "Not implemented.");
+  }
+
 
   protected:
     // Allocate a new atom-token.

@@ -1,6 +1,7 @@
 // Switch to more efficient representation.
 //#include <map>
 #include "mtl/int-triemap.h"
+#include "mtl/sparse-set.h"
 
 #include "engine/env.h"
 #include "engine/trail.h"
@@ -232,12 +233,11 @@ public:
     // And the value
     int val = at.info;
 
-    // Determine the kind of atom
     IVar_impl& x_impl(*ivars[x]);
 
     int lb = x_impl.lb.val();
     int ub = x_impl.ub.val();
-    // Determine the kind of literal
+    // Determine the kind of atom
     switch(at.tok&3)
     {
       case 0: // x <= val
@@ -362,8 +362,39 @@ public:
     return R_NotResolvable;  
   }
 
-  void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
+  void add_conflict_atom(_atom at) {
+    // Determine the variable id.
+    int x = at.tok>>2;
+    // And the value
+    int val = at.info;
 
+    // Determine the kind of atom
+    switch(at.tok&3)
+    {
+      case 0: // x <= val
+      {
+        confl_atom_set.insert(2*x);
+        confl_atom_bounds.push(val);
+        return;
+      }
+      case 1: // x > val
+      {
+        confl_atom_set.insert(2*x+1);
+        confl_atom_bounds.push(val);
+        return;
+      }
+      case 2: // x = val
+      case 3: // x != val
+      {
+        assert( 0 && "Not yet implemented.");
+      }
+      default:
+        assert(0 && "Unreachable.");
+    }
+  }
+
+  void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
+      
   }
 
   // Specific IntVar methods
@@ -380,6 +411,9 @@ public:
     ub_watchers.push();
     fix_watchers.push();
 
+    confl_atom_set.growTo(2*ivars.size());
+    confl_atom_bounds.push(0);
+    confl_atom_bounds.push(0);
 //    lb_atmap.push();
 //    ub_atmap.push();
 //    eq_atmap.push();
@@ -407,10 +441,10 @@ public:
   }
 
   atom le_atom(ivar_id id, int k) {
-    return mk_atom(tok_ids[2*id]<<1, k);
+    return atom(tok_ids[2*id], k, 0);
   }
   atom eq_atom(ivar_id id, int k) {
-    return mk_atom((tok_ids[2*id+1]<<1), k);
+    return atom(tok_ids[2*id+1], k, 0);
   }
 
 protected:
@@ -421,10 +455,9 @@ protected:
   vec< vec<evt_watch> > ub_watchers;
   vec< vec<evt_watch> > fix_watchers;
 
-//  vec<atwatch_map> lb_atmap;
-//  vec<atwatch_map> ub_atmap;
-//  vec<atwatch_map> eq_atmap;
-//  vec<atwatch_map> neq_atmap;
+  // Keeping track of what's in the 
+  SparseSet confl_atom_set;
+  vec<int> confl_atom_bounds;
 };
 
 IVarManager* newIVarMan(env* e, IManKind kind)

@@ -2,6 +2,8 @@
 #include "engine/solver.h"
 #include "engine/conflict.h"
 
+#define FAIL(x) assert(0 && x)
+
 typedef Propagator<env> prop_t;
 
 static expln expl_none;
@@ -25,10 +27,10 @@ solver::RESULT solver::solve(void)
 
       vec<atom> out_learnt;
       // Compute a conflict clause.
-//      confl_info.analyze_conflict(e, confl, out_learnt);
-      // NAIVE: Just pick the decision nogood.
-      for(int ll = 0; ll < e->level(); ll++)
-        out_learnt.push(~(e->atom_trail[e->atom_tlim[ll]].l));
+      confl_info.analyze_conflict(e, confl, out_learnt);
+      // NAIVE: Just collect the set of decisions
+//      for(int ll = 0; ll < e->level(); ll++)
+//        out_learnt.push(~(e->atom_trail[e->atom_tlim[ll]].l));
 
       printf("Learnt: [");
       for(atom at : out_learnt)
@@ -53,6 +55,27 @@ solver::RESULT solver::solve(void)
   assert(0 && "Unreachable.");
   return UNSAT;
 }
+
+/*
+void solver::analyze_conflict(vec<atom>& confl, vec<atom>& out_learnt)
+{
+  conflict_state.clear();
+
+  for(atom at : confl)
+    conflict_state.add_atom(e, at);
+  
+  size_t idx = atom_trail.size();
+  while(conflict_state.curr_level_count() > 1)
+  {
+    atom_inf inf = e->atom_trail[--idx];
+    if(conflict_state.must_resolve(inf))
+      conflict_state.resolve(inf);
+    e->atom_trail.pop();
+  }
+
+  conflict_state.retrieve_learnt(out_learnt);
+}
+*/
 
 void solver::cleanup_props(void)
 {

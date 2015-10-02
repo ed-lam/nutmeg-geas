@@ -7,8 +7,8 @@ AtomManager::AtomManager(env* _e)
 
 atom AtomManager::from_atom_(_atom x)
 {
-  atom_id id = tok_ids[x.tok>>1];
-  return mk_atom(id<<1|(x.tok&1), x.info);
+  atom_id id = tok_ids[x.token()];
+  return atom(id, x.info, x.sign());
 }
 
 atom_tok AtomManager::new_atom_tok(void)
