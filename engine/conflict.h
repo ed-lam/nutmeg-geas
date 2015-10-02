@@ -32,8 +32,6 @@ public:
   vec<atom_val> data;
   vec<atom_val> cookie; 
   int count;
-
-  vec<atom> out_learnt;
 };
 
 #endif

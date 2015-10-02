@@ -169,9 +169,9 @@ public:
 
   // Information about allocated atom-ids.
   vec<atomid_info> atid_info;
-  vec<bool> seen;
-  vec<int> conflict_cookie;
-  int num_seen;
+//  vec<bool> seen;
+//  vec<int> conflict_cookie;
+//  int num_seen;
 
   // Trail of inferences that were made.
   vec<int> atom_tlim;

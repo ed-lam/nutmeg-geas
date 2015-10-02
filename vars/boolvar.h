@@ -164,6 +164,10 @@ public:
     return R_ResolveElim;
   }
 
+  void add_conflict_atom(_atom x) {
+    // Don't need to do anything extra.
+  }
+
   void collect(atom_id id, atom_val v, vec<atom>& learnt_out) {
 //    learnt_out.push(mk_atom(id, v));   
     learnt_out.push(atom(id>>1, v, id&1)); // FIXME

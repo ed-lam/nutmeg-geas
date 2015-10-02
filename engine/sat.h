@@ -174,6 +174,9 @@ public:
             ws[ii++] = ws[jj++];
           ws.shrink(jj-ii);
           
+          for(lit l : w)
+            confl.push(lit_atom(l));
+
           return false;
         } else {
           // Unit propagation

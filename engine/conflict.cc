@@ -7,6 +7,9 @@ void conflict_state::add_atom(env* e, atom l)
   AtomManager* man(e->atom_man(l));
   man->add_conflict_atom(e->to_atom_(l)); 
   seen[l.id] = true;
+  // FIXME: Should push this into the atom manager --
+  // one atom_id might have several conflict atoms.
+  count++; 
 //  assert(0 && "add_atom not yet impatomented.");
 }
 
@@ -22,9 +25,12 @@ bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_o
   // abusing the meaning of data[idx].
   AtomManager* man(e->atom_man(l));
   atom_tok tok(e->atid_info[l.id].ref);
-  ResolvableT r(man->is_resolvable(tok, l.info, e->conflict_cookie[l.id]));
+  ResolvableT r(man->is_resolvable(tok, l.info, cookie[l.id]));
   if(r == R_NotResolvable)
     return false;
+
+  // GKG: Similarly, this depends on the manager.
+  seen[l.id] = false;
 
   // Either way, the atom has been resolved, and
   // is at the current level.
@@ -71,22 +77,18 @@ bool conflict_state::update_resolvent(env* e, atom_inf& inf, vec<atom>& learnt_o
 
 void conflict_state::analyze_conflict(env* e, vec<atom>& confl, vec<atom>& out_learnt)
 {
-  assert(0 && "conflict_state::analyze_conflict not implemented.");
-  /*
-  conflict_state.clear();
-
+  grow_to(2*e->atid_info.size());
+  assert(count == 0);
   for(atom at : confl)
-    conflict_state.add_atom(e, at);
-  
-  size_t idx = atom_trail.size();
-  while(conflict_state.curr_level_count() > 1)
-  {
-    atom_inf inf = e->atom_trail[--idx];
-    if(conflict_state.must_resolve(inf))
-      conflict_state.resolve(inf);
-    e->atom_trail.pop();
-  }
+    add_atom(e, at);
 
-  conflict_state.retrieve_learnt(out_learnt);
-  */
+  assert(count > 0);
+  
+  size_t idx = e->atom_trail.size();
+  atom_inf inf = e->atom_trail[--idx];
+  while(!update_resolvent(e, inf, out_learnt))
+  {
+    e->atom_trail.pop();
+    inf = e->atom_trail[idx--];
+  }
 }

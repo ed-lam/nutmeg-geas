@@ -43,7 +43,7 @@ class Trail {
   };
 public:
   Trail(void)
-    : time(0), l_time(0)
+    : time(0), l_time(0), idx(0), l_idx(0)
   { }
 
   void tick(void)

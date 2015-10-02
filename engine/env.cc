@@ -6,10 +6,11 @@ atom_id env::new_atom_id(AtomManager* man, int ref)
   atomid_info info = { man, ref };
   
   atid_info.push(info);
-  seen.push(false);
-  seen.push(false);
-  conflict_cookie.push(0);
-  conflict_cookie.push(0);
+  // GKG: Now dealt with in conflict_state
+//  seen.push(false);
+//  seen.push(false);
+//  conflict_cookie.push(0);
+//  conflict_cookie.push(0);
 
   return id;
 }
