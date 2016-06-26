@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#if 0
 #include "engine/trail.h"
 
 int main(int argc, char** argv)
@@ -37,3 +38,5 @@ int main(int argc, char** argv)
 
   return 0;
 }
+#endif
+int main(int argc, char** argv) { return 0; }

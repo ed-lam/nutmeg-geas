@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#if 0
 #include "engine/env.h"
 #include "engine/trail.h"
 #include "engine/solver.h"
@@ -34,3 +35,5 @@ int main(int argc, char** argv)
 
   return 0;
 }
+#endif
+int main(int argc, char** argv) { return 0; }

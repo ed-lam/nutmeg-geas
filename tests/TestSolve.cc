@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#if 0
 #include "engine/env.h"
 #include "engine/trail.h"
 #include "engine/solver.h"
@@ -13,6 +14,7 @@ int main(int argc, char** argv)
   env* e = new env;
   solver s(e);
 
+#if 0
   BVarMan bman(e);
 
   Trailed<int> i(&(e->gen_trail), 0);
@@ -46,6 +48,12 @@ int main(int argc, char** argv)
   } else {
     fprintf(stdout, "UNSAT\n");
   }
+#endif
 
   return 0;
+}
+#endif
+
+int main(int argc, char** argv) {
+
 }

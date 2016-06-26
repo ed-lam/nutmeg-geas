@@ -3,14 +3,15 @@
 CXX       = clang++
 MTL       = ./mtl
 ENGINE	  = ./engine
+SOLVER	  = ./solver
 UTILS     = ./utils
 VARS      = ./vars
 CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
 CXXFLAGS += --std=c++11
 CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-CXXFLAGS += $(shell guile-config compile)
+#CXXFLAGS += $(shell guile-config compile)
 LFLAGS    = -lz -Wall -Wno-deprecated
-LFLAGS += $(shell guile-config link)
+#LFLAGS += $(shell guile-config link)
 #LFLAGS   += -pg
 
 #COPTIMIZE = -O3 -ffast-math -funroll-loops # -freorder-blocks-and-partition
@@ -21,13 +22,13 @@ CXXFLAGS += $(COPTIMIZE)
 CXXFLAGS += -ggdb
 #CXXFLAGS += -pg
 
-CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(UTILS)/*.cc) $(wildcard $(VARS)/*.cc)
+CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(UTILS)/*.cc)
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))
 CDEPS     = $(addsuffix .d, $(basename $(CSRCS)))
 
-CHDRS      = $(wildcard $(ENGINE)/*.h) $(wildcard $(UTILS)/*.h) $(wildcard $(VARS)/*.h)
+# CHDRS      = $(wildcard $(ENGINE)/*.h) $(wildcard $(UTILS)/*.h) $(wildcard $(VARS)/*.h)
 
-SATSRCS   = # $(wildcard sat/*.cc)
+SATSRCS   = 
 SATOBJS 	= $(addsuffix .o, $(basename $(SATSRCS)))
 SATDEPS   = $(addsuffix .d, $(basename $(SATSRCS)))
 
@@ -36,6 +37,7 @@ SCMOBJS	= $(addsuffix .o, $(basename $(SCMSRCS)))
 SCMDEPS = $(addsuffix .d, $(basename $(SCMSRCS)))
 
 #TESTS = tests/TestVars tests/TestChain
+TESTS = 
 TESTSRC = $(wildcard tests/*.cc)
 TESTOBJS = $(addsuffix .o, $(basename $(TESTSRC)))
 TESTS = $(basename $(TESTSRC))
@@ -47,7 +49,7 @@ all: $(TARGETS)
 
 ## Dependencies
 $(TESTS) : % : %.o $(COBJS)
-phage:			$(SCMOBJS) $(COBJS)
+phage:			phage.o $(SCMOBJS) $(COBJS)
 
 .PHONY: all clean tests
 
@@ -67,7 +69,6 @@ phage:			$(SCMOBJS) $(COBJS)
 $(TARGETS):
 	@echo Linking: "$@ ( $^ )"
 	@$(CXX) $^ $(LFLAGS) -o $@
-
 
 ## Clean rule
 clean:
