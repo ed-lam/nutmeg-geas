@@ -4,6 +4,12 @@
 #include <cassert>
 #include "bit-flag.h"
 
+class UIntOps {
+public:
+  static uint64_t to_uint(uint64_t t) { return t; }
+  static uint64_t from_uint(uint64_t t) { return t; }
+};
+
 class IntOps {
 public:
   enum { mask = 1<<31 };
@@ -32,12 +38,12 @@ public:
 };
 
 template<class Key, class Val, class Ops>
-class uint_triemap {
-  typedef unsigned int elt_t;
+class uint64_triemap {
+  typedef uint64_t elt_t;
 protected:
   // Internal and leaf nodes
   typedef struct {
-    unsigned int mask;
+    uint64_t mask;
     void* left;
     void* right;
   } node_t;
@@ -71,6 +77,9 @@ public:
     iterator& operator++(void) {
       l = l->next; return *this;
     }
+    iterator& operator--(void) {
+      l = l->prev; return *this;
+    }
     ref_t& operator*(void) const {
       return l->ref;
     }
@@ -84,22 +93,22 @@ public:
     leaf_t* l;
   };
 
-  uint_triemap(void)
+  uint64_triemap(void)
     : root(NULL), head(NULL), tail(NULL)
   { } 
 
-  ~uint_triemap()
+  ~uint64_triemap()
   {
     if(root)
       free_node(root);
   }
 
-  void add(const Key& key, const Val& v) {
+  iterator add(const Key& key, const Val& v) {
     if(!root)
     {
       root = make_leaf(key, v, NULL, NULL);
       head = tail = (leaf_t*) root;
-      return;
+      return head;
     }
 
     elt_t e = Ops::to_uint(key);
@@ -109,12 +118,12 @@ public:
     if(leaf->ref.key == key)
     {
       leaf->ref.value = v;
-      return;
+      return leaf;
     }
 
 //    unsigned int mask = get_mask(e^(leaf->ref.key));
-    unsigned int mask = get_mask(e^Ops::to_uint(leaf->ref.key));
-    unsigned int out_dir = e&mask;
+    uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
+    uint64_t out_dir = e&mask;
     
     void** p = NULL;
     void* node = root;
@@ -122,7 +131,7 @@ public:
     while(check_flag(node) &&
         node_ptr->mask > mask)
     {
-      unsigned int dir = e&node_ptr->mask;
+      uint64_t dir = e&node_ptr->mask;
       p = dir ? &(node_ptr->right) : &(node_ptr->left);
       node = dir ? node_ptr->right : node_ptr->left;
       node_ptr = clear_flag((node_t*) node);
@@ -168,6 +177,8 @@ public:
       root = fresh_node;
     else
       (*p) = fresh_node;
+
+    return fresh_leaf;
   }
 
   void rem(elt_t e)
@@ -180,7 +191,7 @@ public:
 
     void** whereq = NULL;
     void** wherep = &(root);
-    unsigned int dir;
+    uint64_t dir;
 
     while(check_flag(p))
     {
@@ -253,7 +264,7 @@ protected:
       delete leaf_ptr;
     }
   }
-  void* make_node(unsigned int mask, void* left, void* right)
+  void* make_node(uint64_t mask, void* left, void* right)
   {
     node_t* ptr = new node_t;
     ptr->mask = mask;
@@ -269,10 +280,13 @@ protected:
   }
 
   // Extract the most significant 1-bit
-  unsigned int get_mask(unsigned int x)
+  uint64_t get_mask(uint64_t x)
   {
     // Alternatively, use bit-smearing.
-    return (1<<(31-__builtin_clz(x)));
+    // return (1<<(31-__builtin_clz(x)));
+    static_assert(sizeof(uint64_t) == sizeof(unsigned long long),
+      "uint64_trie: compiler intrinsic for wrong bit-width");
+    return (1<<(63-__builtin_clzll(x)));
   }
 
   // Find the leaf where [elt] would reside
@@ -286,7 +300,7 @@ protected:
     while(check_flag(ptr))
     {
       node_t* node = clear_flag((node_t*) ptr);
-      unsigned int dir = elt&node->mask;
+      uint64_t dir = elt&node->mask;
       ptr = dir ? node->right : node->left;
     }
     return (leaf_t*) ptr;

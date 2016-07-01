@@ -30,6 +30,25 @@ public:
 // Representing the current state of atomic predicates
 class pred_state {
 public:
+  pred_state(void) {
+    // Add Boolean placeholder
+    new_pred();
+  }
+
+  // As with infer, preds are added in pairs.
+  pid_t new_pred(void) {
+    pid_t p = p_vals.size();
+    p_vals.push(0);
+    p_vals.push(0);
+
+    p_last.push(0);
+    p_last.push(0);
+
+    p_root.push(0);
+    p_root.push(0);
+    return p;
+  }
+
   bool pred_is_bool(pid_t pid) const { return pid <= 1; }
 
   bool is_entailed(patom_t atom) const {
@@ -37,6 +56,13 @@ public:
   }
   bool is_inconsistent(patom_t atom) const {
     return pval_max - p_vals[atom.pid^1] < atom.val;
+  }
+
+  bool is_entailed_l0(patom_t atom) const {
+    return atom.val <= p_root[atom.pid];
+  }
+  bool is_inconsistent_l0(patom_t atom) const {
+    return pval_max - p_root[atom.pid^1] < atom.val;
   }
 
   pvar_ref get_ref(pid_t pi) {
@@ -56,6 +82,7 @@ public:
   vec<lbool> b_assigns;
   vec<pval_t> p_vals; // Current values of predicates
   vec<pval_t> p_last; // Values at previous decision level
+  vec<pval_t> p_root; // ...and at the root
 };
 
 }

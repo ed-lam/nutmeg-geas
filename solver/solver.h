@@ -3,14 +3,15 @@
 
 // #include "solver/var.h"
 #include "solver/expr.h"
+#include "solver/intvar.h"
+#include "solver/options.h"
 
 namespace phage {
 
+class solver_data;
+
 class solver {
 public:
-  class solver_data;
-  class options;
-
   // Fill in.
   class model {
   public:
@@ -22,6 +23,7 @@ public:
   solver(void);
   solver(options& opts);
 
+  intvar new_intvar(int64_t lb, int64_t ub);
   // Post a constraint
   // bool post(bexpr& e);
 
@@ -37,14 +39,6 @@ public:
   
   solver_data* data;  
 };
-
-class solver::options {
-public: 
-  options(void)
-  { } 
-
-};
-static const solver::options default_options = solver::options();
 
 }
 
