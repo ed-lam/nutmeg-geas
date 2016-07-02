@@ -32,7 +32,8 @@ class pred_state {
 public:
   pred_state(void) {
     // Add Boolean placeholder
-    new_pred();
+    // solver_data constructor should call instead
+    // new_pred();
   }
 
   // As with infer, preds are added in pairs.

@@ -15,9 +15,7 @@ namespace phage {
 
 class solver_data {
 public:
-  solver_data(const options& _opts)
-    : opts(_opts)
-  { }
+  solver_data(const options& _opts);
 
   options opts;
    

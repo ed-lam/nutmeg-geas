@@ -13,7 +13,8 @@ public:
   // Predicates 0 and 1 are placeholders, and always
   // exist.
   infer_info(void) {
-    new_pred();
+    // Done by solver_data constructor
+    // new_pred();
   }
 
   // Predicates should only be added in pairs.

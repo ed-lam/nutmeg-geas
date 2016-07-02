@@ -15,6 +15,11 @@ solver::solver(options& _opts)
 
 }
 
+solver_data::solver_data(const options& _opts)
+    : opts(_opts) {
+  new_pred(*this);
+}
+
 inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
 
 pid_t new_pred(sdata& s) {
@@ -50,6 +55,7 @@ bool enqueue(sdata& s, patom_t p, reason r) {
     return true;
   }
   */
+  assert(p.pid < s.pred_queued.size());
   assert(!s.state.is_entailed(p));
   pval_t old_val = s.state.p_vals[p.pid];
   if(!s.state.post(p)) {
