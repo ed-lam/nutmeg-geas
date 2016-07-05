@@ -22,7 +22,7 @@ CXXFLAGS += $(COPTIMIZE)
 CXXFLAGS += -ggdb
 #CXXFLAGS += -pg
 
-CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(UTILS)/*.cc)
+CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(UTILS)/*.cc)
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))
 CDEPS     = $(addsuffix .d, $(basename $(CSRCS)))
 

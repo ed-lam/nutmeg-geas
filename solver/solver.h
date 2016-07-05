@@ -3,8 +3,8 @@
 
 // #include "solver/var.h"
 #include "solver/expr.h"
-#include "solver/intvar.h"
 #include "solver/options.h"
+#include "vars/intvar.h"
 
 namespace phage {
 
@@ -38,6 +38,7 @@ public:
   void level_pop(void);
   
   solver_data* data;  
+  intvar_manager ivar_man;
 };
 
 }

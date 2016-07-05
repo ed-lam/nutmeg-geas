@@ -80,7 +80,7 @@ public:
     return true;
   }
   
-  vec<lbool> b_assigns;
+  vec<char> b_assigns;
   vec<pval_t> p_vals; // Current values of predicates
   vec<pval_t> p_last; // Values at previous decision level
   vec<pval_t> p_root; // ...and at the root

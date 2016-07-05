@@ -5,6 +5,7 @@
 #include "engine/phage-types.h"
 #include "engine/state.h"
 #include "engine/infer.h"
+#include "engine/persist.h"
 #include "engine/propagator.h"
 #include "engine/conflict.h"
 
@@ -21,6 +22,7 @@ public:
    
   pred_state state;
   infer_info infer;
+  persistence persist;
   conflict_info confl;
 
   vec< vec<watch_callback> > bool_callbacks;

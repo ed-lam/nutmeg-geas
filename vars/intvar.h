@@ -9,6 +9,8 @@ namespace phage {
 class intvar_manager;
 
 class intvar {
+  friend class intvar_manager;
+
   static const pval_t offset = ((pval_t) INT64_MIN); 
 
   static int64_t to_int(pval_t v) { return (int64_t) (offset + v); }
@@ -22,6 +24,11 @@ public:
 
   bool set_lb(int64_t min, reason r);
   bool set_ub(int64_t max, reason r);
+
+  patom_t operator>=(int64_t v) { return patom_t(pid, from_int(v)); }
+  patom_t operator>(int64_t v) { return patom_t(pid, from_int(v+1)); }
+  patom_t operator<=(int64_t v) { return ~patom_t(pid, from_int(v+1)); }
+  patom_t operator<(int64_t v) { return ~patom_t(pid, from_int(v)); }
 
   solver_data* s;
   pid_t pid;
@@ -45,7 +52,6 @@ protected:
 class intvar_manager {
 public:
   intvar_manager(solver_data* _s);
-//    : s(_s) { }
      
   intvar new_var(int64_t lb, int64_t ub);
 

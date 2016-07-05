@@ -12,6 +12,8 @@ public:
   lbool(void) : x(0) { }
   lbool(bool b) : x(b ? 1 : -1) { }
 
+  lbool operator==(const lbool& o) const { return x == o.x; }
+  lbool operator!=(const lbool& o) const { return x != o.x; }
   lbool operator^(bool b) const { return lbool(b ? -x : x); }
   lbool operator~(void) const { return lbool(-x); }
   int to_int(void) const { return x; }
@@ -51,6 +53,9 @@ public:
   pid_t pid;
   pval_t val;
 };
+
+static const patom_t at_Undef = patom_t(UINT32_MAX, 0);
+static const patom_t at_Error = patom_t(UINT32_MAX, pval_max);
 
 // Event callbacks
 class watch_callback {

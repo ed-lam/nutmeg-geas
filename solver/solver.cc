@@ -6,12 +6,14 @@ namespace phage {
 typedef solver_data sdata;
 
 solver::solver(void)
-  : data(new solver_data(default_options)) {
+  : data(new solver_data(default_options)),
+    ivar_man(data) {
    
 }
 
 solver::solver(options& _opts)
-  : data(new solver_data(_opts)) {
+  : data(new solver_data(_opts)),
+    ivar_man(data) {
 
 }
 
@@ -20,6 +22,10 @@ solver_data::solver_data(const options& _opts)
   new_pred(*this);
 }
 
+intvar solver::new_intvar(int64_t lb, int64_t ub) {
+  return ivar_man.new_var(lb, ub);
+}
+  
 inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
 
 pid_t new_pred(sdata& s) {
@@ -33,6 +39,7 @@ pid_t new_pred(sdata& s) {
   s.wake_queued.push(false);
 
   s.state.new_pred();
+  s.persist.new_pred();
   return s.infer.new_pred();
 }
 
@@ -186,6 +193,15 @@ inline bool propagate_pred(solver_data& s, pid_t p) {
   }
 }
 
+// Record that the value of p has changed at the
+// current decision level.
+inline void touch_pred(solver_data& s, pid_t p) {
+  if(!s.persist.pred_touched[p]) {
+    s.persist.pred_touched[p] = true;
+    s.persist.touched_preds.push(p);
+  }
+}
+
 inline void wakeup_pred(solver_data& s, pid_t p) {
   assert(!is_bool(s, p)); // Handle Bool wake-up separately
   for(watch_callback call : s.pred_callbacks[p])
@@ -193,6 +209,7 @@ inline void wakeup_pred(solver_data& s, pid_t p) {
   s.wake_queued[p] = false;
 }
 
+// FIXME: Doesn't deal with bools at all.
 bool propagate(solver_data& s) {
   // Propagate any entailed clauses
   while(!s.pred_queue.empty()) {
@@ -208,8 +225,10 @@ prop_restart:
   }
   
   // Fire any events for the changed predicates
-  for(pid_t pi : s.wake_queue)
+  for(pid_t pi : s.wake_queue) {
+    touch_pred(s, pi);
     wakeup_pred(s, pi);  
+  }
   s.wake_queue.clear();
 
   // Process enqueued propagators

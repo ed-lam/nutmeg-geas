@@ -1,5 +1,8 @@
 #include <iostream>
 #include <cstdio>
+
+#include "solver/solver.h"
+
 #if 0
 #include "engine/env.h"
 #include "engine/trail.h"
@@ -36,4 +39,28 @@ int main(int argc, char** argv)
   return 0;
 }
 #endif
-int main(int argc, char** argv) { return 0; }
+
+using namespace phage;
+
+int main(int argc, char** argv) {
+  solver s;
+
+  intvar x = s.new_intvar(-10, 10);
+  intvar y = s.new_intvar(-10, 10);
+
+  solver_data& sd(*s.data);
+
+  add_clause(sd, x <= -5, x >= 5);
+  
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  enqueue(sd, x >= 0, reason());
+   
+  if(!propagate(sd))
+    ERROR;  
+
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  return 0;
+}
