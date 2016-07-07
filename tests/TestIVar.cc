@@ -42,6 +42,16 @@ int main(int argc, char** argv)
 
 using namespace phage;
 
+void print_touched(solver_data& sd) {
+  std::cout << "touched: [" ;
+  bool first = true;
+  for(int e : sd.persist.touched_preds) {
+    std::cout << (first ? "" : ", ") << e;
+    first = false;
+  }
+  std::cout << "]" << std::endl;
+}
+
 int main(int argc, char** argv) {
   solver s;
 
@@ -51,9 +61,17 @@ int main(int argc, char** argv) {
   solver_data& sd(*s.data);
 
   add_clause(sd, x <= -5, x >= 5);
+  add_clause(sd, y <= -5, y >= 8);
   
+  if(!propagate(sd))
+     ERROR;
+      
+  print_touched(sd);
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  std::cout << "Push" << std::endl;
+  push_level(&sd);
 
   enqueue(sd, x >= 0, reason());
    
@@ -62,5 +80,51 @@ int main(int argc, char** argv) {
 
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  print_touched(sd);
+
+  std::cout << "Push" << std::endl;
+  push_level(&sd);
+
+  enqueue(sd, y <= 7, reason());
+  if(!propagate(sd))
+    ERROR;
+
+  print_touched(sd);
+
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  std::cout << "Pop" << std::endl;
+  bt_to_level(&sd, 1);
+
+  print_touched(sd);
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  std::cout << "Pop" << std::endl;
+  bt_to_level(&sd, 0);
+
+  print_touched(sd);
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  push_level(&sd);
+  enqueue(sd, y >= 0, reason());
+  if(!propagate(sd))
+    ERROR;
+
+  push_level(&sd);
+  enqueue(sd, x <= 3, reason());
+  if(!propagate(sd))
+    ERROR;
+
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
+  bt_to_level(&sd, 0);
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+
   return 0;
 }

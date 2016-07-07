@@ -82,6 +82,9 @@ public:
 
   // Temporary storage for the conflict
   vec<clause_elt> confl;  
+
+  vec<clause*> clauses;
+  vec<clause*> learnts;
 };
 
 }

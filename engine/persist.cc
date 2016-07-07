@@ -14,12 +14,14 @@ void push_level(solver_data* s) {
   p.bvar_trail_lim.push(p.bvar_trail.size());
   p.dtrail_lim.push(p.data_trail.size());
 
+  p.pred_ltrail_lim.push(p.pred_ltrail.size());
   for(pid_t pi : p.touched_preds) {
     p.pred_touched[pi] = false;
     persistence::pred_entry e = { pi, s->state.p_last[pi] };
+    s->state.p_last[pi] = s->state.p_vals[pi];
     p.pred_ltrail.push(e);
   }
-  p.pred_ltrail_lim.push(p.pred_ltrail.size());
+  //p.pred_ltrail_lim.push(p.pred_ltrail.size());
   p.touched_preds.clear();
 }
 
@@ -89,7 +91,20 @@ inline void bt_preds(solver_data* s, unsigned int l) {
   // Now walk through the history, walking back p_vals
   // and p_last in lockstep.
   int p_lim = p.pred_ltrail_lim[l];
-  for(auto e : rev_range(&p.pred_ltrail[p_lim], p.pred_ltrail.end())) {
+  int p_end = p.pred_ltrail.size();
+  // Rewind all but the most recent level
+  if(l+1 < p.pred_ltrail_lim.size()) {
+    int p_mid = p.pred_ltrail_lim[l+1];
+    for(auto e : rev_range(&p.pred_ltrail[p_mid], p.pred_ltrail.end())) {
+      st.p_vals[e.p] = st.p_last[e.p];
+      st.p_last[e.p] = e.v;
+    }
+    p_end = p_mid;
+  }
+  // For the last level, also restore the 'touched' markers.
+  for(auto e : rev_range(&p.pred_ltrail[p_lim], &p.pred_ltrail[p_end])) {
+    p.pred_touched[e.p] = true;
+    p.touched_preds.push(e.p);
     st.p_vals[e.p] = st.p_last[e.p];
     st.p_last[e.p] = e.v;
   }

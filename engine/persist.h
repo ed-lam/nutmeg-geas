@@ -53,6 +53,21 @@ public:
 void push_level(solver_data* s);
 void bt_to_level(solver_data* s, unsigned int l);
 
+template<class T>
+inline void trail_push(persistence& p, T& elt) {
+  static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+    "sizeof(T) must be 2^k, k <- [0, 3]");
+  persistence::data_entry e = { (void*) &elt, sizeof(T), (uint64_t) elt };
+  p.data_trail.push(e); 
+}
+
+template<class T>
+inline void trail_change(persistence& p, T& elt, T val) {
+  trail_push(p, elt);      
+  elt = val;
+}
+
+
 }
 
 #endif
