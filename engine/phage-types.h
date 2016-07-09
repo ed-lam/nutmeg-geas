@@ -47,7 +47,7 @@ public:
   }
 
   patom_t operator~(void) const {
-    return patom_t(pid^1, pval_max - val - 1);
+    return patom_t(pid^1, pval_max - val + 1);
   }
 
   pid_t pid;

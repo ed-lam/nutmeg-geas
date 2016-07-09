@@ -13,10 +13,10 @@ class intvar {
 
   static const pval_t offset = ((pval_t) INT64_MIN); 
 
+public:
   static int64_t to_int(pval_t v) { return (int64_t) (offset + v); }
   static pval_t from_int(int64_t v) { return ((pval_t) v) - offset; }
 
-public:
   intvar(solver_data* _s, pid_t p);
 
   int64_t lb(void) const;

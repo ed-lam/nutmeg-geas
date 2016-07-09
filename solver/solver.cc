@@ -1,5 +1,7 @@
+#include <iostream>
 #include "solver/solver.h"
 #include "solver/solver_data.h"
+#include "engine/conflict.h"
 
 namespace phage {
 
@@ -18,7 +20,7 @@ solver::solver(options& _opts)
 }
 
 solver_data::solver_data(const options& _opts)
-    : opts(_opts) {
+    : opts(_opts), last_branch(default_brancher(this)) {
   new_pred(*this);
 }
 
@@ -26,6 +28,20 @@ intvar solver::new_intvar(int64_t lb, int64_t ub) {
   return ivar_man.new_var(lb, ub);
 }
   
+std::ostream& operator<<(std::ostream& o, const patom_t& at) {
+  if(at.pid&1) {
+    o << "p" << (at.pid>>1) << " <= " << intvar::to_int(pval_max - at.val);
+  } else {
+    o << "p" << (at.pid>>1) << " >= " << intvar::to_int(at.val);
+  }
+  return o;
+}
+
+std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
+  o << e.atom;
+  return o;
+}
+
 inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
 
 pid_t new_pred(sdata& s) {
@@ -40,7 +56,24 @@ pid_t new_pred(sdata& s) {
 
   s.state.new_pred();
   s.persist.new_pred();
+  s.confl.new_pred();
   return s.infer.new_pred();
+}
+
+void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
+  confl.clear();
+  switch(r.kind) {
+    case reason::R_Atom:
+      confl.push(p);
+      confl.push(r.at);
+      break;
+    case reason::R_Clause:
+      for(clause_elt e : *r.cl)
+        confl.push(e);
+       break;
+     default:
+       NOT_YET;
+  }
 }
 
 bool enqueue(sdata& s, patom_t p, reason r) {
@@ -67,7 +100,7 @@ bool enqueue(sdata& s, patom_t p, reason r) {
   pval_t old_val = s.state.p_vals[p.pid];
   if(!s.state.post(p)) {
     // Setup conflict
-    NOT_YET_WARN;
+    set_confl(s, p, r, s.infer.confl); 
     return false;
   }
   infer_info::entry e = { p.pid, old_val, r };
@@ -181,13 +214,12 @@ inline bool propagate_pred(solver_data& s, pid_t p) {
         break;
       
       curr = next;
-      if(!update_watchlist(s, ~atom, curr->ws))
+      if(!update_watchlist(s, ~atom, curr->ws)) {
         return false;
+      }
     }
     // Trail head of watches 
-    // FIXME: Do it
-    NOT_YET_WARN;
-    s.infer.pred_watches[p] = curr;
+    trail_change(s.persist, s.infer.pred_watches[p], curr);
 
     return true;
   }
@@ -246,11 +278,54 @@ prop_restart:
   return true;
 }
 
-// Solving
-solver::result solver::solve(void) {
-  return UNKNOWN;
+inline int decision_level(sdata& s) {
+  return s.infer.trail_lim.size();
 }
 
+inline void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
+  // Allocate the clause
+  WARN("Collection of learnt clauses not yet implemented.");
+  std::cout << " Learnt: " << learnt << std::endl;
+  add_clause(*s, learnt);
+}
+
+inline void simplify_at_root(solver_data& s) {
+  NOT_YET_WARN;  
+  return;
+}
+
+// Solving
+solver::result solver::solve(void) {
+  // Top-level failure
+  sdata& s(*data);
+  while(true) {
+    if(!propagate(s)) {
+      if(decision_level(s) == 0)
+        return UNSAT;
+        
+      // Conflict
+      int bt_level = compute_learnt(&s, s.infer.confl);
+      bt_to_level(&s, bt_level); 
+      add_learnt(&s, s.infer.confl);  
+      continue;
+    }
+
+    if(decision_level(s) == 0)
+      simplify_at_root(s);
+
+    patom_t dec = branch(&s);
+    if(dec == at_Undef)
+      return SAT;
+
+    assert(!s.state.is_entailed(dec));
+    assert(!s.state.is_inconsistent(dec));
+
+    push_level(&s);
+    enqueue(s, dec, reason());
+  }
+
+  return SAT;
+} 
 // Retrieve a model
 // precondition: last call to solver::solve returned SAT
 solver::model solver::get_model(void) {

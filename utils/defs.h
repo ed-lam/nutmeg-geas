@@ -3,11 +3,13 @@
 // Syntactic sugar definitions
 #include <cassert>
 #include <cstdio>
+#include <iostream>
 
 #include "mtl/Vec.h"
 
 #define NOT_YET assert(0 && "Not yet implemented.")
 #define NOT_YET_WARN fprintf(stderr, "WARNING: Incompletely implemented.\n")
+#define WARN(x) fprintf(stderr, "WARNING: %s\n", (x))
 #define ERROR assert(0 && "FAILURE.")
 
 template<class T, class U>
@@ -59,4 +61,19 @@ template<class T>
 rev_range_t<T> rev_range(T* start, T* end) {
   return rev_range_t<T>(start, end);
 }
+
+// Printing vectors
+template<class T>
+std::ostream& operator<<(std::ostream& o, vec<T>& vs) {
+  o << "[";
+  auto it = vs.begin();
+  if(it != vs.end()) {
+    o << *it; 
+    for(++it; it != vs.end(); ++it)
+      o << "; " << *it;
+  }
+  o << "]";
+  return o;
+}
+
 #endif

@@ -12,6 +12,7 @@ public:
 
 brancher* default_brancher(solver_data* s);
 
-}
+patom_t branch(solver_data* s);
 
+}
 #endif

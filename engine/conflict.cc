@@ -39,6 +39,7 @@ static void add(solver_data* s, clause_elt elt) {
 
     s->confl.pred_eval[pid] = elt.atom.val;
   }
+  assert(s->confl.pred_seen.elem(pid));
 }
 
 static void add_reason(solver_data* s, reason r) {
@@ -48,8 +49,10 @@ static void add_reason(solver_data* s, reason r) {
       break;
     case reason::R_Clause:
       {
-        for(clause_elt e : *(r.cl))
-          add(s, e);
+        // Skip the first literal (which we're resolving on)
+        auto it = r.cl->begin();
+        for(++it; it != r.cl->end(); ++it)
+          add(s, *it);
       }
       break;
     default:
@@ -63,6 +66,11 @@ inline bool needed(solver_data* s, infer_info::entry& entry) {
     entry.old_val < s->confl.pred_eval[entry.pid]; 
 }
 
+inline bool l_needed(solver_data* s, persistence::pred_entry entry) {
+  return s->confl.pred_seen.elem(entry.p) &&
+    entry.v < s->confl.pred_eval[entry.p];
+}
+
 inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   return clause_elt(
     patom_t(p, s->confl.pred_eval[p]),
@@ -70,14 +78,16 @@ inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   );
 }
 
-void compute_learnt(solver_data* s, vec<clause_elt>& confl) {
+int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   for(clause_elt e : confl)
-    add(s, e);          
+    add(s, e);
 
   // We'll re-use confl to hold the output
   confl.clear();
  
   assert(s->confl.clevel > 0);
+
+  // Allocate conflict for everything
 
   unsigned int pos = s->infer.trail.size()-1;
   while(!needed(s, s->infer.trail[pos]))
@@ -85,7 +95,7 @@ void compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
-    remove(s, e.pid);  
+    remove(s, e.pid);
     add_reason(s, e.expl); 
 
     pos--;
@@ -100,12 +110,28 @@ void compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   confl.push(get_clause_elt(s, e.pid));
   remove(s, e.pid);
 
+  // Identify the backtrack level and position the
+  // second watch.
+  int bt_level = 0;
+  pos = s->persist.pred_ltrail.size()-1;
+  for(int l = s->persist.pred_ltrail_lim.size()-1; l > 0; l--) {
+    for(; pos > s->persist.pred_ltrail_lim[l]; pos--) {
+      persistence::pred_entry e(s->persist.pred_ltrail[pos]);
+      if(l_needed(s, e)) {
+        // Literal would become unfixed at the previous level
+        bt_level = l;
+        confl.push(get_clause_elt(s, e.p));
+        goto level_found;
+      }
+    }
+  }
+level_found:
   // Now push the remaining elts
   for(unsigned int p : s->confl.pred_seen)
     confl.push(get_clause_elt(s, p));
   clear(s); 
-   
-  return;
+ 
+  return bt_level;
 }
 
 }

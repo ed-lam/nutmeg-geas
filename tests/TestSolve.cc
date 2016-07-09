@@ -1,5 +1,7 @@
 #include <iostream>
 #include <cstdio>
+#include "solver/solver.h"
+#include "solver/solver_data.h"
 #if 0
 #include "engine/env.h"
 #include "engine/trail.h"
@@ -54,6 +56,39 @@ int main(int argc, char** argv)
 }
 #endif
 
-int main(int argc, char** argv) {
+using namespace phage;
 
+std::ostream& operator<<(std::ostream& o, const solver::result& r) {
+  switch(r) {
+    case solver::SAT:
+      o << "SAT";
+      break;
+    case solver::UNSAT:
+      o << "UNSAT";
+      break;
+    default:
+      o << "UNKNOWN";
+  }
+  return o;
+}
+int main(int argc, char** argv) {
+  solver s;
+
+  intvar x = s.new_intvar(-10, 10);
+  intvar y = s.new_intvar(-10, 10);
+  intvar z = s.new_intvar(-10, 10);
+
+  solver_data& sd(*s.data);
+
+  add_clause(sd, x <= -5, y <= -5);
+  add_clause(sd, x >= 5, y >= 5);
+  add_clause(sd, x >= 0, z >= 0);
+  add_clause(sd, z >= 0, y >= 0);
+  
+  solver::result r = s.solve();
+  std::cout << "Result: " << r << std::endl;
+
+  if(r == solver::SAT) {
+    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
+  }
 }

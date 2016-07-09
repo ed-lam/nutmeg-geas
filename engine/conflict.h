@@ -36,6 +36,9 @@ public:
   int clevel;
 };
 
+// Returns the appropriate backtrack level.
+int compute_learnt(solver_data* s, vec<clause_elt>& confl);
+
 }
 
 #endif

@@ -31,4 +31,13 @@ brancher* default_brancher(solver_data* s) {
   return new simple_branch();
 }
 
+patom_t branch(solver_data* s) {
+  for(brancher* b : s->branchers) {
+    patom_t p = b->branch(s);
+    if(p != at_Undef)
+      return p;
+  }
+  return s->last_branch->branch(s);
+}
+
 }

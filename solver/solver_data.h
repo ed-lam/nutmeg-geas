@@ -10,6 +10,7 @@
 #include "engine/conflict.h"
 
 // #include "solver/solver.h"
+#include "solver/branch.h"
 #include "solver/options.h"
 
 namespace phage {
@@ -35,6 +36,9 @@ public:
   vec<bool> wake_queued;
   
   Queue<propagator*> prop_queue;
+
+  vec<brancher*> branchers;
+  brancher* last_branch;
 };
 
 pid_t new_pred(solver_data& s);
