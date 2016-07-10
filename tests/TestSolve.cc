@@ -2,6 +2,9 @@
 #include <cstdio>
 #include "solver/solver.h"
 #include "solver/solver_data.h"
+
+#include "constraints/builtins.h"
+
 #if 0
 #include "engine/env.h"
 #include "engine/trail.h"
@@ -78,13 +81,17 @@ int main(int argc, char** argv) {
   intvar y = s.new_intvar(-10, 10);
   intvar z = s.new_intvar(-10, 10);
 
-  solver_data& sd(*s.data);
+  solver_data* sd(s.data);
 
-  add_clause(sd, x <= -5, y <= -5);
+  add_clause(sd, x <= 1, y <= 2);
   add_clause(sd, x >= 5, y >= 5);
-  add_clause(sd, x >= 0, z >= 0);
-  add_clause(sd, z >= 0, y >= 0);
-  
+//  add_clause(sd, x >= 0, z >= 0);
+//  add_clause(sd, z >= 0, y >= 0);
+
+  vec<int> ks;   
+  ks.push(1); ks.push(3); ks.push(5); ks.push(9);
+  int_element(sd, x, y, ks);
+
   solver::result r = s.solve();
   std::cout << "Result: " << r << std::endl;
 

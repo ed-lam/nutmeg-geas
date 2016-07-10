@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
   phage::pid_t y = new_pred(sd);
   
   // x >= 5 -> x >= 8.
-  add_clause(sd, ~patom_t(x, 5), patom_t(x, 8));
+  add_clause(&sd, ~patom_t(x, 5), patom_t(x, 8));
 
   if(!enqueue(sd, patom_t(x, 6), reason()))
     ERROR;

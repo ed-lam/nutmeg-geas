@@ -37,6 +37,7 @@ protected:
     w->atom = patom_t(pid, 0);
     pred_watches.push(w);
     pred_watch_heads.push(w);
+    pred_act.push(0);
 
     watch_maps.push();
     watch_maps.last().add(0, w);
@@ -75,6 +76,7 @@ public:
   vec<watch_map> watch_maps; // (pid_t -> pval_t -> watch_node*)
   vec<watch_node*> pred_watches;
   vec<watch_node*> pred_watch_heads; // Watches for [| pid >= min_val |].
+  vec<double> pred_act;
 
   // Inference graph and backtracking
   vec<int> trail_lim;

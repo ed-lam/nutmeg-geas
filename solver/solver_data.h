@@ -49,11 +49,11 @@ bool enqueue(solver_data& s, patom_t p, reason r);
 bool add_clause(solver_data& s, vec<clause_elt>& elts);
 
 template<typename... Ts>
-bool add_clause(solver_data& s, patom_t e, Ts... args) {
+bool add_clause(solver_data* s, patom_t e, Ts... args) {
   vec<clause_elt> elts;
   elts.push(e);
   vec_push(elts, args...);
-  return add_clause(s, elts);  
+  return add_clause(*s, elts);  
 }
 
 }

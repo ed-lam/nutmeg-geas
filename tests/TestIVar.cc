@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
 
   solver_data& sd(*s.data);
 
-  add_clause(sd, x <= -5, x >= 5);
-  add_clause(sd, y <= -5, y >= 8);
+  add_clause(&sd, x <= -5, x >= 5);
+  add_clause(&sd, y <= -5, y >= 8);
   
   if(!propagate(sd))
      ERROR;

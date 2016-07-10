@@ -3,7 +3,8 @@
 /* Types for the inference engine */
 #include <stdint.h>
 #include <vector>
-#include <mtl/Vec.h>
+#include "mtl/Vec.h"
+#include "mtl/int-triemap.h"
 
 #include "utils/defs.h"
 #include "engine/phage-types.h"
@@ -25,6 +26,13 @@ public:
   watch_node* watch;
 };
 
+struct clause_extra {
+  clause_extra(void)
+    : is_learnt(false), act(0) { }
+  bool is_learnt;
+  double act;
+};
+
 class clause {
 public:
   // As usual, don't use this directly...
@@ -38,6 +46,8 @@ public:
   clause_elt& operator[](int ii) { return data[ii]; }
   clause_elt* begin(void) { return &(data[0]); }
   clause_elt* end(void) { return &(data[sz]); }
+
+  clause_extra extra;
 protected:
   int sz;
   clause_elt data[0];
@@ -70,6 +80,14 @@ public:
   clause* c;
 };
 
+struct watch_extra {
+  watch_extra(void)
+    : act(0), refs(0) { }
+
+  double act;
+  int refs;
+};
+
 // Watches for a given atom.
 // Maintains a pointer to the next watch.
 class watch_node {
@@ -77,6 +95,7 @@ public:
   watch_node(void)
     : succ(nullptr) { }
   patom_t atom; 
+  watch_extra extra;
   watch_node* succ;  
   vec<clause_head> ws;
 };

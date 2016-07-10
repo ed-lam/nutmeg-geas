@@ -30,9 +30,9 @@ intvar solver::new_intvar(int64_t lb, int64_t ub) {
   
 std::ostream& operator<<(std::ostream& o, const patom_t& at) {
   if(at.pid&1) {
-    o << "p" << (at.pid>>1) << " <= " << intvar::to_int(pval_max - at.val);
+    o << "p" << (at.pid>>1) << " <= " << intvar_base::to_int(pval_max - at.val);
   } else {
-    o << "p" << (at.pid>>1) << " >= " << intvar::to_int(at.val);
+    o << "p" << (at.pid>>1) << " >= " << intvar_base::to_int(at.val);
   }
   return o;
 }
@@ -300,6 +300,7 @@ solver::result solver::solve(void) {
   sdata& s(*data);
   while(true) {
     if(!propagate(s)) {
+      std::cout << "Conflict: " << s.infer.confl << std::endl;
       if(decision_level(s) == 0)
         return UNSAT;
         

@@ -4,6 +4,7 @@ CXX       = clang++
 MTL       = ./mtl
 ENGINE	  = ./engine
 SOLVER	  = ./solver
+CONSTRAINTS = ./constraints
 UTILS     = ./utils
 VARS      = ./vars
 CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
@@ -22,7 +23,7 @@ CXXFLAGS += $(COPTIMIZE)
 CXXFLAGS += -ggdb
 #CXXFLAGS += -pg
 
-CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(UTILS)/*.cc)
+CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(CONSTRAINTS)/*.cc) $(wildcard $(UTILS)/*.cc)
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))
 CDEPS     = $(addsuffix .d, $(basename $(CSRCS)))
 
