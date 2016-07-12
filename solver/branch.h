@@ -7,6 +7,7 @@ namespace phage {
 
 class brancher {
 public:
+  virtual ~brancher(void) { }
   virtual patom_t branch(solver_data* s) = 0;
 };
 

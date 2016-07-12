@@ -42,8 +42,8 @@ int main(int argc, char** argv) {
   if(sd.state.is_entailed(patom_t(y, 10)))
     ERROR;
 
-  if(enqueue(sd, ~patom_t(y, 5), reason()))
-    ERROR; 
+//  if(enqueue(sd, ~patom_t(y, 5), reason()))
+//    ERROR; 
   if(!propagate(sd))
     ERROR;
 

@@ -17,6 +17,24 @@ public:
     // new_pred();
   }
 
+  ~infer_info(void) {
+    // Clear watches
+    watch_maps.clear();
+    for(watch_node* h : pred_watch_heads) {
+      while(h) {
+        watch_node* s = h->succ;
+        delete(h);
+        h = s;
+      }
+    }
+    
+    // Then clauses and learnts
+    for(clause* c : clauses)
+      delete c;
+    for(clause* l : learnts)
+      delete l;
+  }
+
   // Predicates should only be added in pairs.
   pid_t new_pred(void) {
     pid_t p = new_half_pred();
@@ -27,6 +45,11 @@ public:
   void growTo(int sz) {
     while(watch_maps.size() <= sz)
       new_pred();
+  }
+
+  void root_simplify(void) {
+    trail.clear();
+    trail_lim.clear();
   }
 
 protected:

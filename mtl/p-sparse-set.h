@@ -17,7 +17,10 @@ public:
        sparse((unsigned int*) malloc(dom*sizeof(unsigned int))),
        dense((unsigned int*) malloc(dom*sizeof(unsigned int)))
    {
-
+      for(int ii = 0; ii < dom; ii++) {
+        sparse[ii] = ii;
+        dense[ii] = ii;
+      }
    }
 
    p_sparseset(unsigned int size) : dom(size),

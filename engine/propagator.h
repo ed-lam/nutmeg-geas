@@ -11,6 +11,7 @@ public:
     : s(_s) {
       
   }
+  virtual ~propagator(void) { }
 
   virtual bool propagate(vec<clause_elt>& confl) = 0;
   virtual bool check_sat(void) { return true; }

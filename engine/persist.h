@@ -32,6 +32,18 @@ public:
     return pred_ltrail_lim.size();
   }
 
+  void root_simplify(void) {
+    for(pid_t p : touched_preds)
+      pred_touched[p] = false;
+    touched_preds.clear();
+    bvar_trail.clear();
+    bvar_trail_lim.clear();
+    pred_ltrail.clear();
+    pred_ltrail_lim.clear();
+    data_trail.clear();
+    dtrail_lim.clear();
+  }
+
   vec<bool> pred_touched;
   vec<pid_t> touched_preds;
 

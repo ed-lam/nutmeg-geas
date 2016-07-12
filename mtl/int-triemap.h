@@ -204,7 +204,7 @@ public:
 
     // If value not in the trie, terminate
     leaf_t* leaf((leaf_t*) p);
-    if(e != leaf->elt)
+    if(e != leaf->ref.key)
       return;
     
     // Disconnect the leaf, then free it.

@@ -18,6 +18,7 @@ namespace phage {
 class solver_data {
 public:
   solver_data(const options& _opts);
+  ~solver_data(void);
 
   options opts;
    
@@ -37,6 +38,7 @@ public:
   
   Queue<propagator*> prop_queue;
 
+  vec<propagator*> propagators;
   vec<brancher*> branchers;
   brancher* last_branch;
 };
@@ -55,6 +57,11 @@ bool add_clause(solver_data* s, patom_t e, Ts... args) {
   vec_push(elts, args...);
   return add_clause(*s, elts);  
 }
+
+// For debugging
+std::ostream& operator<<(std::ostream& o, const patom_t& at);
+
+std::ostream& operator<<(std::ostream& o, const clause_elt& e);
 
 }
 #endif

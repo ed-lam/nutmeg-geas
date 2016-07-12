@@ -13,22 +13,25 @@ static void clear(solver_data* s) {
 static void remove(solver_data* s, pid_t p) {
   // FIXME: Handle Booleans
   s->confl.pred_seen.remove(p);
+  if(s->state.p_last[p] < s->confl.pred_eval[p])
+    s->confl.clevel--;
 }
 
 static void add(solver_data* s, clause_elt elt) {
   // FIXME: Handle bools
-  pid_t pid = elt.atom.pid;
+  pid_t pid = elt.atom.pid^1;
+  pval_t val = pval_max - elt.atom.val;
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
     s->confl.pred_seen.insert(pid);
-    s->confl.pred_eval[pid] = elt.atom.val;
+    s->confl.pred_eval[pid] = val;
     s->confl.pred_hint[pid] = elt.watch;
 
-    if(s->state.p_last[pid] < elt.atom.val)
+    if(s->state.p_last[pid] < val)
       s->confl.clevel++;
   } else {
     // Check whether the atom is already entailed.
-    pval_t val = elt.atom.val;
+    // pval_t val = elt.atom.val;
     if(val <= s->confl.pred_eval[pid])
       return;
     
@@ -37,11 +40,31 @@ static void add(solver_data* s, clause_elt elt) {
       && s->confl.pred_eval[pid] <= s->state.p_last[pid])
       s->confl.clevel++;
 
-    s->confl.pred_eval[pid] = elt.atom.val;
+    s->confl.pred_eval[pid] = val;
   }
   assert(s->confl.pred_seen.elem(pid));
 }
 
+std::ostream& operator<<(std::ostream& o, reason r) {
+  o << "<- ";
+  switch(r.kind) {
+    case reason::R_Atom:
+      o << r.at;
+      break;
+    case reason::R_Clause:
+      {
+        vec<clause_elt> es;
+        auto it = r.cl->begin();
+        for(++it; it != r.cl->end(); ++it)
+          es.push(*it);
+        o << es;
+      }
+      break;
+    default:
+      NOT_YET;
+  }
+  return o;
+}
 static void add_reason(solver_data* s, reason r) {
   switch(r.kind) {
     case reason::R_Atom:
@@ -73,12 +96,18 @@ inline bool l_needed(solver_data* s, persistence::pred_entry entry) {
 
 inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   return clause_elt(
-    patom_t(p, s->confl.pred_eval[p]),
+    patom_t(p^1, pval_max - s->confl.pred_eval[p]),
     s->confl.pred_hint[p]
   );
 }
 
 int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
+  s->confl.clevel = 0;
+  
+  std::cout << "confl:" << confl << std::endl;
+
+  // THE BUG IS THUS: the conflict contains things which are false.
+  // The inference trail contains things which have become true.
   for(clause_elt e : confl)
     add(s, e);
 
@@ -96,6 +125,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
     remove(s, e.pid);
+    std::cout << e.expl << std::endl;
     add_reason(s, e.expl); 
 
     pos--;
@@ -121,6 +151,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
         // Literal would become unfixed at the previous level
         bt_level = l;
         confl.push(get_clause_elt(s, e.p));
+        remove(s, e.p);
         goto level_found;
       }
     }

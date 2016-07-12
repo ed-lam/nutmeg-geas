@@ -48,8 +48,9 @@ public:
   clause_elt* end(void) { return &(data[sz]); }
 
   clause_extra extra;
-protected:
+
   int sz;
+protected:
   clause_elt data[0];
 };
 

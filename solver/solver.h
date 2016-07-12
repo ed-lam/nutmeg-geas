@@ -22,6 +22,7 @@ public:
 
   solver(void);
   solver(options& opts);
+  ~solver(void);
 
   intvar new_intvar(int64_t lb, int64_t ub);
   // Post a constraint

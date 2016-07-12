@@ -13,6 +13,11 @@ solver::solver(void)
    
 }
 
+solver::~solver(void) {
+  // Free propagators
+  delete data;
+}
+
 solver::solver(options& _opts)
   : data(new solver_data(_opts)),
     ivar_man(data) {
@@ -24,10 +29,20 @@ solver_data::solver_data(const options& _opts)
   new_pred(*this);
 }
 
+solver_data::~solver_data(void) {
+  for(propagator* p : propagators)
+    delete p;
+  for(brancher* b : branchers)
+    delete b;
+  assert(last_branch);
+  delete last_branch;
+}
+
 intvar solver::new_intvar(int64_t lb, int64_t ub) {
   return ivar_man.new_var(lb, ub);
 }
-  
+
+// For debugging
 std::ostream& operator<<(std::ostream& o, const patom_t& at) {
   if(at.pid&1) {
     o << "p" << (at.pid>>1) << " <= " << intvar_base::to_int(pval_max - at.val);
@@ -36,11 +51,11 @@ std::ostream& operator<<(std::ostream& o, const patom_t& at) {
   }
   return o;
 }
-
 std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
   o << e.atom;
   return o;
 }
+
 
 inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
 
@@ -77,6 +92,7 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
 }
 
 bool enqueue(sdata& s, patom_t p, reason r) {
+  std::cout << "|- " << p << std::endl;
   /*
   if(is_bool(s, p.pid)) {
     NOT_YET;
@@ -123,7 +139,7 @@ inline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   if(elt.watch)
     return elt.watch->ws;
 
-  patom_t p(~elt.atom);   
+  patom_t p(~elt.atom);
   watch_node* watch = s.infer.get_watch(p.pid, p.val);
   elt.watch = watch;
   return watch->ws;
@@ -162,7 +178,7 @@ inline bool update_watchlist(solver_data& s,
 
     if(s.state.is_entailed(c[0].atom)) {
       // If we've found something true, don't bother
-      // updating the watches: just record the satisfying
+      // updating the watches: just record the satisfying atom
       // in the head.
       c[1] = elt;
       ch.e0 = c[0].atom;
@@ -191,12 +207,17 @@ inline bool update_watchlist(solver_data& s,
     }
     // No watches found
     c[1] = elt;
-    if(!enqueue(s, c[0].atom, &c))
+    ws[jj++] = ch;
+    if(!enqueue(s, c[0].atom, &c)) {
+      for(ii++; ii < ws.size(); ii++)
+        ws[jj++] = ws[ii];
       return false;
+    }
 
 next_clause:
     continue;
   }
+  ws.shrink(ws.size() - jj);
   return true;
 }
 
@@ -273,8 +294,7 @@ prop_restart:
     // jump back to 
     if(!s.pred_queue.empty())
       goto prop_restart;
-  }
-
+  } 
   return true;
 }
 
@@ -285,12 +305,146 @@ inline int decision_level(sdata& s) {
 inline void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   // Allocate the clause
   WARN("Collection of learnt clauses not yet implemented.");
-  std::cout << " Learnt: " << learnt << std::endl;
-  add_clause(*s, learnt);
+
+  // Construct the clause
+  int jj = 0;
+  for(clause_elt e : learnt) {
+    // Remove anything dead at l0.
+    if(s->state.is_inconsistent_l0(e.atom))
+      continue;
+    learnt[jj++] = e;
+  }
+  learnt.shrink(learnt.size()-jj);
+  
+  // Unit at root level
+  if(learnt.size() == 1) {
+    enqueue(*s, learnt[0].atom, reason()); 
+    return;
+  }
+  
+  // Binary clause; embed the -other- literal
+  // in the head;
+  if(learnt.size() == 2) {
+    // Add the two watches
+    clause_head h0(learnt[0].atom);
+    clause_head h1(learnt[1].atom);
+
+    find_watchlist(*s, learnt[0]).push(h1);
+    find_watchlist(*s, learnt[1]).push(h0); 
+    enqueue(*s, learnt[0].atom, learnt[1].atom);
+  } else {
+    // Normal clause
+    clause* c(clause_new(learnt));
+    // Assumption:
+    // learnt[0] is the asserting literal;
+    // learnt[1] is at the current level
+    clause_head h(learnt[2].atom, c);
+
+    find_watchlist(*s, learnt[0]).push(h);
+    find_watchlist(*s, learnt[1]).push(h); 
+    enqueue(*s, learnt[0].atom, c);
+  }
 }
 
+// Remove c from its watch lists.
+inline void detach_watch(vec<clause_head>& ws, clause* c) {
+  for(clause_head& w : ws) {
+    if(w.c == c) {
+      w = ws.last();
+      ws.pop();
+      return;
+    }
+  }
+}
+
+inline void replace_watch(vec<clause_head>& ws, clause* c, clause_head h) {
+  for(clause_head& w : ws) {
+    if(w.c == c) {
+      w = h;
+      return;
+    }
+  }
+}
+
+inline void detach_clause(solver_data& s, clause* c) {
+  // We care about the watches for 
+  detach_watch(find_watchlist(s, (*c)[0]), c);
+  detach_watch(find_watchlist(s, (*c)[1]), c);
+}
+
+inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
+  clause_elt* ej = c->begin();
+  for(clause_elt e : *c) {
+    if(s.state.is_entailed_l0(e.atom)) {
+      // Clause is satisfied at the root; remove it.
+      detach_clause(s, c);
+      delete c; 
+      return dest;
+    }
+    if(!s.state.is_inconsistent_l0(e.atom)) {
+      // Literal may become true; keep it.
+      *ej = e; ++ej;
+    }
+  }
+  c->sz = ej - c->begin();
+  assert(c->sz >= 2);
+
+  if(c->sz == 2) {
+    // c has become a binary clause.
+    // Inline the clause body, and free the clause.
+    replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
+    replace_watch(find_watchlist(s, (*c)[1]), c, (*c)[0].atom);
+    delete c;
+    return dest;
+  }
+
+  *dest = c; ++dest;
+  return dest;
+}
+
+// Precondition: propagate should have been run to fixpoint,
+// and we're at decision level 0.
 inline void simplify_at_root(solver_data& s) {
   NOT_YET_WARN;  
+  // Update predicate values, simplify clauses
+  // and clear trails.
+  for(int pi = 0; pi < s.pred_callbacks.size(); pi++) {
+    s.state.p_last[pi] = s.state.p_vals[pi];    
+    s.state.p_root[pi] = s.state.p_vals[pi];
+    
+    // Do garbage collection on the watch_node*-s.
+    while(s.infer.pred_watch_heads[pi] != s.infer.pred_watches[pi]) {
+      watch_node* w = s.infer.pred_watch_heads[pi];
+      s.infer.pred_watch_heads[pi] = w->succ;
+      s.infer.watch_maps[pi].rem(w->atom.val);
+      delete w;
+    }
+    // Now that entailed watches are deleted, we're committed
+    // to simplifying all the clauses.
+  }
+
+  // Watches may be invalidated when a clause is
+  // deleted because it is satisfied at the root.
+  // This is dealt with in cimplify_clause.
+  clause** cj = s.infer.clauses.begin();
+  for(clause* c : s.infer.clauses) {
+    cj = simplify_clause(s, c, cj); 
+  }
+  s.infer.clauses.shrink_(s.infer.clauses.end() - cj);
+
+  clause** lj = s.infer.learnts.begin();
+  for(clause* c : s.infer.learnts) {
+    lj = simplify_clause(s, c, lj);
+  }
+  s.infer.learnts.shrink_(s.infer.learnts.end() - lj);
+
+  for(propagator* p : s.propagators)
+    p->root_simplify();
+  
+  // Now reset all persistence stuff. 
+  s.infer.root_simplify();
+  s.persist.root_simplify();
+
   return;
 }
 
@@ -306,8 +460,8 @@ solver::result solver::solve(void) {
         
       // Conflict
       int bt_level = compute_learnt(&s, s.infer.confl);
-      bt_to_level(&s, bt_level); 
-      add_learnt(&s, s.infer.confl);  
+      bt_to_level(&s, bt_level);
+      add_learnt(&s, s.infer.confl);
       continue;
     }
 
@@ -320,6 +474,7 @@ solver::result solver::solve(void) {
 
     assert(!s.state.is_entailed(dec));
     assert(!s.state.is_inconsistent(dec));
+    std::cout << "?> " << dec << std::endl;
 
     push_level(&s);
     enqueue(s, dec, reason());
