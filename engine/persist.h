@@ -4,10 +4,24 @@
 // Data structures for managing trailing and
 // restoration (except the implication graph, which
 // is dealt with in infer.h
+#include "engine/phage-types.h"
+#include "engine/infer-types.h"
 
 namespace phage {
 
 class solver_data;
+
+class expl_builder {
+public:
+  expl_builder(clause* _c)
+    : c(_c), hd(&(*c)[1]) { }
+
+  void push(const clause_elt& e) { *hd = e; ++hd; }    
+  clause* operator*(void) { c->sz = hd - c->begin(); return c; }
+
+  clause* c;
+  clause_elt* hd;
+};
 
 class persistence {
 public:
@@ -44,6 +58,21 @@ public:
     dtrail_lim.clear();
   }
 
+  clause* alloc_expl(unsigned int sz) {
+    clause* c = alloc_clause_mem(sz);
+    expl_trail.push(c);
+    return c;
+  }
+
+  template<class... Es>
+  clause* create_expl(Es... es) {
+    clause* c = alloc_expl(1 + sizeof...(es));
+    clause_elt* dest = &(*c)[1];
+    ptr_push(dest, es...);
+    c->sz = 1 + sizeof...(es);
+    return c;
+  }
+
   vec<bool> pred_touched;
   vec<pid_t> touched_preds;
 
@@ -55,7 +84,8 @@ public:
   vec<int> pred_ltrail_lim;
 
   // Temporary explanations
-  // FIXME: Set up some arena stuff
+  vec<clause*> expl_trail;
+  vec<int> expl_trail_lim;
 
   // Trail for other data
   vec<data_entry> data_trail;

@@ -27,6 +27,31 @@ public:
   }
 };
 
+class pred_act_brancher : public brancher {
+public:
+  pred_act_brancher(solver_data* _s)
+    : s(_s) { }
+  
+  patom_t branch(solver_data* s) {
+    NOT_YET; 
+  }
+  solver_data* s;
+};
+
+class atom_act_brancher : public brancher {
+public:
+  atom_act_brancher(solver_data* _s)
+    : s(_s) { }
+
+  patom_t branch(solver_data* s) {
+    NOT_YET;
+  }
+
+  solver_data* s;
+};
+
+brancher* pred_act_branch(solver_data* s);
+brancher* atom_act_branch(solver_data* s);
 brancher* default_brancher(solver_data* s) {
   return new simple_branch();
 }

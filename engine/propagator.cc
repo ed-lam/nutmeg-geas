@@ -10,4 +10,8 @@ void propagator::queue_prop(void) {
   }
 }
 
+bool propagator::execute(vec<clause_elt>& confl) {
+  return propagate(confl);
+}
+
 }

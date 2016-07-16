@@ -23,6 +23,8 @@ void push_level(solver_data* s) {
   }
   //p.pred_ltrail_lim.push(p.pred_ltrail.size());
   p.touched_preds.clear();
+
+  p.expl_trail_lim.push(p.expl_trail.size());
 }
 
 // Doesn't call destructors
@@ -59,7 +61,12 @@ inline void bt_data(solver_data* s, unsigned int l) {
 }
 
 inline void bt_explns(solver_data* s, unsigned int l) {
-  NOT_YET_WARN;
+  persistence& p(s->persist);
+  unsigned int e_lim = p.expl_trail_lim[l];
+  for(clause* c : rev_range(&p.expl_trail[e_lim], p.expl_trail.end()))
+    delete c;
+  dropTo_(p.expl_trail, e_lim);
+  dropTo_(p.expl_trail_lim, l); 
 }
 
 inline void bt_preds(solver_data* s, unsigned int l) {

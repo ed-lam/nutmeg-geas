@@ -35,12 +35,16 @@ struct clause_extra {
 
 class clause {
 public:
+  // Empty constructor, for temporary explanations
+  clause(void) { }
+
   // As usual, don't use this directly...
   template<class T> clause(T& elts) {
     sz = 0;
     for(clause_elt e : elts)
       data[sz++] = e;
   }
+  
   int size(void) const { return sz; }
   
   clause_elt& operator[](int ii) { return data[ii]; }
@@ -59,6 +63,13 @@ template<class T>
 clause* clause_new(T& elts) {
   void* mem = malloc(sizeof(clause) + sizeof(clause_elt)*elts.size());
   return new (mem) clause(elts);
+}
+
+inline clause* alloc_clause_mem(int sz) {
+  void* mem = malloc(sizeof(clause) + sizeof(clause_elt)*sz);
+  clause* c = new (mem) clause();
+  c->sz = sz;
+  return c;
 }
 
 template<typename... Es>

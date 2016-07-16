@@ -18,9 +18,16 @@ public:
   virtual void root_simplify(void) { }
   virtual void cleanup(void) { is_queued = false; }
 
+  // execute dispatches between the checker (in a
+  // half-reified case) and proapagator (when it's
+  // active).
+  // FIXME: Not yet implemented
+  bool execute(vec<clause_elt>& confl);
+
   void queue_prop(void);
-protected:
+
   bool is_queued;
+protected:
   solver_data* s;
 };
 

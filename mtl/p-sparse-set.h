@@ -121,9 +121,9 @@ public:
       return dom;
    }
        
-protected:
    unsigned int dom;
    unsigned int sz;
+protected:
    unsigned int* sparse;
    unsigned int* dense;
 };

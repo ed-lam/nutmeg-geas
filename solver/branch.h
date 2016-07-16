@@ -12,6 +12,8 @@ public:
 };
 
 brancher* default_brancher(solver_data* s);
+brancher* pred_act_branch(solver_data* s);
+brancher* atom_act_branch(solver_data* s);
 
 patom_t branch(solver_data* s);
 

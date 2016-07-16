@@ -5,8 +5,8 @@
 
 namespace phage {
 
-intvar_base::intvar_base(solver_data* _s, int _idx, pid_t _pid)
-  : s(_s), idx(_idx), pid(_pid)
+intvar_base::intvar_base(solver_data* _s, intvar_manager* _m, int _idx, pid_t _pid)
+  : s(_s), man(_m), idx(_idx), pid(_pid)
 { assert(!(pid&1)); }
 
 int64_t intvar_base::lb(void) const {
@@ -25,15 +25,19 @@ bool intvar_base::set_ub(int64_t max, reason r) {
   return enqueue(*s, patom_t(pid^1, pval_max - from_int(max)), r);
 }
 
+void intvar_base::attach(intvar_event e, watch_callback c) {
+  man->attach(idx, e, c);
+}
+
 static void wakeup(void* ptr, int idx) {
   intvar_manager* man = static_cast<intvar_manager*>(ptr);
   // Do some stuff
   if(idx&1) {
     for(auto c : man->lb_callbacks[idx>>1])
-      c(intvar_callback::E_LB);
+      c();
   } else {
     for(auto c : man->ub_callbacks[idx>>1])
-      c(intvar_callback::E_UB);
+      c();
   }
   printf("Ping: %d\n", idx);
 }
@@ -55,10 +59,19 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
 
   // fprintf(stdout, "[%lld,%lld] ~~> [%lld, %lld]\n", lb, ub, intvar::from_int(lb), intvar::from_int(ub));
   // Set bounds
-  intvar v(new intvar_base(s, idx, p));
+  intvar v(new intvar_base(s, this, idx, p));
   v.set_lb(lb, nullptr);
   v.set_ub(ub, nullptr);
   return v;
+}
+
+void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c) {
+  if(e&E_LB) {
+    lb_callbacks[2*v_idx].push(c);  
+  }
+  if(e&E_UB) {
+    ub_callbacks[2*v_idx+1].push(c);
+  }
 }
 
 }

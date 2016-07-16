@@ -23,6 +23,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <cstdlib>
 #include <cassert>
 #include <new>
+#include <initializer_list>
 
 //=================================================================================================
 // Automatically resizable arrays
@@ -38,9 +39,11 @@ class vec {
     void     init(int size, const T& pad);
     void     grow(int min_cap);
 
+/*
     // Don't allow copying (error prone):
     vec<T>&  operator = (vec<T>& other) { assert(0); return *this; }
              vec        (vec<T>& other) { assert(0); }
+             */
 
     static inline int imin(int x, int y) {
         int mask = (x-y) >> (sizeof(int)*8-1);
@@ -61,6 +64,40 @@ public:
     vec(int size, const T& pad) : data(NULL) , sz(0)   , cap(0)    { growTo(size, pad); }
     vec(T* array, int size)     : data(array), sz(size), cap(size) { }      // (takes ownership of array -- will be deallocated with 'free()')
    ~vec(void)                                                      { clear(true); }
+
+    vec(std::initializer_list<T> elts)
+      : data(NULL), sz(0), cap(0) {
+      capacity(elts.size());
+      int ii = 0;
+      for(T x : elts) {
+        new (&data[ii]) T(x);
+        ++ii;
+      }
+      sz = ii;
+    }
+
+    vec<T>& operator=(vec<T>&& o) {
+      if(data) { free(data); }
+      data = o.data;
+      sz = o.sz;
+      o.data = NULL;
+      o.sz = 0;
+      return *this;
+    }
+    vec<T>&  operator=(vec<T>& other) {
+      other.copyTo(*this);
+      return *this;
+    }
+    vec(vec<T>& other)
+      : data(NULL), sz(0), cap(0) {
+      other.copyTo(*this);
+    }
+    vec(vec<T>&& o)
+      : data(o.data), sz(o.sz), cap(o.cap) {
+        o.data = nullptr;
+        o.sz = 0;
+        o.cap = 0;
+    }
 
     // Ownership of underlying array:
     T*       release  (void)           { T* ret = data; data = NULL; sz = 0; cap = 0; return ret; }

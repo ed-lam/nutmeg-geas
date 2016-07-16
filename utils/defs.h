@@ -21,6 +21,19 @@ void vec_push(vec<T>& vec, U& elt, Us... rest) {
   vec_push(vec, rest...);
 }
 
+/*
+template<class... Us>
+class ArgsLen { };
+*/
+template<class T, class U>
+T* ptr_push(T* p, U& elt) { *p = elt; return ++p; }
+
+template<class T, class U, class... Us>
+T* ptr_push(T* p, U& elt, Us... rest) {
+  (*p) = elt;
+  return ptr_push(++p, rest...);
+}
+
 template<class T>
 struct range_t {
   range_t(T* pre, T* post) 
