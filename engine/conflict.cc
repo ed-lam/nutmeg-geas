@@ -19,6 +19,7 @@ static void remove(solver_data* s, pid_t p) {
 
 static void add(solver_data* s, clause_elt elt) {
   // FIXME: Handle bools
+  assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
   pval_t val = pval_max - elt.atom.val;
   if(!s->confl.pred_seen.elem(pid)) {

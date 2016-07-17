@@ -67,10 +67,10 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
 
 void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c) {
   if(e&E_LB) {
-    lb_callbacks[2*v_idx].push(c);  
+    lb_callbacks[v_idx].push(c);  
   }
   if(e&E_UB) {
-    ub_callbacks[2*v_idx+1].push(c);
+    ub_callbacks[v_idx].push(c);
   }
 }
 

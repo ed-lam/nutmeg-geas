@@ -84,7 +84,8 @@ void test3(void) {
   int_max(sd, x, args);
 
   vec<int> ks = {1, -1};
-  vec<intvar> xs = {y, z};
+  // vec<intvar> xs = {y, z};
+  vec<intvar> xs = {x, z};
   linear_le(sd, ks, xs, -1);
 
   solver::result r = s.solve();

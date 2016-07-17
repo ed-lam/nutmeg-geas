@@ -289,7 +289,7 @@ prop_restart:
     propagator* p = s.prop_queue._pop();
     if(!p->propagate(s.infer.confl))
       return false; 
-    p->is_queued = false;
+    p->cleanup();
 
     // If one or more predicates were updated,
     // jump back to 

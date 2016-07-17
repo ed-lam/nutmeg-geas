@@ -46,6 +46,23 @@ struct range_t {
   T* _post;
 };
 
+class irange {
+public:
+  struct iterator {
+    iterator(int _i) : i(_i) { }
+    iterator& operator++(void) { ++i; return *this; }
+    bool operator!=(const iterator& o) const { return i != o.i; } 
+    int operator*(void) const { return i; }
+    int i;
+  };
+
+  irange(int _l, int _u) : l(_l), u(_u) { }
+  iterator begin(void) { return iterator(l); }
+  iterator end(void) { return iterator(u); }
+protected:
+  int l; int u;
+};
+
 template<class T>
 struct rev_range_t {
   rev_range_t(T* pre, T* post) 

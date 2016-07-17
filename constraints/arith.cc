@@ -1,6 +1,8 @@
 #include "engine/propagator.h"
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
+#include "mtl/bool-set.h"
+#include "mtl/p-sparse-set.h"
 
 namespace phage {
 
@@ -156,6 +158,7 @@ protected:
   intvar x; 
 };
 
+#if 0
 // Non-incremental implementation. FIXME
 class imax : public propagator {
   static void wake_z(void* ptr, int _k) {
@@ -231,32 +234,139 @@ protected:
   vec<intvar> xs;
 };
 
+#else
 // Incremental version
-/*
 class imax : public propagator {
-  static void wake_z(void* ptr, int _k) {
+  static void wake_z(void* ptr, int k) {
     imax* p(static_cast<imax*>(ptr)); 
-    p->queue_prop();     
+    p->z_change |= k;
+    p->queue_prop();
   }
+
   static void wake_x(void* ptr, int xi) {
     imax* p(static_cast<imax*>(ptr)); 
-    p->queue_prop();     
+    assert((xi>>1) < p->xs.size());
+    if(xi&1) { // LB
+      if(!p->lb_change.elem(xi>>1))
+        p->lb_change.add(xi>>1);
+      p->queue_prop();
+    } else {
+      if(xi>>1 == p->ub_supp)
+        p->supp_change = E_UB;
+    }
   }
 
 public:
   imax(solver_data* s, intvar _z, vec<intvar>& _xs)
-    : propagator(s), z(_z), xs(_xs) { 
-    z.attach(E_LU, watch_callback(wake_z, this, 0));
+    : propagator(s), z(_z), xs(_xs),
+      z_change(0), supp_change(0) { 
+    z.attach(E_LB, watch_callback(wake_z, this, 0));
+    z.attach(E_UB, watch_callback(wake_z, this, 1));
 
-    for(int ii = 0; ii < xs.size(); ii++)
-      xs[ii].attach(E_LU, watch_callback(wake_x, this, ii));
+    for(int ii = 0; ii < xs.size(); ii++) {
+      xs[ii].attach(E_LB, watch_callback(wake_x, this, ii<<1));
+      xs[ii].attach(E_UB, watch_callback(wake_x, this, (ii<<1)|1));
+    }
+
+    maybe_max.growTo(xs.size());
+    for(int xi : irange(0, xs.size()))
+      maybe_max.insert(xi);
+
+    lb_change.growTo(xs.size()); 
   }
- 
+
+  inline void mm_remove(int k, bool& mm_trailed) {
+    if(!mm_trailed)
+      trail_push(s->persist, maybe_max.sz);
+    mm_trailed = true;
+    maybe_max.remove(k);
+  }
+
+  inline bool propagate_z_ub(vec<clause_elt>& confl, bool& mm_trailed) {
+    unsigned int seen_var = ub_supp;
+    int seen_ub = xs[ub_supp].ub();
+    for(int xi : maybe_max) {
+      assert(xi < xs.size());
+      if(seen_ub < xs[xi].ub()) {
+        seen_var = xi;
+        seen_ub = xs[xi].ub();
+      }
+    }
+
+    if(seen_ub < z.ub()) {
+      expl_builder e(s->persist.alloc_expl(1 + xs.size()));
+      for(intvar x : xs)
+        e.push(x > seen_ub);
+      if(!z.set_ub(seen_ub, *e))
+        return false;
+    }
+    if(seen_var != ub_supp)
+      trail_change(s->persist, ub_supp, seen_var);
+
+    return true; 
+  }
+
+  inline bool propagate_xs_lb(vec<clause_elt>& confl, bool& mm_trailed) {
+    unsigned int *xi = maybe_max.begin();
+    int z_lb = z.lb();
+    while(xi != maybe_max.end()) {
+      if(xs[*xi].ub() < z_lb) {
+        // xs[*xi] cannot be the maximum
+        if(!mm_trailed) {
+          mm_trailed = true;
+          trail_push(s->persist, maybe_max.sz);
+        }
+        maybe_max.remove(*xi);
+      } else {
+        // lb(z) won't change anyway
+        if(xs[*xi].lb() == z_lb)
+          return true;
+
+        goto first_lb_found;
+      }
+    }
+    // Every variable is below lb_max.
+    // Set up conflict and bail
+    std::cout << "Failing here!" << std::endl;
+    confl.push(z < z_lb);
+    for(intvar x : xs)
+      confl.push(x >= z_lb);
+    return false;
+
+first_lb_found:
+    unsigned int supp = *xi;
+    ++xi;
+    while(xi != maybe_max.end()) {
+      if(xs[*xi].ub() < z_lb) {
+        if(!mm_trailed) {
+          mm_trailed = true;
+          trail_push(s->persist, maybe_max.sz);
+        }
+        maybe_max.remove(*xi);
+      } else {
+        // Second support found
+        return true;
+      }
+    }
+    // Exactly one support found
+    assert(xs[supp].lb() < z_lb);
+    expl_builder e(s->persist.alloc_expl(1 + xs.size()));
+    e.push(z < z_lb);
+    for(int ii = 0; ii < xs.size(); ii++) {
+        if(ii != supp)
+          e.push(xs[ii] >= z_lb);
+    }
+    if(!xs[supp].set_lb(z_lb, *e))
+      return false;
+
+    return true;
+  }
+
   bool propagate(vec<clause_elt>& confl) {
     std::cout << "[[Running imax]]" << std::endl;
     bool maybe_max_trailed = false;
     
-    // ub of z dropped.
+    // forall x, ub(x) <= ub(z).
     if(z_change&E_UB) {
       int z_ub = z.ub();
       for(int ii : maybe_max) {
@@ -267,105 +377,26 @@ public:
       }
     }
 
-    if(supp_change&E_UB) {
-      int z_lb = z.lb();
-      int z_ub = z.ub();
-      int seen_ub = xs[ub_supp].ub();
-      if(seen_ub < z_ub) {
-        // Look for a new support
-        unsigned int supp = ub_supp;
-        unsigned int* xi = maybe_max.begin();
-        while(xi != maybe_max.end()) {
-          if(xs[*xi].ub() > seen_ub) {
-            if(xs[*xi].ub() == z_ub) {
-              trail_change(s->persist, ub_supp, *xi);
-              goto ub_supp_found;
-            }
-            supp = *xi;
-            seen_ub = xs[*xi].ub();
-            ++xi;
-          } else if(xs[*xi].lb() < z_lb) {
-            if(!maybe_max_trailed) {
-              maybe_max_trailed = true;
-              trail_push(s->persist, maybe_max.sz);
-            }
-            maybe_max.remove(*xi);
-          }
-        }
-        // No support for z_ub. Propagate new ub.
-        if(supp != ub_supp)
-          trail_change(s->persist, ub_supp, supp);
-        clause* c = s->persist.alloc_expl(1 + xs.size());
-        clause_elt* e = &(*c)[1];
-        for(intvar x : xs) {
-          *e = (x > z_ub);
-          ++e;
-        }
-        c->sz = 1 + xs.size();
-        if(!z.set_ub(seen_ub, c))
+    // forall x, lb(z) >= lb(x).
+    int z_lb = z.lb();
+    for(int xi : lb_change) {
+      if(xs[xi].lb() > z_lb) {
+        z_lb = xs[xi].lb();
+        if(!z.set_lb(z_lb, xs[xi] < z_lb))
           return false;
       }
     }
-ub_supp_found:
+
+    if(supp_change&E_UB) {
+      if(!propagate_z_ub(confl, maybe_max_trailed))
+        return false;
+    }
 
     if(z_change&E_LB) {
-      // Update
-      unsigned int *xi = maybe_max.begin();
-      int z_lb = z.lb();
-      while(xi != maybe_max.end()) {
-        if(xs[*xi].ub() < z_lb) {
-          // xs[*xi] cannot be the maximum
-          if(!maybe_max_trailed) {
-              maybe_max_trailed = true;
-              trail_push(s->persist, maybe_max.sz);
-          }
-          maybe_max.remove(*xi);
-        } else {
-          // Possibly equal to max
-          if(xs[*xi].lb() == z_lb)
-            goto lb_supported;
-
-          goto first_lb_found;
-        }
-      }
-      // Every variable is below lb_max.
-      // Set up conflict and bail
-      confl.push(z < z_lb);
-      for(intvar x : xs)
-        confl.push(x >= z_lb);
-      return false;
-
-first_lb_found:
-    unsigned int supp = *xi;
-    ++xi;
-    while(xi != maybe_max.end()) {
-      if(xs[*xi].ub() < z_lb) {
-        if(!maybe_max_trailed) {
-          maybe_max_trailed = true;
-          trail_push(s->persist, maybe_max.sz);
-        }
-        maybe_max.remove(*xi);
-      } else {
-        // Second support found
-        goto lb_supported; 
-      }
+      // Identify if any variable LBs must change
+      if(!propagate_xs_lb(confl, maybe_max_trailed))
+        return false;
     }
-    // Exactly one support found
-    if(z_lb < xs[supp].lb()) {
-      int new_lb = xs[supp].lb();
-      clause* c = s->persist.alloc_clause(1 + xs.size());
-      clause_elt* e = &(*c)[1];
-      for(int ii = 0; ii < xs.size(); ii++) {
-        if(ii == supp) {
-          (*e)++ = (x < new_lb);
-        }
-      }
-      c->sz = e - c->begin();
-
-      z.set_lb(new_lb, c);
-    }
-
-lb_supported:
     return true;
   }
 
@@ -382,8 +413,9 @@ lb_supported:
   void root_simplify(void) { }
 
   void cleanup(void) {
-    z_change = E_None;
-    supp_change = E_None;
+    z_change = 0;
+    supp_change = 0;
+    lb_change.clear();
     is_queued = false;
   }
 
@@ -394,13 +426,14 @@ protected:
   // Persistent state
   unsigned int lb_supp;
   unsigned int ub_supp;
-  p_sparseset maybe_max; // The set of vars above lb(z)
+  p_sparseset maybe_max; // The set of vars (possibly) above lb(z)
 
   // Transient state
-  intvar_event z_change;
-  intvar_event supp_change;
+  char z_change;
+  char supp_change;
+  boolset lb_change;
 };
-*/
+#endif
 
 void int_max(solver_data* s, intvar z, vec<intvar>& xs) {
   // FIXME: Choose whether to use propagator or decomposition
