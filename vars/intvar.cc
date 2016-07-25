@@ -17,6 +17,22 @@ int64_t intvar_base::ub(void) const {
   return to_int(pval_max - s->state.p_vals[pid^1]);
 }
 
+int64_t intvar_base::lb_prev(void) const {
+  return to_int(s->state.p_last[pid]);
+}
+
+int64_t intvar_base::ub_prev(void) const {
+  return to_int(pval_max - s->state.p_last[pid^1]);
+}
+
+int64_t intvar_base::lb_0(void) const {
+  return to_int(s->state.p_root[pid]);
+}
+
+int64_t intvar_base::ub_0(void) const {
+  return to_int(pval_max - s->state.p_root[pid^1]);
+}
+
 bool intvar_base::set_lb(int64_t min, reason r) {
   return enqueue(*s, patom_t(pid, from_int(min)), r);
 }
@@ -62,6 +78,12 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
   intvar v(new intvar_base(s, this, idx, p));
   v.set_lb(lb, nullptr);
   v.set_ub(ub, nullptr);
+  // Also set the p_last and p_root values
+  s->state.p_last[p] = intvar_base::to_int(lb);
+  s->state.p_root[p] = intvar_base::to_int(lb);
+
+  s->state.p_last[p^1] = pval_max - intvar_base::to_int(ub);
+  s->state.p_root[p^1] = pval_max - intvar_base::to_int(ub);
   return v;
 }
 

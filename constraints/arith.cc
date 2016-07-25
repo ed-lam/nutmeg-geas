@@ -96,6 +96,58 @@ protected:
 };
 */
 
+irange pos_range(intvar z) { return irange(std::max(1, (int) z.lb()), z.ub()+1); }
+irange neg_range(intvar z) { return irange(z.lb(), std::min(-1, (int) z.ub())); }
+
+// Decomposition of z = x * y.
+void imul_decomp(solver_data* s, intvar z, intvar x, intvar y) {
+  // Establish lower bounds on abs(z).
+  // Case splits. x pos:
+  if(x.ub() > 0) {
+    // y pos
+    if(y.ub() > 0) {
+      for(int kx : pos_range(x)) {
+        for(int ky : pos_range(y)) {
+          add_clause(s, x < kx, y < ky, z >= kx*ky);  
+          add_clause(s, x > kx, y > ky, x < -kx, y < -ky, z <= kx*ky);
+        }
+      }
+    }
+    // y neg
+    if(y.lb() < 0) {
+      for(int kx : pos_range(x)) {
+        for(int ky : neg_range(y)) {
+          add_clause(s, x < kx, y > ky, z <= kx*ky);
+          add_clause(s, x > kx, y < ky, x < -kx, y > -ky, z >= kx*ky);
+        }
+      }
+    }
+  }
+  // x neg
+  if(x.lb() < 0) {
+    if(y.ub() > 0) {
+      for(int kx : neg_range(x)) {
+        for(int ky : pos_range(y)) {
+          add_clause(s, x > kx, y < ky, z <= kx*ky);
+          add_clause(s, x < kx, y > ky, x > -kx, y < -ky, z >= kx*ky);
+        }
+      }
+    }
+    if(y.lb() < 0) {
+      for(int kx : neg_range(x)) {
+        for(int ky : neg_range(y)) {
+          add_clause(s, x > kx, y > ky, z >= kx*ky);
+          add_clause(s, x < kx, y < ky, x > -kx, y > -ky, z <= kx*ky);
+        }
+      }
+    }
+  }
+}
+
+void int_mul(solver_data* s, intvar z, intvar x, intvar y) {
+  imul_decomp(s, z, x, y);
+}
+
 class iabs : public propagator {
   iabs(solver_data* s, intvar _z, intvar _x)
     : propagator(s), z(_z), x(_x)
@@ -157,6 +209,23 @@ protected:
   intvar z;
   intvar x; 
 };
+
+// Only use for small domains
+void iabs_decomp(solver_data* s, intvar z, intvar x) {
+  // Set up initial bounds
+  if(z.lb() < 0)
+    z.set_lb(0, reason());
+  if(x.lb() < -z.ub())
+    x.set_lb(-z.ub(), reason());
+  if(z.ub() < x.ub())
+    x.set_ub(z.ub(), reason());
+
+  for(int64_t k : z.domain()) {
+    add_clause(s, x < -k, x > k, z <= k);
+    add_clause(s, x > -k, z >= k);
+    add_clause(s, x < k, z >= k);
+  }
+}
 
 #if 0
 // Non-incremental implementation. FIXME
@@ -327,7 +396,6 @@ public:
     }
     // Every variable is below lb_max.
     // Set up conflict and bail
-    std::cout << "Failing here!" << std::endl;
     confl.push(z < z_lb);
     for(intvar x : xs)
       confl.push(x >= z_lb);
@@ -435,9 +503,36 @@ protected:
 };
 #endif
 
+void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {
+  vec<clause_elt> elts;
+  for(int k : irange(z.lb(), z.ub()+1)) {
+    elts.clear();
+    elts.push(z <= k);
+    for(intvar x : xs) {
+      add_clause(s, x < k, z >= k);
+      elts.push(x > k);
+    }
+    add_clause(*s, elts);
+  }
+  
+  elts.clear();
+  for(intvar x : xs) {
+    if(x.ub() > z.ub())
+      x.set_ub(z.ub(), reason());
+    elts.push(x >= z.lb());
+  }
+  add_clause(*s, elts);
+}
+
 void int_max(solver_data* s, intvar z, vec<intvar>& xs) {
   // FIXME: Choose whether to use propagator or decomposition
+  // imax_decomp(s, z, xs);
   new imax(s, z, xs);
+}
+
+void int_abs(solver_data* s, intvar z, intvar x) {
+  // FIXME: Implement propagator when domains are large
+  iabs_decomp(s, z, x);
 }
 
 }

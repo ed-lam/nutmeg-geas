@@ -16,5 +16,7 @@ void cumulative(solver_data* s,
 
 // arith.cc
 void int_max(solver_data* s, intvar z, vec<intvar>& xs);
+void int_abs(solver_data* s, intvar z, intvar x);
+void int_mul(solver_data* s, intvar z, intvar x, intvar y);
 }
 #endif

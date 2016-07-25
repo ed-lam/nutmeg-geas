@@ -406,7 +406,6 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
 // Precondition: propagate should have been run to fixpoint,
 // and we're at decision level 0.
 inline void simplify_at_root(solver_data& s) {
-  NOT_YET_WARN;  
   // Update predicate values, simplify clauses
   // and clear trails.
   for(int pi = 0; pi < s.pred_callbacks.size(); pi++) {
@@ -510,7 +509,47 @@ bool solver::post(bexpr& e) {
 }
 */
 
+// Add a clause at the root level.
 bool add_clause(solver_data& s, vec<clause_elt>& elts) {
+  int jj = 0;
+  for(clause_elt e : elts) {
+    if(s.state.is_entailed(e.atom))
+      return true;
+    if(s.state.is_inconsistent(e.atom))
+      continue;
+    elts[jj++] = e;
+  }
+  elts.shrink(elts.size()-jj);
+  
+  // False at root level
+  if(elts.size() == 0)
+    return false;
+  // Unit at root level
+  if(elts.size() == 1)
+    return enqueue(s, elts[0].atom, reason()); 
+  
+  // Binary clause; embed the -other- literal
+  // in the head;
+  if(elts.size() == 2) {
+    clause_head h0(elts[0].atom);
+    clause_head h1(elts[1].atom);
+
+    find_watchlist(s, elts[0]).push(h1);
+    find_watchlist(s, elts[1]).push(h0); 
+  } else {
+    // Normal clause
+    clause* c(clause_new(elts));
+    // Any two watches should be fine
+    clause_head h(elts[2].atom, c);
+
+    find_watchlist(s, elts[0]).push(h);
+    find_watchlist(s, elts[1]).push(h); 
+  }
+  return true;
+}
+
+// Add a clause, but not necessarily at the root level.
+bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   int jj = 0;
   for(clause_elt e : elts) {
     if(s.state.is_entailed_l0(e.atom))

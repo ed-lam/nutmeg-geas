@@ -31,6 +31,14 @@ public:
   virtual int64_t lb(void) const = 0;
   virtual int64_t ub(void) const = 0;
 
+  // bounds at previous decision level
+  virtual int64_t lb_prev(void) const = 0;
+  virtual int64_t ub_prev(void) const = 0;
+
+  // bounds at root level
+  virtual int64_t lb_0(void) const = 0;
+  virtual int64_t ub_0(void) const = 0;
+
   virtual bool set_lb(int64_t min, reason r) = 0;
   virtual bool set_ub(int64_t max, reason r) = 0;
 
@@ -53,6 +61,12 @@ public:
   int64_t lb(void) const { return x->lb(); }
   int64_t ub(void) const { return x->ub(); }
 
+  int64_t lb_prev(void) const { return x->lb_prev(); }
+  int64_t ub_prev(void) const { return x->ub_prev(); }
+
+  int64_t lb_0(void) const { return x->lb_0(); }
+  int64_t ub_0(void) const { return x->ub_0(); }
+
   void attach(intvar_event e, watch_callback c) { x->attach(e, c); }
 
   bool in_domain(int64_t k) { return x->lb() <= k && k <= x->ub(); }
@@ -64,6 +78,10 @@ public:
   patom_t operator>(int64_t v) { return (*x) > v; }
   patom_t operator<=(int64_t v) { return (*x) <= v; }
   patom_t operator<(int64_t v) { return (*x) < v; }
+
+  num_range_t<int64_t> domain(void) const {
+    return num_range(lb(), ub()+1);
+  }
 protected:
   intvar_interface* x;
 };
@@ -81,6 +99,12 @@ public:
 
   int64_t lb(void) const;
   int64_t ub(void) const;
+
+  int64_t lb_prev(void) const;
+  int64_t ub_prev(void) const;
+
+  int64_t lb_0(void) const;
+  int64_t ub_0(void) const;
 
   bool set_lb(int64_t min, reason r);
   bool set_ub(int64_t max, reason r);

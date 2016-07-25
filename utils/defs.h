@@ -57,6 +57,7 @@ public:
   };
 
   irange(int _l, int _u) : l(_l), u(_u) { }
+  irange(int _u) : l(0), u(_u) { }
   iterator begin(void) { return iterator(l); }
   iterator end(void) { return iterator(u); }
 protected:
@@ -82,6 +83,30 @@ struct rev_range_t {
   T* _pre;
   T* _post;
 };
+
+template<class T>
+class num_range_t {
+public:
+  struct iterator {
+    iterator(T _i) : i(_i) { }
+    iterator& operator++(void) { ++i; return *this; }
+    bool operator!=(const iterator& o) const { return i != o.i; } 
+    T operator*(void) const { return i; }
+    T i;
+  };
+
+  num_range_t(T _u) : l(T(0)), u(_u) { }
+  num_range_t(T _l, T _u) : l(_l), u(_u) { }
+  iterator begin(void) { return iterator(l); }
+  iterator end(void) { return iterator(u); }
+protected:
+  T l; T u;
+};
+
+template<class T>
+num_range_t<T> num_range(T lb, T ub) { return num_range_t<T>(lb, ub); }
+template<class T>
+num_range_t<T> num_range(T ub) { return num_range_t<T>(ub); }
 
 template<class T>
 range_t<T> range(T* start, T* end) {
