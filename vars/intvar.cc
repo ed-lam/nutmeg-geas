@@ -41,6 +41,10 @@ bool intvar_base::set_ub(int64_t max, reason r) {
   return enqueue(*s, patom_t(pid^1, pval_max - from_int(max)), r);
 }
 
+int64_t intvar_base::model_val(const model& m) const {
+  return to_int(m.get(pid));
+}
+
 void intvar_base::attach(intvar_event e, watch_callback c) {
   man->attach(idx, e, c);
 }

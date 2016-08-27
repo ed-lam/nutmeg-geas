@@ -12,6 +12,7 @@
 // #include "solver/solver.h"
 #include "solver/branch.h"
 #include "solver/options.h"
+#include "solver/model.h"
 
 namespace phage {
 
@@ -19,6 +20,8 @@ class solver_data {
 public:
   solver_data(const options& _opts);
   ~solver_data(void);
+
+  model incumbent;
 
   options opts;
    

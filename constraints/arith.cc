@@ -1,3 +1,4 @@
+#include <climits>
 #include "engine/propagator.h"
 #include "solver/solver_data.h"
 #include "vars/intvar.h"

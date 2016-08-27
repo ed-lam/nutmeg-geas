@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "solver/solver_data.h"
 #include "engine/propagator.h"
 #include "constraints/builtins.h"

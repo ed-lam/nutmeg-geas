@@ -116,6 +116,8 @@ void test4(void) {
 
   if(r == solver::SAT) {
     fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
+    model m(s.get_model());
+    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", m[x], m[y], m[z]);
   }
 }
 

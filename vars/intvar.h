@@ -2,6 +2,7 @@
 #define PHAGE_VAR__H
 
 #include "engine/infer.h"
+#include "solver/model.h"
 #include "solver/solver_data.h"
 
 namespace phage {
@@ -44,6 +45,8 @@ public:
 
   virtual void attach(intvar_event e, watch_callback call) = 0;
 
+  virtual int64_t model_val(const model& m) const = 0;
+
   virtual patom_t operator>=(int64_t v) = 0;
   virtual patom_t operator>(int64_t v) = 0;
   virtual patom_t operator<=(int64_t v) = 0;
@@ -52,6 +55,8 @@ public:
 
 class intvar {
 public:
+  typedef int64_t val_t;
+
   intvar(intvar_interface* _x)
     : x(_x) { } 
 
@@ -73,6 +78,8 @@ public:
 
   bool set_lb(int64_t min, reason r) { return x->set_lb(min, r); }
   bool set_ub(int64_t max, reason r) { return x->set_ub(max, r); }
+
+  int64_t model_val(model& m) const { return x->model_val(m); }
 
   patom_t operator>=(int64_t v) { return (*x) >= v; }
   patom_t operator>(int64_t v) { return (*x) > v; }
@@ -110,6 +117,8 @@ public:
   bool set_ub(int64_t max, reason r);
 
   void attach(intvar_event e, watch_callback c);
+
+  int64_t model_val(const model& m) const;
 
   patom_t operator>=(int64_t v) { return patom_t(pid, from_int(v)); }
   patom_t operator>(int64_t v) { return patom_t(pid, from_int(v+1)); }

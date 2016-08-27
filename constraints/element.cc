@@ -1,4 +1,5 @@
 #include <utility>
+#include <algorithm>
 #include "engine/propagator.h"
 #include "solver/solver_data.h"
 #include "vars/intvar.h"

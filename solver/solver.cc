@@ -448,6 +448,20 @@ inline void simplify_at_root(solver_data& s) {
   return;
 }
 
+// Retrieve a model
+// precondition: last call to solver::solve returned SAT
+// actually, we should just save the last incumbent.
+void save_model(solver_data* data) {
+  data->incumbent.vals.clear(); 
+  vec<pval_t>& vals(data->state.p_vals);
+  for(pid_t pi : num_range(0, vals.size()/2))
+    data->incumbent.vals.push(vals[2*pi]);
+}
+  
+model solver::get_model(void) {
+  return data->incumbent;
+}
+
 // Solving
 solver::result solver::solve(void) {
   // Top-level failure
@@ -469,8 +483,10 @@ solver::result solver::solve(void) {
       simplify_at_root(s);
 
     patom_t dec = branch(&s);
-    if(dec == at_Undef)
+    if(dec == at_Undef) {
+      save_model(data);
       return SAT;
+    }
 
     assert(!s.state.is_entailed(dec));
     assert(!s.state.is_inconsistent(dec));
@@ -482,13 +498,8 @@ solver::result solver::solve(void) {
 
   return SAT;
 } 
-// Retrieve a model
-// precondition: last call to solver::solve returned SAT
-solver::model solver::get_model(void) {
-  model m;
-  return m;   
-}
-   
+
+ 
 // For incremental solving; any constraints
 // added after a push are paired with an activation
 // literal.
@@ -586,5 +597,6 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   }
   return true;
 }
+
 
 }

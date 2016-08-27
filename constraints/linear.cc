@@ -195,7 +195,7 @@ public:
     // Allocate partial sum predicates
     // Don't need first (since it's ks[0] * xs[0])
     // or last variable.
-    for(int ii : irange(vs.size()-2))
+    for(int _ii : irange(vs.size()-2))
       ps_preds.push(new_pred(*s));
 
     NOT_YET_WARN;
@@ -214,7 +214,7 @@ protected:
   int decompose(int idx, int64_t lim) {
     assert(idx < vs.size()); 
      
-         
+    return 0;       
   }
 
   solver_data* s; 
