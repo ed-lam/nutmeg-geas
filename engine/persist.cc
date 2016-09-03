@@ -21,7 +21,6 @@ void push_level(solver_data* s) {
     s->state.p_last[pi] = s->state.p_vals[pi];
     p.pred_ltrail.push(e);
   }
-  //p.pred_ltrail_lim.push(p.pred_ltrail.size());
   p.touched_preds.clear();
 
   p.expl_trail_lim.push(p.expl_trail.size());
@@ -69,7 +68,8 @@ inline void bt_explns(solver_data* s, unsigned int l) {
   dropTo_(p.expl_trail_lim, l); 
 }
 
-inline void bt_preds(solver_data* s, unsigned int l) {
+// inline
+void bt_preds(solver_data* s, unsigned int l) {
   pred_state& st(s->state);
   persistence& p(s->persist);
   infer_info& inf(s->infer);

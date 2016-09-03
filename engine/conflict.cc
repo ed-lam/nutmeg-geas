@@ -21,7 +21,7 @@ static void add(solver_data* s, clause_elt elt) {
   // FIXME: Handle bools
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
-  pval_t val = pval_max - elt.atom.val;
+  pval_t val = pval_max - elt.atom.val + 1;
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
     s->confl.pred_seen.insert(pid);
@@ -97,7 +97,7 @@ inline bool l_needed(solver_data* s, persistence::pred_entry entry) {
 
 inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   return clause_elt(
-    patom_t(p^1, pval_max - s->confl.pred_eval[p]),
+    patom_t(p^1, pval_max - s->confl.pred_eval[p] + 1),
     s->confl.pred_hint[p]
   );
 }
@@ -105,7 +105,7 @@ inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
 int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   s->confl.clevel = 0;
   
-  std::cout << "confl:" << confl << std::endl;
+//  std::cout << "confl:" << confl << std::endl;
 
   // THE BUG IS THUS: the conflict contains things which are false.
   // The inference trail contains things which have become true.
@@ -126,7 +126,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
     remove(s, e.pid);
-    std::cout << e.expl << std::endl;
+    std::cout << " <~ " << e.expl << std::endl;
     add_reason(s, e.expl); 
 
     pos--;

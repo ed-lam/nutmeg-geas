@@ -46,7 +46,7 @@ public:
   brancher* last_branch;
 };
 
-pid_t new_pred(solver_data& s);
+pid_t new_pred(solver_data& s, pval_t lb = 0, pval_t ub = pval_max);
 pid_t new_pred(solver_data& s, pred_init init);
 
 patom_t new_bool(solver_data& s);

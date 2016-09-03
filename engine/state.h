@@ -37,36 +37,41 @@ public:
   }
 
   // As with infer, preds are added in pairs.
-  pid_t new_pred(void) {
+  pid_t new_pred(pval_t lb, pval_t ub) {
+    pval_t uval = pval_max - ub;
+
     pid_t p = p_vals.size();
-    p_vals.push(0);
-    p_vals.push(0);
+    p_vals.push(lb);
+    p_vals.push(uval);
 
-    p_last.push(0);
-    p_last.push(0);
+    p_last.push(lb);
+    p_last.push(uval);
 
-    p_root.push(0);
-    p_root.push(0);
+    p_root.push(lb);
+    p_root.push(uval);
 
     initializers.push();
 
     return p;
   }
 
-  bool pred_is_bool(pid_t pid) const { return pid <= 1; }
+  // bool pred_is_bool(pid_t pid) const { return pid <= 1; }
+  bool pred_is_bool(pid_t pid) const { return false; }
 
   bool is_entailed(patom_t atom) const {
     return atom.val <= p_vals[atom.pid];
   }
   bool is_inconsistent(patom_t atom) const {
-    return pval_max - p_vals[atom.pid^1] < atom.val;
+    // return pval_max - p_vals[atom.pid^1] < atom.val;
+    return is_entailed(~atom);
   }
 
   bool is_entailed_l0(patom_t atom) const {
     return atom.val <= p_root[atom.pid];
   }
   bool is_inconsistent_l0(patom_t atom) const {
-    return pval_max - p_root[atom.pid^1] < atom.val;
+    // return pval_max - p_root[atom.pid^1] < atom.val;
+    return is_entailed_l0(~atom);
   }
 
   pvar_ref get_ref(pid_t pi) {

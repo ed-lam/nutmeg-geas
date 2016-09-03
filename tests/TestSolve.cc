@@ -30,12 +30,13 @@ void test1(void) {
 
   solver_data* sd(s.data);
 
-  add_clause(sd, x <= 1, y <= 2);
+  add_clause(sd, x <= 3, y <= 2);
   add_clause(sd, x >= 5, y >= 5);
+
 //  add_clause(sd, x >= 0, z >= 0);
 //  add_clause(sd, z >= 0, y >= 0);
 
-  vec<int> ks = {1, 3, 5, 9};   
+  vec<int> ks = {1, 3, 5, 9, 10};   
   int_element(sd, x, y, ks);
 
   solver::result r = s.solve();
@@ -134,8 +135,17 @@ void test5(void) {
 
   solver_data* sd(s.data);
 
-  add_clause(sd, x == 3, y == 3);
-  add_clause(sd, x == 3, y < 2);
+  // add_clause(sd, x == 3, y == 3);
+  // add_clause(sd, x == 3, y < 2);
+  add_clause(sd, x >= 3, y >= 3);
+  add_clause(sd, x <= 3, y >= 3);
+  add_clause(sd, x >= 3, y <= 3);
+  add_clause(sd, x <= 3, y <= 3);
+  
+  add_clause(sd, x >= 3, y < 2);
+  add_clause(sd, x <= 3, y < 2);
+
+  add_clause(sd, x > 4, y < 1);
 
   solver::result r = s.solve();
   std::cout << "Result: " << r << std::endl;
@@ -149,10 +159,10 @@ void test5(void) {
 
 
 int main(int argc, char** argv) {
-  // test1();
-  // test2();
-  // test3();
-  // test4();
+  test1();
+  test2();
+  test3();
+  test4();
   test5();
 
   return 0;

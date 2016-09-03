@@ -26,7 +26,7 @@ solver::solver(options& _opts)
 
 solver_data::solver_data(const options& _opts)
     : opts(_opts), last_branch(default_brancher(this)) {
-  new_pred(*this);
+  new_pred(*this, 0, 0);
 }
 
 solver_data::~solver_data(void) {
@@ -57,31 +57,37 @@ std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
 }
 
 
-inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
+// inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
+inline bool is_bool(sdata& s, pid_t p) { return false; }
 
 inline int decision_level(sdata& s) {
   return s.infer.trail_lim.size();
 }
 
-pid_t alloc_pred(sdata& s) {
+pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   s.pred_callbacks.push();
   s.pred_callbacks.push();
 
   s.pred_queued.push(false);
   s.pred_queued.push(false);
+//  s.pred_queue.insert(s.pred_queued.size());
+//  s.pred_queued.push(true);
+//  s.pred_queue.insert(s.pred_queued.size());
+//  s.pred_queued.push(true);
+
 
   s.wake_queued.push(false);
   s.wake_queued.push(false);
 
-  s.state.new_pred();
+  s.state.new_pred(lb, ub);
   s.persist.new_pred();
   s.confl.new_pred();
   return s.infer.new_pred();
 }
 
-pid_t new_pred(sdata& s) {
+pid_t new_pred(sdata& s, pval_t lb, pval_t ub) {
   assert(decision_level(s) == 0);
-  pid_t p = alloc_pred(s);
+  pid_t p = alloc_pred(s, lb, ub);
   s.state.init_end = s.state.initializers.size();
   return p;
 }
@@ -93,13 +99,16 @@ void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
 }
 
 pid_t new_pred(sdata& s, pred_init init) {
-  pid_t p = alloc_pred(s);
-  // Set up the l0, prev and current values
-  initialize(p, init, s.state.p_root);
+  pred_init::prange_t r0(init(s.state.p_root)); 
+
+  pid_t p = alloc_pred(s, r0[0], pval_max - r0[1]);
+  // Set up the prev and current values
+  // Root values are set up during allocation
   initialize(p, init, s.state.p_last);
   initialize(p, init, s.state.p_vals);
 
   s.state.initializers[p>>1] = init;
+
   return p;
 }
 
@@ -154,7 +163,10 @@ bool enqueue(sdata& s, patom_t p, reason r) {
   }
   */
   assert(p.pid < s.pred_queued.size());
-  assert(!s.state.is_entailed(p));
+  // assert(!s.state.is_entailed(p));
+  if(s.state.is_entailed(p))
+    return true;
+
   pval_t old_val = s.state.p_vals[p.pid];
   if(!s.state.post(p)) {
     // Setup conflict
@@ -187,7 +199,8 @@ inline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   return watch->ws;
 }
 
-inline bool update_watchlist(solver_data& s,
+//inline
+bool update_watchlist(solver_data& s,
     clause_elt elt, vec<clause_head>& ws) {
   int jj = 0;
   int ii;
@@ -263,7 +276,8 @@ next_clause:
   return true;
 }
 
-inline bool propagate_pred(solver_data& s, pid_t p) {
+//inline
+bool propagate_pred(solver_data& s, pid_t p) {
   if(is_bool(s, p)) {
     NOT_YET;
     return true; 
@@ -308,7 +322,24 @@ void attach(solver_data& s, patom_t p, const watch_callback& cb) {
   NOT_YET;
 }
 
-// FIXME: Doesn't deal with bools at all.
+void prop_cleanup(solver_data& s) {
+  // Make sure all modified preds are touched
+  while(!s.pred_queue.empty()) {
+    pid_t pi = s.pred_queue._pop();
+    s.pred_queued[pi] = false;
+    touch_pred(s, pi);
+  }
+  for(pid_t pi : s.wake_queue) {
+    touch_pred(s, pi);
+  }
+  s.wake_queue.clear();
+
+  while(!s.prop_queue.empty()) {
+    propagator* p = s.prop_queue._pop();
+    p->cleanup();
+  }
+}
+
 bool propagate(solver_data& s) {
   // Initialize any lazy predicates
   if(s.state.init_end != s.state.initializers.size()) {
@@ -328,12 +359,16 @@ bool propagate(solver_data& s) {
   while(!s.pred_queue.empty()) {
 prop_restart:
     pid_t pi = s.pred_queue._pop();
-    if(!propagate_pred(s, pi))
-      return false;
+    // We rely on wake_queue to
     s.pred_queued[pi] = false;
     if(!s.wake_queued[pi]) {
       s.wake_queue.push(pi);
       s.wake_queued[pi] = true;
+    }
+
+    if(!propagate_pred(s, pi)) {
+      prop_cleanup(s);
+      return false;
     }
   }
   
@@ -347,8 +382,11 @@ prop_restart:
   // Process enqueued propagators
   while(!s.prop_queue.empty()) {
     propagator* p = s.prop_queue._pop();
-    if(!p->propagate(s.infer.confl))
+    if(!p->propagate(s.infer.confl)) {
+      p->cleanup();
+      prop_cleanup(s);
       return false; 
+    }
     p->cleanup();
 
     // If one or more predicates were updated,
@@ -359,7 +397,8 @@ prop_restart:
   return true;
 }
 
-inline void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
+//inline
+void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   // Allocate the clause
   WARN("Collection of learnt clauses not yet implemented.");
 
@@ -465,7 +504,7 @@ inline void simplify_at_root(solver_data& s) {
   // Update predicate values, simplify clauses
   // and clear trails.
   for(int pi = 0; pi < s.pred_callbacks.size(); pi++) {
-    s.state.p_last[pi] = s.state.p_vals[pi];    
+    s.state.p_last[pi] = s.state.p_vals[pi];
     s.state.p_root[pi] = s.state.p_vals[pi];
     
     // Do garbage collection on the watch_node*-s.
@@ -530,6 +569,7 @@ solver::result solver::solve(void) {
         
       // Conflict
       int bt_level = compute_learnt(&s, s.infer.confl);
+      std::cout << "Learnt: " << s.infer.confl << std::endl;
       bt_to_level(&s, bt_level);
       add_learnt(&s, s.infer.confl);
       continue;

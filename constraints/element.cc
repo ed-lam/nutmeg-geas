@@ -25,7 +25,7 @@ void int_element(solver_data* s, intvar x, intvar z,
 
   // Also set domain of ys.
   x.set_lb(base, reason()); x.set_ub(base + ys.size()-1, reason());  
-  z.set_lb(ys_uniq[0], reason()); z.set_ub(ys_uniq[1], reason());
+  z.set_lb(ys_uniq[0], reason()); z.set_ub(ys_uniq.last(), reason());
 
   for(int ii : irange(ys.size())) {
     add_clause(s, x != ii + base, z == ys[ii]);

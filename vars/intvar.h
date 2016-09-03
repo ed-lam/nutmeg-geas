@@ -217,6 +217,7 @@ inline patom_t intvar_base::operator!=(int64_t v) {
 }
 
 inline int64_t to_int(pval_t v) { return intvar_base::to_int(v); }
+
 inline pval_t from_int(int64_t v) { return intvar_base::from_int(v); }
 }
 #endif
