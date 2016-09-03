@@ -10,6 +10,10 @@ void linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k);
 void int_element(solver_data* s, intvar x, intvar i, vec<int>& ys);
 void var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys);
 
+// disjunctive.cc
+void disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du); 
+void disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du);
+
 // cumulative.cc
 void cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& durations, vec<int>& resources, int cap);
@@ -18,5 +22,8 @@ void cumulative(solver_data* s,
 void int_max(solver_data* s, intvar z, vec<intvar>& xs);
 void int_abs(solver_data* s, intvar z, intvar x);
 void int_mul(solver_data* s, intvar z, intvar x, intvar y);
+
+// alldifferent.cc
+void all_different(solver_data* s, vec<intvar>& xs);
 }
 #endif

@@ -21,6 +21,14 @@ struct model {
     return v.model_val(*this);
   }
 
+  bool value(patom_t at) {
+    if(at.pid&1) {
+      return vals[at.pid>>1] <= pval_max - at.val;
+    } else {
+      return vals[at.pid>>1] >= at.val;
+    }
+  }
+
   vec<pval_t> vals;
 };
 

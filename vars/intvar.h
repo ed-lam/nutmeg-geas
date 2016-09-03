@@ -1,5 +1,6 @@
 #ifndef PHAGE_VAR__H
 #define PHAGE_VAR__H
+#include <unordered_map>
 
 #include "engine/infer.h"
 #include "solver/model.h"
@@ -27,6 +28,8 @@ protected:
 };
 */
 
+// GKG: Perhaps refactor to avoid the virtual method
+// calls.
 class intvar_interface {
 public:
   virtual int64_t lb(void) const = 0;
@@ -51,6 +54,8 @@ public:
   virtual patom_t operator>(int64_t v) = 0;
   virtual patom_t operator<=(int64_t v) = 0;
   virtual patom_t operator<(int64_t v) = 0;
+  virtual patom_t operator==(int64_t v) = 0;
+  virtual patom_t operator!=(int64_t v) = 0;
 };
 
 class intvar {
@@ -85,6 +90,8 @@ public:
   patom_t operator>(int64_t v) { return (*x) > v; }
   patom_t operator<=(int64_t v) { return (*x) <= v; }
   patom_t operator<(int64_t v) { return (*x) < v; }
+  patom_t operator==(int64_t v) { return (*x) == v; }
+  patom_t operator!=(int64_t v) { return (*x) != v; }
 
   num_range_t<int64_t> domain(void) const {
     return num_range(lb(), ub()+1);
@@ -124,6 +131,8 @@ public:
   patom_t operator>(int64_t v) { return patom_t(pid, from_int(v+1)); }
   patom_t operator<=(int64_t v) { return ~patom_t(pid, from_int(v+1)); }
   patom_t operator<(int64_t v) { return ~patom_t(pid, from_int(v)); }
+  patom_t operator==(int64_t v);
+  patom_t operator!=(int64_t v);
 
   solver_data* s;
   intvar_manager* man;
@@ -161,19 +170,53 @@ public:
 
 class intvar_manager {
 public:
+  enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
+
+  struct eq_elt { int64_t val; patom_t atom; };
+
+  class var_data {
+  public: 
+    ivar_kind kind;
+    pid_t pred;
+     
+    // In the eager case, it's just an array [with an offset]
+    // In the sparse and lazy case, they're
+    // hash tables.
+    int base;
+    eq_elt* elts;
+    size_t elts_maxsz;
+    size_t elts_count;
+  };
+
   intvar_manager(solver_data* _s);
      
   intvar new_var(int64_t lb, int64_t ub);
 
   void attach(unsigned int vid, intvar_event e, watch_callback c);
 
+  bool in_domain(unsigned int vid, int64_t val);
+  patom_t make_eqatom(unsigned int vid, int64_t val);
+
   vec<pid_t> var_preds;
 
   vec< vec<watch_callback> > lb_callbacks;
   vec< vec<watch_callback> > ub_callbacks;
 
+  // FIXME: Switch to a lighter-weight data-structure
+  std::vector< std::unordered_map<pval_t, patom_t> > eqtable;
+
   solver_data* s;
 };
 
+inline patom_t intvar_base::operator==(int64_t v) {
+  return man->make_eqatom(idx, v);
+}
+
+inline patom_t intvar_base::operator!=(int64_t v) {
+  return ~man->make_eqatom(idx, v);
+}
+
+inline int64_t to_int(pval_t v) { return intvar_base::to_int(v); }
+inline pval_t from_int(int64_t v) { return intvar_base::from_int(v); }
 }
 #endif

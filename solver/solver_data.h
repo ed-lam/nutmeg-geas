@@ -47,11 +47,18 @@ public:
 };
 
 pid_t new_pred(solver_data& s);
+pid_t new_pred(solver_data& s, pred_init init);
+
+patom_t new_bool(solver_data& s);
+patom_t new_bool(solver_data& s, pred_init init);
+
 bool propagate(solver_data& s);
 bool enqueue(solver_data& s, patom_t p, reason r);
 
 // Warning: Modifies elts in place.
 bool add_clause(solver_data& s, vec<clause_elt>& elts);
+
+void attach(solver_data* s, patom_t p, const watch_callback& c);
 
 template<typename... Ts>
 bool add_clause(solver_data* s, patom_t e, Ts... args) {

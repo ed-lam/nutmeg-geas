@@ -76,7 +76,7 @@ public:
   vec<bool> pred_touched;
   vec<pid_t> touched_preds;
 
-  // For restoring prediate states
+  // For restoring predicate states
   vec<int> bvar_trail;
   vec<int> bvar_trail_lim;
 
@@ -108,7 +108,6 @@ inline void trail_change(persistence& p, T& elt, T val) {
   trail_push(p, elt);      
   elt = val;
 }
-
 
 }
 

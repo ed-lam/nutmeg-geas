@@ -29,8 +29,8 @@ int main(int argc, char** argv) {
   if(sd.state.is_entailed(patom_t(x, 9)))
     ERROR;
 
-  std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << std::endl;
-  std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << std::endl;
+  std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << "]" << std::endl;
+  std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << "]" << std::endl;
 
   push_level(&sd);
 
@@ -47,11 +47,11 @@ int main(int argc, char** argv) {
   if(!propagate(sd))
     ERROR;
 
-  std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << std::endl;
-  std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << std::endl;
+  std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << "]" << std::endl;
+  std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << "]" << std::endl;
 
   bt_to_level(&sd, 0);
-  std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << std::endl;
-  std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << std::endl;
+  std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << "]" << std::endl;
+  std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << "]" << std::endl;
   return 0;
 }

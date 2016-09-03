@@ -1,6 +1,7 @@
 #ifndef PHAGE_TYPES__H
 #define PHAGE_TYPES__H
 #include <stdint.h>
+#include "mtl/Vec.h"
 
 namespace phage {
 
@@ -30,6 +31,7 @@ static const lbool l_True = lbool::of_int(1);
 // Otherwise, ~[|x >= 0|] is not representable.
 typedef uint64_t pval_t;
 static const pval_t pval_max = UINT64_MAX-1;
+static const pval_t pval_err = UINT64_MAX;
 
 typedef uint32_t pid_t;
 
@@ -54,6 +56,7 @@ public:
   pval_t val;
 };
 
+static const pid_t pid_None = UINT32_MAX;
 static const patom_t at_Undef = patom_t(UINT32_MAX, 0);
 static const patom_t at_Error = patom_t(UINT32_MAX, pval_max);
 
@@ -67,6 +70,31 @@ public:
   { }
 
   void operator()(void) { f(obj, data); }
+protected:
+  fun f;
+  void* obj;
+  int data;
+};
+
+// For late initialization of a predicate
+class pred_init {
+public:
+  struct prange_t {
+    pval_t& operator[](int i) { return v[i]; }
+    pval_t v[2];
+  };
+  typedef prange_t (*fun)(void*, int, vec<pval_t>&);
+
+  pred_init(fun _f, void* _obj, int _data)
+    : f(_f), obj(_obj), data(_data)
+  { }
+  pred_init(void)
+    : f(nullptr), obj(nullptr), data(0) { }
+  
+  prange_t operator()(vec<pval_t>& state) {
+    assert(f);
+    return f(obj, data, state);
+  }
 protected:
   fun f;
   void* obj;

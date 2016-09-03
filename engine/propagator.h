@@ -31,5 +31,15 @@ protected:
   solver_data* s;
 };
 
+typedef void (*expl_fun)(void*, int , pval_t, vec<clause_elt>&);
+
+template<class T, class E>
+struct exfun {
+  static void explain(void* p, int data, pval_t val, 
+    vec<clause_elt>& expl) {
+    E(static_cast<T*>(p), data, val, expl);
+  }
+};
+
 }
 #endif

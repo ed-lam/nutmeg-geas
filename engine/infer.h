@@ -60,7 +60,7 @@ protected:
     w->atom = patom_t(pid, 0);
     pred_watches.push(w);
     pred_watch_heads.push(w);
-    pred_act.push(0);
+    pred_act.push(0.0);
 
     watch_maps.push();
     watch_maps.last().add(0, w);

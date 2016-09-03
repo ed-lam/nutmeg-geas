@@ -308,13 +308,13 @@ protected:
 // Incremental version
 class imax : public propagator {
   static void wake_z(void* ptr, int k) {
-    imax* p(static_cast<imax*>(ptr)); 
+    imax* p(static_cast<imax*>(ptr));
     p->z_change |= k;
     p->queue_prop();
   }
 
   static void wake_x(void* ptr, int xi) {
-    imax* p(static_cast<imax*>(ptr)); 
+    imax* p(static_cast<imax*>(ptr));
     assert((xi>>1) < p->xs.size());
     if(xi&1) { // LB
       if(!p->lb_change.elem(xi>>1))
@@ -324,6 +324,34 @@ class imax : public propagator {
       if(xi>>1 == p->ub_supp)
         p->supp_change = E_UB;
     }
+  }
+
+  static void expl_z_lb(imax* p, int xi, pval_t v,
+                          vec<clause_elt>& expl) {
+    expl.push(p->xs[xi] >= to_int(v));
+  }
+
+  static void expl_z_ub(imax* p, int xi, pval_t v,
+                          vec<clause_elt>& expl) {
+    for(intvar x : p->xs) {
+      expl.push(x <= to_int(v));
+    }
+  }
+
+  static void expl_xi_lb(imax* p, int xi, pval_t v,
+                          vec<clause_elt>& expl) {
+    expl.push(p->z > to_int(v));
+    for(int x : irange(xi)) {
+      expl.push(p->xs[x] >= to_int(v));
+    }
+    for(int x : irange(xi+1,p->xs.size())) {
+      expl.push(p->xs[x] >= to_int(v));
+    }
+  }
+
+  static void expl_xi_ub(imax* p, int xi, pval_t v,
+                          vec<clause_elt>& expl) {
+    expl.push(p->z <= to_int(v));
   }
 
 public:

@@ -47,6 +47,9 @@ public:
 
     p_root.push(0);
     p_root.push(0);
+
+    initializers.push();
+
     return p;
   }
 
@@ -84,6 +87,11 @@ public:
   vec<pval_t> p_vals; // Current values of predicates
   vec<pval_t> p_last; // Values at previous decision level
   vec<pval_t> p_root; // ...and at the root
+
+  // Initialization thunks for
+  // lazily added predicates.
+  vec<pred_init> initializers;
+  unsigned int init_end;
 };
 
 }

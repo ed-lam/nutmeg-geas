@@ -4,6 +4,7 @@
 #include "vars/intvar.h"
 
 namespace phage {
+
 class int_linear_le : public propagator {
   static void wake_x(void* ptr, int xi) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr)); 

@@ -4,8 +4,59 @@
 #include "constraints/builtins.h"
 
 #include "mtl/bool-set.h"
+#include "mtl/p-sparse-set.h"
+
 namespace phage {
 
+// Totally non-incremental time-table propagator.
+class cumul_prop_basic : public propagator {
+  struct lmark {
+    lmark(int _id, int _pos) : id(_id), pos(_pos) { }
+
+    int id;
+    int pos;
+  };
+
+  struct lmark_cmp {
+    bool operator()(lmark a, lmark b) {
+      // Ends occur before coinciding
+      // starts.
+      if(a.pos == b.pos)
+        return (b.id&1) < (a.id&1);
+
+      return a.pos < b.pos;
+    }
+  };
+public:
+
+  bool check_sat(void) {
+    return true; 
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    // Set up the consumption profile  
+    vec<lmark> cprof_lmarks;        
+    for(int xi : irange(starts.size())) {
+      if(starts[xi].ub() < starts[xi].lb() + durations[xi]) {
+        cprof_lmarks.push(lmark(xi<<1, starts[xi].ub()));
+        cprof_lmarks.push(lmark((xi<<1)|1, starts[xi].lb() + durations[xi]));
+      }
+    }
+    std::sort(cprof_lmarks.begin(), cprof_lmarks.end(), lmark_cmp());
+    
+    // Find the earliest and latest feasible start time for each,
+    // which doesn't overrun the mandatory region
+    NOT_YET;
+    return true;
+  }
+
+protected:
+  // Variables/static data
+  vec<intvar> starts;
+  vec<int> resources;
+  vec<int> durations;
+  int cap;
+};
 class cumul_prop : public propagator {
   enum LimT { E_Start = 0, L_Start = 1, E_End = 2, L_End = 3, LimCount = 4};
 

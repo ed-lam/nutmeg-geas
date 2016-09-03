@@ -59,7 +59,11 @@ std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
 
 inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
 
-pid_t new_pred(sdata& s) {
+inline int decision_level(sdata& s) {
+  return s.infer.trail_lim.size();
+}
+
+pid_t alloc_pred(sdata& s) {
   s.pred_callbacks.push();
   s.pred_callbacks.push();
 
@@ -73,6 +77,44 @@ pid_t new_pred(sdata& s) {
   s.persist.new_pred();
   s.confl.new_pred();
   return s.infer.new_pred();
+}
+
+pid_t new_pred(sdata& s) {
+  assert(decision_level(s) == 0);
+  pid_t p = alloc_pred(s);
+  s.state.init_end = s.state.initializers.size();
+  return p;
+}
+
+void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
+  pred_init::prange_t r(init(vals));
+  vals[p] = r[0];
+  vals[p+1] = r[1];
+}
+
+pid_t new_pred(sdata& s, pred_init init) {
+  pid_t p = alloc_pred(s);
+  // Set up the l0, prev and current values
+  initialize(p, init, s.state.p_root);
+  initialize(p, init, s.state.p_last);
+  initialize(p, init, s.state.p_vals);
+
+  s.state.initializers[p>>1] = init;
+  return p;
+}
+
+pred_init::prange_t init_bool(void* ptr, int eid, vec<pval_t>& vals) {
+  // return pred_init::prange_t { {0, pval_max - 1} };
+  return pred_init::prange_t { {from_int(0), pval_max - from_int(1)} };
+}
+
+patom_t new_bool(sdata& s, pred_init init) {
+  pid_t pi(new_pred(s, init));
+  return patom_t(pi, from_int(1));
+}
+
+patom_t new_bool(sdata& s) {
+  return new_bool(s, pred_init(init_bool, nullptr, 0));
 }
 
 void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
@@ -262,8 +304,26 @@ inline void wakeup_pred(solver_data& s, pid_t p) {
   s.wake_queued[p] = false;
 }
 
+void attach(solver_data& s, patom_t p, const watch_callback& cb) {
+  NOT_YET;
+}
+
 // FIXME: Doesn't deal with bools at all.
 bool propagate(solver_data& s) {
+  // Initialize any lazy predicates
+  if(s.state.init_end != s.state.initializers.size()) {
+    vec<pred_init>& inits(s.state.initializers);
+    unsigned int& end = s.state.init_end;
+
+    trail_push(s.persist, end);
+    for(; end != inits.size(); ++end) {
+      pid_t p(end<<1); 
+      // FIXME: Deal with default initializers
+      initialize(p, inits[end], s.state.p_last);
+      initialize(p, inits[end], s.state.p_vals);
+    }
+  }
+
   // Propagate any entailed clauses
   while(!s.pred_queue.empty()) {
 prop_restart:
@@ -297,10 +357,6 @@ prop_restart:
       goto prop_restart;
   } 
   return true;
-}
-
-inline int decision_level(sdata& s) {
-  return s.infer.trail_lim.size();
 }
 
 inline void add_learnt(solver_data* s, vec<clause_elt>& learnt) {

@@ -2,6 +2,7 @@
 #include "vars/intvar.h"
 
 #include <cstdio>
+#include <utility>
 
 namespace phage {
 
@@ -68,6 +69,8 @@ intvar_manager::intvar_manager(solver_data* _s)
 intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
   int idx = var_preds.size();
   pid_t p = new_pred(*s);
+  var_preds.push(p);
+  eqtable.push_back(std::unordered_map<pval_t, patom_t>());
   // Register this as a watcher.
   // GKG: Perhaps defer this until something
   // is attached to the var
@@ -83,11 +86,11 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
   v.set_lb(lb, nullptr);
   v.set_ub(ub, nullptr);
   // Also set the p_last and p_root values
-  s->state.p_last[p] = intvar_base::to_int(lb);
-  s->state.p_root[p] = intvar_base::to_int(lb);
+  s->state.p_last[p] = from_int(lb);
+  s->state.p_root[p] = from_int(lb);
 
-  s->state.p_last[p^1] = pval_max - intvar_base::to_int(ub);
-  s->state.p_root[p^1] = pval_max - intvar_base::to_int(ub);
+  s->state.p_last[p^1] = pval_max - from_int(ub);
+  s->state.p_root[p^1] = pval_max - from_int(ub);
   return v;
 }
 
@@ -98,6 +101,34 @@ void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c
   if(e&E_UB) {
     ub_callbacks[v_idx].push(c);
   }
+}
+
+bool intvar_manager::in_domain(unsigned int vid, int64_t val) {
+  NOT_YET;
+  return false;
+}
+
+patom_t intvar_manager::make_eqatom(unsigned int vid, int64_t ival) {
+  // Find the appropriate var/val pair
+  pid_t x_pi(var_preds[vid]);
+  pval_t val(from_int(ival));
+
+  auto it = eqtable[vid].find(val);
+  if(it != eqtable[vid].end())
+    return (*it).second;
+
+  // Allocate the atom
+  // FIXME: Deal with duplicates
+  patom_t at(new_bool(*s));
+
+  // Connect it to the corresponding bounds
+  add_clause(s, ~at, patom_t(x_pi, val));
+  add_clause(s, ~at, ~patom_t(x_pi, val+1));
+  add_clause(s, at, ~patom_t(x_pi, val), patom_t(x_pi, val+1));
+
+  eqtable[vid].insert(std::make_pair(val, at));
+
+  return at;
 }
 
 }

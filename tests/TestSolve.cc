@@ -118,15 +118,42 @@ void test4(void) {
     fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
     model m(s.get_model());
     fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", m[x], m[y], m[z]);
+    if(m.value(x >= 3))
+      fprintf(stdout, "x >= 3\n");
+    if(m.value(x >= 12))
+      fprintf(stdout, "x >= 12\n");
+    if(m.value(x <= 12))
+      fprintf(stdout, "x <= 12\n");
+  }
+}
+
+void test5(void) {
+  solver s;
+  intvar x = s.new_intvar(-10, 10);
+  intvar y = s.new_intvar(-10, 10);
+
+  solver_data* sd(s.data);
+
+  add_clause(sd, x == 3, y == 3);
+  add_clause(sd, x == 3, y < 2);
+
+  solver::result r = s.solve();
+  std::cout << "Result: " << r << std::endl;
+
+  if(r == solver::SAT) {
+    model m(s.get_model());
+    fprintf(stdout, "[x, y] ~> [%lld, %lld]\n", m[x], m[y]);
   }
 }
 
 
+
 int main(int argc, char** argv) {
-  test1();
-  test2();
-  test3();
-  test4();
+  // test1();
+  // test2();
+  // test3();
+  // test4();
+  test5();
 
   return 0;
 }
