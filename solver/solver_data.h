@@ -30,11 +30,16 @@ public:
   persistence persist;
   conflict_info confl;
 
-  vec< vec<watch_callback> > bool_callbacks;
+  // vec< vec<watch_callback> > bool_callbacks;
   vec< vec<watch_callback> > pred_callbacks;
 
   Queue<pid_t> pred_queue;
   vec<bool> pred_queued;
+  
+  // Used for dynamic idempotence
+  // handling
+  // propagator* active_prop;
+  // vec<propagator*> pred_origin;
 
   vec<pid_t> wake_queue;
   vec<bool> wake_queued;

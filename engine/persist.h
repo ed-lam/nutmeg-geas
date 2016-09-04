@@ -50,8 +50,8 @@ public:
     for(pid_t p : touched_preds)
       pred_touched[p] = false;
     touched_preds.clear();
-    bvar_trail.clear();
-    bvar_trail_lim.clear();
+    // bvar_trail.clear();
+    // bvar_trail_lim.clear();
     pred_ltrail.clear();
     pred_ltrail_lim.clear();
     data_trail.clear();
@@ -77,8 +77,8 @@ public:
   vec<pid_t> touched_preds;
 
   // For restoring predicate states
-  vec<int> bvar_trail;
-  vec<int> bvar_trail_lim;
+  // vec<int> bvar_trail;
+  // vec<int> bvar_trail_lim;
 
   vec<pred_entry> pred_ltrail;
   vec<int> pred_ltrail_lim;

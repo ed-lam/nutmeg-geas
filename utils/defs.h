@@ -131,4 +131,18 @@ std::ostream& operator<<(std::ostream& o, vec<T>& vs) {
   return o;
 }
 
+template<class T>
+void uniq(vec<T>& xs) {
+  if(xs.size() == 0)
+    return;
+
+  std::sort(xs.begin(), xs.end());
+  int jj = 1;
+  for(int ii = 1; ii < xs.size(); ii++) {
+    if(xs[ii] != xs[ii-1])
+      xs[jj++] = xs[ii];
+  }
+  xs.shrink(xs.size() - jj);
+}
+
 #endif

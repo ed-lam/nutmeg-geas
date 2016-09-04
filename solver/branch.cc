@@ -9,7 +9,8 @@ public:
    
   patom_t branch(solver_data* s) {
     // Do the predicates first
-    for(pid_t pi = 2; pi < s->state.p_vals.size(); pi+=2) {
+    // for(pid_t pi = 2; pi < s->state.p_vals.size(); pi+=2) {
+    for(pid_t pi = 0; pi < s->state.p_vals.size(); pi+=2) {
       pval_t lb = s->state.p_vals[pi];
       pval_t ub = pval_max - s->state.p_vals[pi+1];
       if(lb < ub) {
@@ -18,11 +19,13 @@ public:
     }
     
     // Now go back to the Bools.
+    /*
     for(int bi = 0; bi < s->state.b_assigns.size(); bi++) {
       if(s->state.b_assigns[bi] == l_Undef.to_int()) {
         return patom_t(0, bi); 
       }
     }
+    */
     return at_Undef;
   }
 };

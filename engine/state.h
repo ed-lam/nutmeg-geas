@@ -8,6 +8,7 @@ namespace phage {
 // Interpreting a pair of pvals as a range.
 // Keeping persistent pvar_refs is probably risky,
 // if new predicates are liable to be added.
+/*
 class pvar_ref {
 public: 
   pvar_ref(pval_t* _b) : base(_b) { }
@@ -26,6 +27,7 @@ public:
   }
   pval_t* base;     
 };
+*/
 
 // Representing the current state of atomic predicates
 class pred_state {
@@ -56,7 +58,7 @@ public:
   }
 
   // bool pred_is_bool(pid_t pid) const { return pid <= 1; }
-  bool pred_is_bool(pid_t pid) const { return false; }
+  // bool pred_is_bool(pid_t pid) const { return false; }
 
   bool is_entailed(patom_t atom) const {
     return atom.val <= p_vals[atom.pid];
@@ -74,10 +76,12 @@ public:
     return is_entailed_l0(~atom);
   }
 
+/*
   pvar_ref get_ref(pid_t pi) {
     assert(!(pi&1)); // pi must be the base.
     return pvar_ref(&p_vals[pi]);
   }
+  */
 
   bool post(patom_t atom) {
     if(is_inconsistent(atom))
@@ -88,7 +92,7 @@ public:
     return true;
   }
   
-  vec<char> b_assigns;
+  // vec<char> b_assigns;
   vec<pval_t> p_vals; // Current values of predicates
   vec<pval_t> p_last; // Values at previous decision level
   vec<pval_t> p_root; // ...and at the root

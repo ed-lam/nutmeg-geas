@@ -25,7 +25,9 @@ solver::solver(options& _opts)
 }
 
 solver_data::solver_data(const options& _opts)
-    : opts(_opts), last_branch(default_brancher(this)) {
+    : opts(_opts),
+      // active_prop(nullptr),
+      last_branch(default_brancher(this)) {
   new_pred(*this, 0, 0);
 }
 
@@ -45,9 +47,9 @@ intvar solver::new_intvar(int64_t lb, int64_t ub) {
 // For debugging
 std::ostream& operator<<(std::ostream& o, const patom_t& at) {
   if(at.pid&1) {
-    o << "p" << (at.pid>>1) << " <= " << intvar_base::to_int(pval_max - at.val);
+    o << "p" << (at.pid>>1) << " <= " << to_int(pval_max - at.val);
   } else {
-    o << "p" << (at.pid>>1) << " >= " << intvar_base::to_int(at.val);
+    o << "p" << (at.pid>>1) << " >= " << to_int(at.val);
   }
   return o;
 }
@@ -58,7 +60,7 @@ std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
 
 
 // inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
-inline bool is_bool(sdata& s, pid_t p) { return false; }
+// inline bool is_bool(sdata& s, pid_t p) { return false; }
 
 inline int decision_level(sdata& s) {
   return s.infer.trail_lim.size();
@@ -70,12 +72,10 @@ pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
 
   s.pred_queued.push(false);
   s.pred_queued.push(false);
-//  s.pred_queue.insert(s.pred_queued.size());
-//  s.pred_queued.push(true);
-//  s.pred_queue.insert(s.pred_queued.size());
-//  s.pred_queued.push(true);
 
-
+  // s.pred_origin.push(nullptr);
+  // s.pred_origin.push(nullptr);
+    
   s.wake_queued.push(false);
   s.wake_queued.push(false);
 
@@ -173,6 +173,8 @@ bool enqueue(sdata& s, patom_t p, reason r) {
     set_confl(s, p, r, s.infer.confl); 
     return false;
   }
+  // s.pred_origin[p.pid] = active_prop;
+
   infer_info::entry e = { p.pid, old_val, r };
   s.infer.trail.push(e);
   if(!s.pred_queued[p.pid]) {
@@ -185,10 +187,12 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 // Modifies elt.watch;
 inline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
+  /*
   if(is_bool(s, elt.atom.pid)) {
     int idx = elt.atom.pid&1 ? pval_max - elt.atom.val : elt.atom.val;
     return s.infer.bool_watches[idx];
   }
+  */
 
   if(elt.watch)
     return elt.watch->ws;
@@ -278,10 +282,12 @@ next_clause:
 
 //inline
 bool propagate_pred(solver_data& s, pid_t p) {
+  /*
   if(is_bool(s, p)) {
     NOT_YET;
     return true; 
   } else {
+    */
     // Process watches
     watch_node* curr = s.infer.pred_watches[p];
     while(curr->succ) {
@@ -299,7 +305,7 @@ bool propagate_pred(solver_data& s, pid_t p) {
     trail_change(s.persist, s.infer.pred_watches[p], curr);
 
     return true;
-  }
+  // }
 }
 
 // Record that the value of p has changed at the
@@ -312,7 +318,7 @@ inline void touch_pred(solver_data& s, pid_t p) {
 }
 
 inline void wakeup_pred(solver_data& s, pid_t p) {
-  assert(!is_bool(s, p)); // Handle Bool wake-up separately
+  // assert(!is_bool(s, p)); // Handle Bool wake-up separately
   for(watch_callback call : s.pred_callbacks[p])
     call();
   s.wake_queued[p] = false;
@@ -338,6 +344,7 @@ void prop_cleanup(solver_data& s) {
     propagator* p = s.prop_queue._pop();
     p->cleanup();
   }
+  // s.active_prop = nullptr;
 }
 
 bool propagate(solver_data& s) {
@@ -382,6 +389,7 @@ prop_restart:
   // Process enqueued propagators
   while(!s.prop_queue.empty()) {
     propagator* p = s.prop_queue._pop();
+    // s.active_prop = p;
     if(!p->propagate(s.infer.confl)) {
       p->cleanup();
       prop_cleanup(s);
@@ -391,9 +399,11 @@ prop_restart:
 
     // If one or more predicates were updated,
     // jump back to 
-    if(!s.pred_queue.empty())
+    if(!s.pred_queue.empty()) {
+      // s.active_prop = nullptr;
       goto prop_restart;
-  } 
+    }
+  }
   return true;
 }
 
@@ -609,13 +619,6 @@ void solver::level_pop(void) {
   NOT_YET; 
 }
 
-// Post a constraint
-/*
-bool solver::post(bexpr& e) {
-  return true;
-}
-*/
-
 // Add a clause at the root level.
 bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   int jj = 0;
@@ -693,6 +696,5 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   }
   return true;
 }
-
 
 }

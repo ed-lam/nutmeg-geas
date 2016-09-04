@@ -60,6 +60,9 @@ static const pid_t pid_None = UINT32_MAX;
 static const patom_t at_Undef = patom_t(UINT32_MAX, 0);
 static const patom_t at_Error = patom_t(UINT32_MAX, pval_max);
 
+inline patom_t ge_atom(pid_t p, pval_t v) { return patom_t(p, v); }
+inline patom_t le_atom(pid_t p, pval_t v) { return ~patom_t(p, v+1); }
+
 // Event callbacks
 class watch_callback {
 public:

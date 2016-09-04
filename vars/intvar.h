@@ -30,6 +30,7 @@ protected:
 
 // GKG: Perhaps refactor to avoid the virtual method
 // calls.
+/*
 class intvar_interface {
 public:
   virtual int64_t lb(void) const = 0;
@@ -49,7 +50,7 @@ public:
   virtual void attach(intvar_event e, watch_callback call) = 0;
 
   virtual int64_t model_val(const model& m) const = 0;
-
+  
   virtual patom_t operator>=(int64_t v) = 0;
   virtual patom_t operator>(int64_t v) = 0;
   virtual patom_t operator<=(int64_t v) = 0;
@@ -99,17 +100,24 @@ public:
 protected:
   intvar_interface* x;
 };
+*/
 
-class intvar_base : public intvar_interface {
+// class intvar_base : public intvar_interface {
+class intvar {
   friend class intvar_manager;
 
   static const pval_t offset = ((pval_t) INT64_MIN); 
 
 public:
+  typedef int64_t val_t;
+
   static int64_t to_int(pval_t v) { return (int64_t) (offset + v); }
   static pval_t from_int(int64_t v) { return ((pval_t) v) - offset; }
 
-  intvar_base(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
+  // intvar_base(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
+  intvar(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
+  intvar(void)
+    : s(nullptr), man(nullptr), idx(0), pid(0) { }
 
   int64_t lb(void) const;
   int64_t ub(void) const;
@@ -124,6 +132,11 @@ public:
   bool set_ub(int64_t max, reason r);
 
   void attach(intvar_event e, watch_callback c);
+
+  // FIXME: Update to deal with sparse
+  num_range_t<int64_t> domain(void) const {
+    return num_range(lb(), ub()+1);
+  }
 
   int64_t model_val(const model& m) const;
 
@@ -196,6 +209,7 @@ public:
 
   bool in_domain(unsigned int vid, int64_t val);
   patom_t make_eqatom(unsigned int vid, int64_t val);
+  bool make_sparse(unsigned int vid, vec<int64_t>& vals);
 
   vec<pid_t> var_preds;
 
@@ -208,16 +222,27 @@ public:
   solver_data* s;
 };
 
-inline patom_t intvar_base::operator==(int64_t v) {
+// inline patom_t intvar_base::operator==(int64_t v) {
+inline patom_t intvar::operator==(int64_t v) {
   return man->make_eqatom(idx, v);
 }
 
-inline patom_t intvar_base::operator!=(int64_t v) {
+// inline patom_t intvar_base::operator!=(int64_t v) {
+inline patom_t intvar::operator!=(int64_t v) {
   return ~man->make_eqatom(idx, v);
 }
 
-inline int64_t to_int(pval_t v) { return intvar_base::to_int(v); }
+template<class T>
+// bool intvar_base::make_sparse(vec<T>& vals) {
+bool make_sparse(intvar x, vec<T>& vals) {
+  vec<int64_t> vs;
+  for(const T& v : vals)
+    vs.push((int64_t) v);
+  return x.man->make_sparse(x.idx, vs);
+}
 
-inline pval_t from_int(int64_t v) { return intvar_base::from_int(v); }
+inline int64_t to_int(pval_t v) { return intvar::to_int(v); }
+
+inline pval_t from_int(int64_t v) { return intvar::from_int(v); }
 }
 #endif

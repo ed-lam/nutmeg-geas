@@ -11,7 +11,7 @@ void push_level(solver_data* s) {
 
   s->infer.trail_lim.push(s->infer.trail.size());
 
-  p.bvar_trail_lim.push(p.bvar_trail.size());
+  // p.bvar_trail_lim.push(p.bvar_trail.size());
   p.dtrail_lim.push(p.data_trail.size());
 
   p.pred_ltrail_lim.push(p.pred_ltrail.size());
@@ -81,11 +81,13 @@ void bt_preds(solver_data* s, unsigned int l) {
   dropTo_(inf.trail_lim, l);
   
   // Restore Booleans
+  /*
   int blim = p.bvar_trail_lim[l];
   for(int b : range(&p.bvar_trail[blim], p.bvar_trail.end()))
     st.b_assigns[b] = l_Undef.to_int();
   dropTo_(p.bvar_trail, blim);
   dropTo_(p.bvar_trail_lim, l);
+  */
 
   assert(l < p.pred_ltrail_lim.size());
   // Reset preds touched at the current level

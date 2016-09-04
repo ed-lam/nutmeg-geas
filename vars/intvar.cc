@@ -5,6 +5,7 @@
 #include <utility>
 
 namespace phage {
+#define intvar_base intvar
 
 intvar_base::intvar_base(solver_data* _s, intvar_manager* _m, int _idx, pid_t _pid)
   : s(_s), man(_m), idx(_idx), pid(_pid)
@@ -82,7 +83,8 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
 
   // fprintf(stdout, "[%lld,%lld] ~~> [%lld, %lld]\n", lb, ub, intvar::from_int(lb), intvar::from_int(ub));
   // Set bounds
-  intvar v(new intvar_base(s, this, idx, p));
+  // intvar v(new intvar_base(s, this, idx, p));
+  intvar v(s, this, idx, p);
   v.set_lb(lb, nullptr);
   v.set_ub(ub, nullptr);
   // Also set the p_last and p_root values
@@ -118,7 +120,6 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, int64_t ival) {
     return (*it).second;
 
   // Allocate the atom
-  // FIXME: Deal with duplicates
   patom_t at(new_bool(*s));
 
   // Connect it to the corresponding bounds
@@ -129,6 +130,64 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, int64_t ival) {
   eqtable[vid].insert(std::make_pair(val, at));
 
   return at;
+}
+
+// Should only be called at root level
+bool intvar_manager::make_sparse(unsigned int vid, vec<int64_t>& ivals) {
+   // Find the appropriate var/val pair
+  pid_t x_pi(var_preds[vid]);
+
+  vec<int64_t> vals;
+  for(int64_t v : ivals)
+    vals.push(from_int(v));
+  uniq(vals);
+
+  // Bind the LB and UB atoms.
+  auto it = eqtable[vid].find(vals[0]);
+  if(it == eqtable[vid].end()) {
+    eqtable[vid].insert(std::make_pair(vals[0], le_atom(x_pi, vals[0])));
+  }
+  it = eqtable[vid].find(vals.last());
+  if(it == eqtable[vid].end()) {
+    eqtable[vid].insert(std::make_pair(vals.last(), ge_atom(x_pi, vals.last())));
+  }
+
+  // And set global bounds
+  patom_t lb_at(ge_atom(x_pi, vals[0]));
+  patom_t ub_at(le_atom(x_pi, vals.last()));
+  if(!s->state.is_entailed(lb_at)) {
+    if(!enqueue(*s, lb_at, reason()))
+      return false;
+  }
+  if(!s->state.is_entailed(ub_at)) {
+    if(!enqueue(*s, ub_at, reason()))
+      return false;
+  }
+
+  for(int64_t vidx : irange(1, vals.size()-1)) {
+    pval_t val(vals[vidx]);
+
+    patom_t at;
+
+    auto it = eqtable[vid].find(val);
+    if(it != eqtable[vid].end()) {
+      at = (*it).second;
+      continue;
+    } else {
+      at = new_bool(*s);
+      eqtable[vid].insert(std::make_pair(val, at));
+    }
+
+    // Connect the equality atom to the corresponding
+    // bounds
+    // Should return values
+    add_clause(s, ~at, le_atom(x_pi, val));
+    add_clause(s, ~at, ge_atom(x_pi, val));
+    add_clause(s, at,
+      le_atom(x_pi, vals[vidx-1]),
+      ge_atom(x_pi, vals[vidx+1]));
+  }
+  return true;
 }
 
 }
