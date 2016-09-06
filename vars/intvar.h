@@ -2,6 +2,7 @@
 #define PHAGE_VAR__H
 #include <unordered_map>
 
+#include "utils/interval.h"
 #include "engine/infer.h"
 #include "solver/model.h"
 #include "solver/solver_data.h"
@@ -256,5 +257,16 @@ bool make_sparse(intvar x, vec<T>& vals) {
 inline int64_t to_int(pval_t v) { return intvar::to_int(v); }
 
 inline pval_t from_int(int64_t v) { return intvar::from_int(v); }
+
+
+inline int_itv var_unsupp(intvar x) {
+  return int_itv { x.ub_0()+1, x.lb_0()-1 };
+}
+
+inline int_itv var_range(intvar x) {
+  return int_itv { x.lb(), x.ub() };
+}
+
+
 }
 #endif

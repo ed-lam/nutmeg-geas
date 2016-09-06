@@ -27,7 +27,9 @@ class disj_int : public propagator {
     }
     
     bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
       std::cout << "[[Running disjunctive]]" << std::endl;
+#endif
       
       // Timetable reasoning
       for(int ii : irange(st.size())) {
@@ -74,7 +76,9 @@ class disj_var : public propagator {
     }
     
     bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
       std::cout << "[[Running disjunctive]]" << std::endl;
+#endif
       
       return true;
     }

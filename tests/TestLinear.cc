@@ -24,7 +24,7 @@ void test1(void) {
   solver s;
   solver_data* sd(s.data);
 
-  std::cout << "Testing iabs. Expected: SAT" << std::endl;
+  std::cout << "Testing linear. Expected: UNSAT" << std::endl;
 
   intvar x = s.new_intvar(-10, 10);
   intvar y = s.new_intvar(-10, 10);

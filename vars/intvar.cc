@@ -65,7 +65,7 @@ static void wakeup(void* ptr, int idx) {
     for(auto c : man->lb_callbacks[idx>>1])
       c();
   }
-  printf("Ping: %d\n", idx);
+//  printf("Ping: %d\n", idx);
 }
 
 intvar_manager::intvar_manager(solver_data* _s)

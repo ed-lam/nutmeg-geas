@@ -159,7 +159,9 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   while(s->confl.clevel > 1) {
     pval_t ex_val(s->confl.pred_eval[e.pid]);
     remove(s, e.pid);
+#ifdef LOG_ALL
     std::cout << " <~ " << e.expl << std::endl;
+#endif
     add_reason(s, pos, ex_val, e.expl); 
 
     pos--;

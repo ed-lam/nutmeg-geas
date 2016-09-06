@@ -53,7 +53,9 @@ class alldiff_b : public propagator {
     };
 
     bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
       std::cout << "[[Running alldiff]]" << std::endl;
+#endif
       
       for(int ii : irange(vs.size())) {
         lb[ii] = vs[ii].lb();

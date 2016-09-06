@@ -37,7 +37,9 @@ class mdd_prop : public propagator {
     }
     
     bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
       std::cout << "[[Running mdd]]" << std::endl;
+#endif
 
       return true;
     }

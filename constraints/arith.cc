@@ -12,63 +12,6 @@
 
 namespace phage {
 
-// z = x * y
-// Special case for fixed-sign
-/*
-template<int Sx, int Sy>
-class int_mul_split : public propagator {
-  enum { Sxy = (Sx*Sy) };
-public:
-  int_mul(solver_data* s, int_var _x, int_var _y, int_var _z)
-    : propagator(s), x(_x), y(_y), z(_z)
-  { }
- 
-  bool propagate(vec<clause_elt>& confl) {
-    // Non-incremental propagator
-    if(Sxy) {
-      // Positive case: pick the smallest magnitudes
-      int low_z =
-        std::max(z.lb(), (Sx ? x.lb() : x.ub()) * (Sy ? y.lb() : y.ub()));
-      int high_z =
-        std::min(z.ub(), (Sx ? x.ub() : x.lb()) * (Sy ? y.ub() : y.lb()));
-
-      int low_x =
-        std::max(x.lb(),
-          Sx ? ((low_z + y.ub()-1)/y.ub()) : (high_z/y.lb()));
-      int high_x =
-        std::min(x.ub(),
-          Sx ? (high_z/y.lb()) : ((low_z - y.ub()+1)/y.ub()));
-
-      int low_y =
-        std::max(y.lb(),
-          Sy ? ((low_z + x.ub()-1)/x.ub()) : (high_z/x.lb()));
-      int high_y =
-        std::min(y.ub(),
-          Sy ? (high_z/x.lb()) : ((low_z - x.ub()+1)/x.ub()));
-    } else {
-
-    }
-    return true;
-  }
-
-  bool check_sat(void) {
-    return true;
-  }
-
-  void root_simplify(void) { }
-
-  void cleanup(void) { is_queued = false; }
-
-protected:
-  intvar z;
-  intvar x;
-  intvar y; 
-};
-*/
-
-int_itv var_unsupp(intvar x) { return int_itv { x.ub_0()+1, x.lb_0()-1 }; }
-int_itv var_range(intvar x) { return int_itv { x.lb(), x.ub() }; }
-
 // Propagator:
 // non-incremental, with naive eager explanations
 class iprod : public propagator {
@@ -685,7 +628,9 @@ first_lb_found:
   }
 
   bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
     std::cout << "[[Running imax]]" << std::endl;
+#endif
     bool maybe_max_trailed = false;
     
     // forall x, ub(x) <= ub(z).

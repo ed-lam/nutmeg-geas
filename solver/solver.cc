@@ -152,7 +152,9 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
 }
 
 bool enqueue(sdata& s, patom_t p, reason r) {
+#ifdef LOG_ALL
   std::cout << "|- " << p << std::endl;
+#endif
   /*
   if(is_bool(s, p.pid)) {
     NOT_YET;
@@ -582,13 +584,17 @@ solver::result solver::solve(void) {
   sdata& s(*data);
   while(true) {
     if(!propagate(s)) {
+#ifdef LOG_ALL
       std::cout << "Conflict: " << s.infer.confl << std::endl;
+#endif
       if(decision_level(s) == 0)
         return UNSAT;
         
       // Conflict
       int bt_level = compute_learnt(&s, s.infer.confl);
+#ifdef LOG_ALL
       std::cout << "Learnt: " << s.infer.confl << std::endl;
+#endif
       bt_to_level(&s, bt_level);
       add_learnt(&s, s.infer.confl);
       s.infer.confl.clear();
@@ -606,7 +612,9 @@ solver::result solver::solve(void) {
 
     assert(!s.state.is_entailed(dec));
     assert(!s.state.is_inconsistent(dec));
+#ifdef LOG_ALL
     std::cout << "?> " << dec << std::endl;
+#endif
 
     push_level(&s);
     enqueue(s, dec, reason());

@@ -175,7 +175,9 @@ class int_linear_le : public propagator {
     }
 
     bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
       std::cout << "[[Running linear]]" << std::endl;
+#endif
       int x_lb = 0;
       for(elt e : xs)
         x_lb += e.c * e.x.lb();
