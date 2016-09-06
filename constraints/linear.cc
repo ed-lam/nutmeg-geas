@@ -1,3 +1,4 @@
+#include <cassert>
 #include <map>
 #include "mtl/Vec.h"
 #include "solver/solver_data.h"
@@ -6,6 +7,8 @@
 namespace phage {
 
 class int_linear_le : public propagator {
+  enum { Var_None = -1 };
+
   static void wake_x(void* ptr, int xi) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr)); 
     p->queue_prop();     
@@ -15,13 +18,72 @@ class int_linear_le : public propagator {
     p->queue_prop();     
   }
 
+  struct elt {
+    elt(int _c, intvar _x)
+      : c(_c), x(_x) { }
+    int c;
+    intvar x;
+  };
+
+  // Requires backtracking
+  static void ex_x(void* ptr, int xi, pval_t pval,
+                       vec<clause_elt>& expl) {
+    int_linear_le* p(static_cast<int_linear_le*>(ptr));
+#if 1
+    int64_t ival(to_int(pval_max - pval));
+    int64_t lim(p->k - p->xs[xi].c*ival);
+
+    int64_t sum = 0;
+    for(int xj : irange(xi))
+      sum += p->xs[xj].c * p->xs[xj].x.lb();
+    for(int xj : irange(xi+1, p->xs.size()))
+      sum += p->xs[xj].c * p->xs[xj].x.lb();
+    for(elt e : p->ys)
+      sum -= e.c * e.x.ub();
+    p->make_expl(2*xi, sum - lim, expl);
+#else
+    // Naive explanation
+    for(elt e : p->xs) {
+      assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
+      expl.push(e.x < e.x.lb());
+    }
+    for(elt e : p->ys) {
+      assert(p->s->state.is_inconsistent(e.x > e.x.ub()));
+      expl.push(e.x > e.x.ub());
+    }
+#endif
+  }
+
+  static void ex_y(void* ptr, int yi, pval_t pval,
+                       vec<clause_elt>& expl) {
+    int_linear_le* p(static_cast<int_linear_le*>(ptr));
+
+#if 1
+    int64_t ival(to_int(pval));
+    int64_t lim(p->k + p->ys[yi].c*ival);
+
+    int64_t sum = 0;
+    for(elt e : p->xs)
+      sum += e.c * e.x.lb();
+    for(int yj : irange(yi))
+      sum -= p->ys[yj].c * p->ys[yj].x.ub();
+    for(int yj : irange(yi+1, p->ys.size()))
+      sum -= p->ys[yj].c * p->ys[yj].x.ub();
+
+    p->make_expl(2*yi+1, sum - lim, expl);
+#else
+    for(elt e : p->xs) {
+      assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
+      expl.push(e.x < e.x.lb());
+    }
+    for(elt e : p->ys) {
+      assert(p->s->state.is_inconsistent(e.x > e.x.ub()));
+      expl.push(e.x > e.x.ub());
+    }
+#endif
+  }
+
   public: 
-    struct elt {
-      elt(int _c, intvar _x)
-        : c(_c), x(_x) { }
-      int c;
-      intvar x;
-    };
 
     int_linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int _k)
       : propagator(s), k(_k) {
@@ -42,6 +104,16 @@ class int_linear_le : public propagator {
     
     template<class E>
     void make_expl(int var, int slack, E& ex) {
+#if 0
+      for(elt e : xs) {
+        assert(s->state.is_inconsistent(e.x < e.x.lb()));
+        ex.push(e.x < e.x.lb());
+      }
+      for(elt e : ys) {
+        assert(s->state.is_inconsistent(e.x > e.x.ub()));
+        ex.push(e.x > e.x.ub());
+      }
+#else
       vec<int> xs_pending;
       vec<int> ys_pending;
       // First, collect things we can omit entirely, or
@@ -99,6 +171,7 @@ class int_linear_le : public propagator {
         ex.push(e.x > e.x.ub() + diff);
         slack -= diff;
       }
+#endif
     }
 
     bool propagate(vec<clause_elt>& confl) {
@@ -114,7 +187,8 @@ class int_linear_le : public propagator {
         // Collect enough atoms to explain the sum.
         // FIXME: This is kinda weak. We really want to
         // push as much as we can onto the previous level.
-        make_expl(-1, k - x_lb + y_ub, confl);
+        make_expl(Var_None, x_lb - y_ub - k - 1, confl);
+        // NOT_YET;
         return false; 
       }
 
@@ -126,9 +200,13 @@ class int_linear_le : public propagator {
         int x_ub = e.x.lb() + x_diff;
         if(x_ub < e.x.ub()) {
           // Build the explanation
+          /*
           expl_builder ex(s->persist.alloc_expl(xs.size()+ys.size()));
           make_expl(2*xi, slack - e.c * x_diff, ex);
           if(!e.x.set_ub(x_ub, *ex))
+          */
+          if(!e.x.set_ub(x_ub,
+              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
             return false;
         }
       }
@@ -138,9 +216,13 @@ class int_linear_le : public propagator {
         int y_diff = slack/e.c;
         int y_lb = e.x.ub() - y_diff;
         if(e.x.lb() < y_lb) {
+          /*
           expl_builder ex(s->persist.alloc_expl(xs.size()+ys.size()));
           make_expl(2*yi+1, slack - e.c * y_diff, ex);
           if(!e.x.set_lb(y_lb, *ex))
+          */
+          if(!e.x.set_lb(y_lb,
+              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
             return false;
         }
       }
@@ -196,8 +278,10 @@ public:
     // Allocate partial sum predicates
     // Don't need first (since it's ks[0] * xs[0])
     // or last variable.
+    /*
     for(int _ii : irange(vs.size()-2))
       ps_preds.push(new_pred(*s));
+      */
 
     NOT_YET_WARN;
       

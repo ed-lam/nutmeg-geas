@@ -1,9 +1,14 @@
+#include <algorithm>
 #include <climits>
 #include "engine/propagator.h"
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 #include "mtl/bool-set.h"
 #include "mtl/p-sparse-set.h"
+#include "utils/interval.h"
+
+// using max = std::max;
+// using min = std::min;
 
 namespace phage {
 
@@ -59,21 +64,166 @@ protected:
   intvar x;
   intvar y; 
 };
+*/
 
-class int_mul : public propagator {
+int_itv var_unsupp(intvar x) { return int_itv { x.ub_0()+1, x.lb_0()-1 }; }
+int_itv var_range(intvar x) { return int_itv { x.lb(), x.ub() }; }
+
+// Propagator:
+// non-incremental, with naive eager explanations
+class iprod : public propagator {
+  static void wake_z(void* ptr, int xi) {
+    iprod* p(static_cast<iprod*>(ptr)); 
+    p->queue_prop();
+  }
+
+  static void wake_xs(void* ptr, int xi) {
+    iprod* p(static_cast<iprod*>(ptr)); 
+    p->queue_prop();
+  }
+
 public:
-  int_mul(solver_data* s, int_var _x, int_var _y, int_var _z)
-    : propagator(s), x(_x), y(_y), z(_z)
-  { }
+  iprod(solver_data* s, intvar _z, intvar _x, intvar _y)
+    : propagator(s), z(_z), x(_x), y(_y)
+  {
+    z.attach(E_LU, watch_callback(wake_z, this, 0));
+    x.attach(E_LU, watch_callback(wake_xs, this, 0));
+    y.attach(E_LU, watch_callback(wake_xs, this, 1));
+  }
   
-  typedef struct {
-    int x[2];
-  } range;
-
-
+  clause* make_expl(int_itv iz, int_itv ix, int_itv iy) {
+    expl_builder ex(s->persist.alloc_expl(7)); 
+    ex.push(z < iz.lb);
+    ex.push(z > iz.ub);
+    ex.push(x < ix.lb);
+    ex.push(x > ix.ub);
+    ex.push(y < iy.lb);
+    ex.push(y > iy.ub);
+    return *ex;
+  }
+  
   bool propagate(vec<clause_elt>& confl) {
     // Non-incremental propagator
-    
+    int_itv z_supp(var_unsupp(z));          
+    int_itv x_supp(var_unsupp(x));
+    int_itv y_supp(var_unsupp(y));
+
+    int_itv z_itv(var_range(z));
+    int_itv x_itv(var_range(x));
+    int_itv y_itv(var_range(y));
+    if(z_itv.elem(0)) {
+      if(x_itv.elem(0)) {
+        z_supp = int_itv { 0, 0 };
+        y_supp = y_itv;
+        x_supp = int_itv { 0, 0 };
+      }
+      if(y_itv.elem(0)) {
+        z_supp = int_itv { 0, 0 };
+        x_supp = x_itv;
+        y_supp |= int_itv { 0, 0 };
+      }
+    }
+
+    if(x_itv.ub > 0) {
+      int_itv x_pos(pos(var_range(x)));
+      if(y_itv.ub > 0) {
+        // + * + 
+        int_itv y_pos(pos(var_range(y)));
+        int_itv xy { x_pos.lb * y_pos.lb, x_pos.ub * y_pos.ub };
+        int_itv z_feas(z_itv & xy);
+        if(!z_feas.empty()) {
+          z_supp |= z_feas;
+          // Propagate back to x, y
+          x_supp |= (x_itv & int_itv {(z_feas.lb + y_pos.ub - 1)/ y_pos.ub,
+                                      z_feas.ub / y_pos.lb});
+          y_supp |= (y_itv & int_itv {(z_feas.lb + x_pos.ub - 1) / x_pos.ub,
+                                      z_feas.ub / x_pos.lb});
+        }
+      }
+      if(y_itv.lb < 0) {
+        // + * -  
+        int_itv y_neg(neg(var_range(y)));
+        int_itv xy { x_pos.ub * y_neg.lb, x_pos.lb * y_neg.ub };
+        int_itv z_feas(z_itv & xy);
+        if(!z_feas.empty()) {
+          z_supp |= z_feas;
+          // Propagate back to x, y
+          x_supp |= (x_itv & int_itv {(z_feas.ub + y_neg.ub + 1)/y_neg.ub,
+                                      z_feas.lb / y_neg.lb});
+          y_supp |= (y_itv & int_itv {z_feas.lb / x_pos.lb,
+                                      (z_feas.ub - x_pos.ub + 1)/x_pos.ub});
+        }
+      }
+    }
+    if(x_itv.lb < 0) {
+      int_itv x_neg(neg(var_range(x)));
+      if(y_itv.ub > 0) {
+        // - * +  
+        int_itv y_pos(pos(var_range(y)));
+        int_itv xy { x_neg.lb * y_pos.lb, x_neg.ub * y_pos.lb };
+        int_itv z_feas(z_itv & xy);
+        if(!z_feas.empty()) {
+          z_supp |= z_feas;
+          // Propagate back to x, y
+          x_supp |= (x_itv & int_itv {z_feas.lb / y_pos.lb,
+                                      (z_feas.ub - y_pos.ub + 1)/y_pos.ub});
+          y_supp |= (y_itv & int_itv {(z_feas.ub + x_neg.ub + 1)/x_neg.ub,
+                                      z_feas.lb / x_neg.lb});
+        }
+      }
+      if(y_itv.lb < 0) {
+        // - * - 
+        int_itv y_neg(neg(var_range(y)));
+        int_itv xy { x_neg.ub * y_neg.ub, x_neg.lb * y_neg.lb };
+        int_itv z_feas(z_itv & xy);
+        if(!z_feas.empty()) {
+          z_supp |= z_feas;
+          // Propagate back to x, y
+          x_supp |= (x_itv & int_itv {z_feas.ub / y_neg.ub,
+                                      (z_feas.lb+y_neg.lb+1)/ y_neg.lb});
+          y_supp |= (y_itv & int_itv {z_feas.ub / x_neg.ub,
+                                      (z_feas.lb+x_neg.lb+1)/ x_neg.lb});
+        }
+      }
+    }
+
+    if(z_supp.lb > z.lb()) {
+      clause* cl(make_expl(z_itv, x_itv, y_itv));
+      (*cl)[0] = (z >= z_supp.lb);
+      if(!z.set_lb(z_supp.lb, cl))
+        return false;
+    }
+    if(z_supp.ub < z.ub()) {
+      clause* cl(make_expl(z_itv, x_itv, y_itv));
+      (*cl)[0] = (z <= z_supp.ub);
+      if(!z.set_lb(z_supp.lb, cl))
+        return false;
+    }
+    if(x_supp.lb > x.lb()) {
+      clause* cl(make_expl(z_itv, x_itv, y_itv));
+      (*cl)[0] = (x >= x_supp.lb);
+      if(!x.set_lb(x_supp.lb, cl))
+        return false;
+    }
+    if(x_supp.ub < x.ub()) {
+      clause* cl(make_expl(z_itv, x_itv, y_itv));
+      (*cl)[0] = (x <= x_supp.ub);
+      if(!x.set_ub(x_supp.ub, cl))
+        return false;
+    }
+    if(y_supp.lb > y.lb()) {
+      clause* cl(make_expl(z_itv, x_itv, y_itv));
+      (*cl)[0] = (y >= y_supp.lb);
+      if(!y.set_lb(y_supp.lb, cl))
+        return false;
+    }
+    if(y_supp.ub < y.ub()) {
+      clause* cl(make_expl(z_itv, x_itv, y_itv));
+      (*cl)[0] = (y <= y_supp.ub);
+      if(!y.set_ub(y_supp.ub, cl))
+        return false;
+    }
+    // Set domains
     return true;
   }
 
@@ -88,14 +238,8 @@ public:
 protected:
   intvar z;
   intvar x;
-  intvar y; 
-
-  // Temporary data
-  range z_range;
-  range x_range;
-  range y_range;
+  intvar y;
 };
-*/
 
 irange pos_range(intvar z) { return irange(std::max(1, (int) z.lb()), z.ub()+1); }
 irange neg_range(intvar z) { return irange(z.lb(), std::min(-1, (int) z.ub())); }
@@ -146,45 +290,126 @@ void imul_decomp(solver_data* s, intvar z, intvar x, intvar y) {
 }
 
 void int_mul(solver_data* s, intvar z, intvar x, intvar y) {
-  imul_decomp(s, z, x, y);
+  // imul_decomp(s, z, x, y);
+  new iprod(s, z, x, y);
 }
 
 class iabs : public propagator {
+  static void wake(void* ptr, int xi) {
+    iabs* p(static_cast<iabs*>(ptr)); 
+    p->queue_prop();
+  }
+
+  // Explanation functions  
+  // Annoyingly, for upper bounds, we need invert the
+  // value manually.
+  static void ex_z_lb(void* ptr, int sign,
+                        pval_t val, vec<clause_elt>& expl) {
+    iabs* p(static_cast<iabs*>(ptr));
+    if(sign) {
+      expl.push(p->x < to_int(val));
+    } else {
+      expl.push(p->x > -to_int(val));
+    }
+  }
+  static void ex_z_ub(void* ptr, int _xi, pval_t val,
+                        vec<clause_elt>& expl) {
+    iabs* p(static_cast<iabs*>(ptr));
+    int64_t ival(to_int(pval_max - val));
+
+    expl.push(p->x > ival);
+    expl.push(p->x < -ival);
+  }
+
+  static void ex_x_lb(void* ptr, int sign,
+                        pval_t val, vec<clause_elt>& expl) {
+    iabs* p(static_cast<iabs*>(ptr));
+    int64_t ival(to_int(val));
+    if(sign) {
+      expl.push(p->x <= -ival);
+      expl.push(p->z < ival);
+    } else {
+      expl.push(p->z > -ival);
+    }
+  }
+  static void ex_x_ub(void* ptr, int sign,
+                        pval_t val, vec<clause_elt>& expl) {
+    iabs* p(static_cast<iabs*>(ptr));
+    int64_t ival(to_int(pval_max - val));
+
+    if(sign) {
+      expl.push(p->z > ival);
+    } else {
+      expl.push(p->x >= -ival);
+      expl.push(p->z < ival);
+    }
+  }
+
+public:
   iabs(solver_data* s, intvar _z, intvar _x)
     : propagator(s), z(_z), x(_x)
-  { }
+  {
+    z.attach(E_LU, watch_callback(wake, this, 0));
+    x.attach(E_LU, watch_callback(wake, this, 1));
+  }
  
   bool propagate(vec<clause_elt>& confl) {
-    int z_max = std::max(x.ub(), -x.lb());
-    if(z_max < z.ub()) {
-      if(!z.set_ub(z_max, s->persist.create_expl(x >= -z_max, x <= z_max)))
-        return false;
+    std::cerr << "[[Running iabs]]" << std::endl;
+    // Case split
+    int_itv z_itv { z.ub()+1, z.lb()-1 };
+    int_itv x_itv { x.ub()+1, x.lb()-1 };
+//    int z_min = z.ub()+1;
+//    int z_max = z.lb()-1;
+
+//    int x_min = x.ub()+1;
+//    int x_max = x.lb()-1;
+
+    if(x.lb() < 0) {
+      int_itv neg { std::max(x.lb(), -z.ub()),
+                    std::max(x.ub(), -z.lb()) };
+      x_itv |= neg;
+      z_itv |= -neg;
+    }
+    if(x.ub() >= 0) {
+      int_itv pos { std::max(z.lb(), z.lb()),
+                    std::min(x.ub(), z.ub()) }; 
+      x_itv |= pos;
+      z_itv |= pos;
     }
 
+    if(z_itv.ub < z.ub()) {
+      if(!z.set_ub(z_itv.ub, expl_thunk { ex_z_ub, this, 0 }))
+        return false;
+    }
+    if(z_itv.lb > z.lb()) {
+      if(!z.set_lb(z_itv.lb, expl_thunk { ex_z_lb, this, x_itv.lb >= 0 }))
+        return false;
+    }
+    if(x_itv.ub < x.ub()) {
+      if(!x.set_ub(x_itv.ub, expl_thunk { ex_x_ub, this, x_itv.ub >= 0 }))
+        return false;
+    }
+    if(x_itv.lb > x.ub()) {
+      if(!x.set_lb(x_itv.lb, expl_thunk { ex_x_lb, this, x_itv.lb >= 0}))
+        return false;
+    }
+    return true;
+#if 0
     int z_min = z.lb();
     if(x.lb() > -z_min) {
       // z = x
       if(z_min > x.lb()) {
-        if(!x.set_lb(z_min, s->persist.create_expl(z >= z_min, x > -z_min)))
+        if(!x.set_lb(z_min, expl_thunk ex_x_lb, this, 1))
           return false;
       }
       if(z.ub() < x.ub()) {
-        
+         
       }
     } else if(x.ub() < z_min) {
       // z = -x
       
     }
-    /*
-    if(x.lb() < 0) {
-      // Handle negative case
-
-    }
-    if(x.ub() > 0) {
-      // Positive case
-      z_min = 
-    }
-    */
+#endif
     return true;
   }
 
@@ -559,9 +784,15 @@ void int_max(solver_data* s, intvar z, vec<intvar>& xs) {
   new imax(s, z, xs);
 }
 
-void int_abs(solver_data* s, intvar z, intvar x) {
+bool int_abs(solver_data* s, intvar z, intvar x) {
   // FIXME: Implement propagator when domains are large
-  iabs_decomp(s, z, x);
+  // iabs_decomp(s, z, x);
+  if(z.lb() < 0) {
+    if(!z.set_lb(0, reason ()))
+      return false;
+  }
+  new iabs(s, z, x);
+  return true;
 }
 
 }

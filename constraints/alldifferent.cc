@@ -1,22 +1,30 @@
 #ifndef PHAGE_ALLDIFFERENT_H
 #define PHAGE_ALLDIFFERENT_H
 
+#include "mtl/bool-set.h"
 #include "engine/propagator.h"
 #include "vars/intvar.h"
 
 namespace phage {
   
 class alldiff_b : public propagator {
-  static void wake(void* ptr, int xi) {
+  static void wake_lb(void* ptr, int xi) {
     alldiff_b* p(static_cast<alldiff_b*>(ptr)); 
     p->queue_prop();
+    p->lb_change.add(xi);
+  }
+  static void wake_ub(void* ptr, int xi) {
+    alldiff_b* p(static_cast<alldiff_b*>(ptr)); 
+    p->queue_prop();
+    p->ub_change.add(xi);
   }
 
   public: 
     alldiff_b(solver_data* s, vec<intvar>& _vs)
       : propagator(s), vs(_vs) {
       for(int ii : irange(vs.size())) {
-        vs[ii].attach(E_LU, watch_callback(wake, this, ii));
+        vs[ii].attach(E_LB, watch_callback(wake_lb, this, ii));
+        vs[ii].attach(E_UB, watch_callback(wake_ub, this, ii));
         lb_ord.push(ii);
         ub_ord.push(ii);
         lb.push(vs[ii].lb());
@@ -26,6 +34,12 @@ class alldiff_b : public propagator {
 
     void root_simplify(void) {
       return; 
+    }
+
+    void cleanup(void) {
+      is_queued = false;
+      lb_change.clear();
+      ub_change.clear();
     }
     
     struct bound_cmp {
@@ -62,6 +76,9 @@ class alldiff_b : public propagator {
 
     vec<int64_t> lb;
     vec<int64_t> ub;
+
+    boolset lb_change;
+    boolset ub_change;
 };
 
 }

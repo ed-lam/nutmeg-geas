@@ -119,8 +119,20 @@ public:
   intvar(void)
     : s(nullptr), man(nullptr), idx(0), pid(0) { }
 
+  intvar(const intvar& o)
+    : s(o.s), man(o.man), idx(o.idx), pid(o.pid) { }
+
+  intvar& operator=(const intvar& o) {
+    s = o.s;
+    man = o.man;
+    idx = o.idx;
+    pid = o.pid;
+    return *this;
+  }
+
   int64_t lb(void) const;
   int64_t ub(void) const;
+  bool is_fixed(void) const;
 
   int64_t lb_prev(void) const;
   int64_t ub_prev(void) const;

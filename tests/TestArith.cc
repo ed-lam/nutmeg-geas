@@ -26,20 +26,36 @@ void test1(void) {
 
   std::cout << "Testing iabs. Expected: SAT" << std::endl;
 
-  intvar x = s.new_intvar(-10, 10);
-  intvar y = s.new_intvar(-10, 10);
   intvar z = s.new_intvar(-10, 10);
+  intvar x = s.new_intvar(-10, 10);
 
-  {
-    vec<int> ks {-1, 1, 1};
-    vec<intvar> xs {z, x, y};
-    linear_le(sd, ks, xs, -1);
+  int_abs(sd, z, x); 
+  add_clause(sd, x < 0, z < 0);
+  add_clause(sd, x >= -5, z <= 5);
+
+  solver::result r = s.solve();
+  std::cout << "Result: " << r << std::endl;
+
+  if(r == solver::SAT) {
+    model m(s.get_model());
+    fprintf(stdout, "[z, x] ~> [%lld, %lld]\n", m[z], m[x]);
   }
-  {
-    vec<int> ks {1, -1, -1};
-    vec<intvar> xs {z, x, y};
-    linear_le(sd, ks, xs, -1);
-  }
+}
+
+void test2(void) {
+  solver s;
+  solver_data* sd(s.data);
+
+  std::cout << "Testing imul. Expected: SAT" << std::endl;
+
+  intvar z = s.new_intvar(1, 10);
+  intvar x = s.new_intvar(-10, 10);
+  intvar y = s.new_intvar(-10, 0);
+
+//  add_clause(sd, x < -2, x > 2);
+//  add_clause(sd, y < -2, y > 2);
+
+  int_mul(sd, z, x, y);
 
   solver::result r = s.solve();
   std::cout << "Result: " << r << std::endl;
@@ -51,6 +67,8 @@ void test1(void) {
 }
 
 int main(int argc, char** argv) {
-  test1();
+  // test1();
+  test2();
+
   return 0;
 }

@@ -11,14 +11,12 @@ static void clear(solver_data* s) {
 
 // Drop a predicate from the explanation
 static void remove(solver_data* s, pid_t p) {
-  // FIXME: Handle Booleans
   s->confl.pred_seen.remove(p);
   if(s->state.p_last[p] < s->confl.pred_eval[p])
     s->confl.clevel--;
 }
 
 static void add(solver_data* s, clause_elt elt) {
-  // FIXME: Handle bools
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
   pval_t val = pval_max - elt.atom.val + 1;
@@ -61,12 +59,29 @@ std::ostream& operator<<(std::ostream& o, reason r) {
         o << es;
       }
       break;
+    case reason::R_Thunk:
+      {
+        o << "{{?}}";
+        break;
+      }
     default:
       NOT_YET;
   }
   return o;
 }
-static void add_reason(solver_data* s, reason r) {
+
+// Restore solver state to a given index in the inference trail.
+static inline void bt_infer_to_pos(solver_data* s, unsigned int pos) {
+  pred_state& st(s->state);
+  infer_info& inf(s->infer);
+  for(infer_info::entry e : rev_range(&inf.trail[pos], inf.trail.end())) {
+    st.p_vals[e.pid] = e.old_val; 
+  }
+  inf.trail.shrink(inf.trail.size() - pos);
+}
+
+// ex_val is the bound which must be entailed
+static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
   switch(r.kind) {
     case reason::R_Atom:
       add(s, r.at);
@@ -77,6 +92,23 @@ static void add_reason(solver_data* s, reason r) {
         auto it = r.cl->begin();
         for(++it; it != r.cl->end(); ++it)
           add(s, *it);
+      }
+      break;
+    case reason::R_Thunk:
+      {
+        if(r.eth.flags) {
+          // Deal with Ex_BTPRED and Ex_BTGEN
+          if(r.eth.flags&expl_thunk::Ex_BTPRED) {
+            bt_infer_to_pos(s, pos);
+          }
+          if(r.eth.flags&expl_thunk::Ex_BTGEN) {
+            NOT_YET;
+          }
+        }
+        vec<clause_elt> es;
+        r.eth(ex_val, es);
+        for(clause_elt e : es)
+          add(s, e);
       }
       break;
     default:
@@ -107,7 +139,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   
 //  std::cout << "confl:" << confl << std::endl;
 
-  // THE BUG IS THUS: the conflict contains things which are false.
+  // Remember: the conflict contains things which are false.
   // The inference trail contains things which have become true.
   for(clause_elt e : confl)
     add(s, e);
@@ -125,9 +157,10 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
+    pval_t ex_val(s->confl.pred_eval[e.pid]);
     remove(s, e.pid);
     std::cout << " <~ " << e.expl << std::endl;
-    add_reason(s, e.expl); 
+    add_reason(s, pos, ex_val, e.expl); 
 
     pos--;
     while(!needed(s, s->infer.trail[pos]))

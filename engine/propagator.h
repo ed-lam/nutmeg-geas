@@ -8,8 +8,8 @@ class solver_data;
 class propagator {
 public: 
   propagator(solver_data* _s)
-    : s(_s) {
-      
+    : is_queued(false), s(_s) {
+    queue_prop(); 
   }
   virtual ~propagator(void) { }
 

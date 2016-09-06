@@ -19,6 +19,10 @@ int64_t intvar_base::ub(void) const {
   return to_int(pval_max - s->state.p_vals[pid^1]);
 }
 
+bool intvar::is_fixed(void) const {
+  return pval_max - s->state.p_vals[pid^1] == s->state.p_vals[pid];
+}
+
 int64_t intvar_base::lb_prev(void) const {
   return to_int(s->state.p_last[pid]);
 }
@@ -55,10 +59,10 @@ static void wakeup(void* ptr, int idx) {
   intvar_manager* man = static_cast<intvar_manager*>(ptr);
   // Do some stuff
   if(idx&1) {
-    for(auto c : man->lb_callbacks[idx>>1])
+    for(auto c : man->ub_callbacks[idx>>1])
       c();
   } else {
-    for(auto c : man->ub_callbacks[idx>>1])
+    for(auto c : man->lb_callbacks[idx>>1])
       c();
   }
   printf("Ping: %d\n", idx);

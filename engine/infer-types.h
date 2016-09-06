@@ -117,7 +117,28 @@ public:
 // typedef std::map<pval_t, watch_node*> watch_map;
 typedef uint64_triemap<uint64_t, watch_node*, UIntOps> watch_map;
 
-// One of: a clause, a an atom, or 
+// One of: a clause, a an atom, or a thunk
+
+struct expl_thunk {
+  enum expl_flags { Ex_BTPRED = 1, Ex_BTGEN = 2 };
+  typedef void (*fun)(void*, int, pval_t, vec<clause_elt>&); 
+  
+  void operator()(pval_t val, vec<clause_elt>& ex) {
+    f(ptr, data, val, ex);
+  }
+
+  template<class T, class F>
+  void explain(void* ptr, int d, pval_t v, vec<clause_elt>& elt) {
+    return F(static_cast<T*>(ptr), d, v, elt);
+  }
+
+  fun f;
+  void* ptr;
+  int data;
+
+  char flags;
+};
+
 class reason {
 public:
   enum RKind { R_Clause = 0, R_Atom = 1, R_Thunk = 2 };
@@ -131,11 +152,15 @@ public:
   reason(clause* _cl)
     : kind(R_Clause), cl(_cl) { }
 
+  reason(expl_thunk t)
+    : kind(R_Thunk), eth(t) { }
+
   RKind kind; 
   union {
     patom_t at; 
     clause* cl;
     /* Deal with thunk. */
+    expl_thunk eth;
   };
 };
 

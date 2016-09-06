@@ -137,6 +137,15 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
       for(clause_elt e : *r.cl)
         confl.push(e);
        break;
+     case reason::R_Thunk:
+     {
+      confl.push(p);
+      // pval_t fail_val = pval_max - s.state.p_vals[p.pid^1] + 1;
+      pval_t fail_val = p.val;
+      assert(fail_val <= p.val);
+      r.eth(fail_val, confl);
+      break;
+     }
      default:
        NOT_YET;
   }
@@ -582,6 +591,7 @@ solver::result solver::solve(void) {
       std::cout << "Learnt: " << s.infer.confl << std::endl;
       bt_to_level(&s, bt_level);
       add_learnt(&s, s.infer.confl);
+      s.infer.confl.clear();
       continue;
     }
 
