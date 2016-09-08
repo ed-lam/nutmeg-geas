@@ -34,14 +34,19 @@ public:
     y.attach(E_LU, watch_callback(wake_xs, this, 1));
   }
   
-  clause* make_expl(int_itv iz, int_itv ix, int_itv iy) {
-    expl_builder ex(s->persist.alloc_expl(7)); 
+  template<class T>
+  void push_expl(int_itv iz, int_itv ix, int_itv iy, T& ex) {
     ex.push(z < iz.lb);
     ex.push(z > iz.ub);
     ex.push(x < ix.lb);
     ex.push(x > ix.ub);
     ex.push(y < iy.lb);
     ex.push(y > iy.ub);
+  }
+
+  clause* make_expl(int_itv iz, int_itv ix, int_itv iy) {
+    expl_builder ex(s->persist.alloc_expl(7)); 
+    push_expl(iz, ix, iy, ex);
     return *ex;
   }
   
@@ -130,6 +135,14 @@ public:
       }
     }
 
+    if(z_supp.ub < z_supp.lb) {
+      // Infeasible
+      push_expl(z_itv, x_itv, y_itv, confl);
+      return false;
+    }
+    assert(x_supp.lb <= x_supp.ub);
+    assert(y_supp.lb <= y_supp.ub);
+
     if(z_supp.lb > z.lb()) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (z >= z_supp.lb);
@@ -166,7 +179,7 @@ public:
       if(!y.set_ub(y_supp.ub, cl))
         return false;
     }
-    // Set domains
+
     return true;
   }
 
@@ -297,7 +310,9 @@ public:
   }
  
   bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
     std::cerr << "[[Running iabs]]" << std::endl;
+#endif
     // Case split
     int_itv z_itv { z.ub()+1, z.lb()-1 };
     int_itv x_itv { x.ub()+1, x.lb()-1 };

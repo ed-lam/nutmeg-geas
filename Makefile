@@ -10,9 +10,7 @@ VARS      = ./vars
 CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
 CXXFLAGS += --std=c++11
 CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-#CXXFLAGS += $(shell guile-config compile)
 LFLAGS    = -lz -Wall -Wno-deprecated
-#LFLAGS += $(shell guile-config link)
 #LFLAGS   += -pg
 
 #COPTIMIZE = -O3 -ffast-math -funroll-loops # -freorder-blocks-and-partition
@@ -20,7 +18,7 @@ LFLAGS    = -lz -Wall -Wno-deprecated
 COPTIMIZE = -O0
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
-CXXFLAGS += -ggdb
+CXXFLAGS += -g
 #CXXFLAGS += -pg
 
 CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(CONSTRAINTS)/*.cc) $(wildcard $(UTILS)/*.cc)

@@ -1,6 +1,7 @@
 #include <iostream>
 #include "solver/solver.h"
 #include "solver/solver_data.h"
+#include "solver/solver_debug.h"
 #include "engine/conflict.h"
 
 namespace phage {
@@ -596,6 +597,11 @@ solver::result solver::solve(void) {
       std::cout << "Learnt: " << s.infer.confl << std::endl;
 #endif
       bt_to_level(&s, bt_level);
+
+#ifdef CHECK_STATE
+      check_pvals(&s);
+#endif
+
       add_learnt(&s, s.infer.confl);
       s.infer.confl.clear();
       continue;
@@ -613,7 +619,7 @@ solver::result solver::solve(void) {
     assert(!s.state.is_entailed(dec));
     assert(!s.state.is_inconsistent(dec));
 #ifdef LOG_ALL
-    std::cout << "?> " << dec << std::endl;
+    std::cout << "?" << s.infer.trail_lim.size() << "> " << dec << std::endl;
 #endif
 
     push_level(&s);

@@ -67,7 +67,7 @@ void test2(void) {
 }
 
 int main(int argc, char** argv) {
-  // test1();
+  test1();
   test2();
 
   return 0;

@@ -80,17 +80,9 @@ void bt_preds(solver_data* s, unsigned int l) {
   dropTo_(inf.trail, inf.trail_lim[l]);
   dropTo_(inf.trail_lim, l);
   
-  // Restore Booleans
-  /*
-  int blim = p.bvar_trail_lim[l];
-  for(int b : range(&p.bvar_trail[blim], p.bvar_trail.end()))
-    st.b_assigns[b] = l_Undef.to_int();
-  dropTo_(p.bvar_trail, blim);
-  dropTo_(p.bvar_trail_lim, l);
-  */
-
   assert(l < p.pred_ltrail_lim.size());
   // Reset preds touched at the current level
+#if 1
   for(pid_t pi : p.touched_preds) {
     p.pred_touched[pi] = false;
     st.p_vals[pi] = st.p_last[pi];
@@ -102,21 +94,41 @@ void bt_preds(solver_data* s, unsigned int l) {
   int p_lim = p.pred_ltrail_lim[l];
   int p_end = p.pred_ltrail.size();
   // Rewind all but the most recent level
-  if(l+1 < p.pred_ltrail_lim.size()) {
-    int p_mid = p.pred_ltrail_lim[l+1];
-    for(auto e : rev_range(&p.pred_ltrail[p_mid], p.pred_ltrail.end())) {
-      st.p_vals[e.p] = st.p_last[e.p];
+  for(int lev = p.pred_ltrail_lim.size()-1; lev > l; --lev) {
+    int p_mid = p.pred_ltrail_lim[lev];
+    for(auto e : range(&p.pred_ltrail[p_mid], &p.pred_ltrail[p_end])) {
+      st.p_vals[e.p] = e.v;
       st.p_last[e.p] = e.v;
     }
     p_end = p_mid;
   }
   // For the last level, also restore the 'touched' markers.
-  for(auto e : rev_range(&p.pred_ltrail[p_lim], &p.pred_ltrail[p_end])) {
+  for(auto e : range(&p.pred_ltrail[p_lim], &p.pred_ltrail[p_end])) {
     p.pred_touched[e.p] = true;
     p.touched_preds.push(e.p);
     st.p_vals[e.p] = st.p_last[e.p];
     st.p_last[e.p] = e.v;
   }
+#else
+  // This is slightly wasteful. Figure out a better way.
+  int p_lim = p.pred_ltrail.size();
+  for(int lev = p.pred_ltrail_lim.size()-1; lev >= ((int) l); lev--) {
+    for(pid_t pi : p.touched_preds) {
+      p.pred_touched[pi] = false;
+      st.p_vals[pi] = st.p_last[pi];
+    }
+    p.touched_preds.clear();
+
+    int p_start = p.pred_ltrail_lim[lev]; 
+    for(auto e : range(&p.pred_ltrail[p_start], &p.pred_ltrail[p_lim])) {
+      p.pred_touched[e.p] = true;
+      p.touched_preds.push(e.p);
+      st.p_vals[e.p] = st.p_last[e.p];
+      st.p_last[e.p] = e.v;
+    }
+    p_lim = p_start;
+  }
+#endif
   dropTo_(p.pred_ltrail, p_lim);
   dropTo_(p.pred_ltrail_lim, l);
 }

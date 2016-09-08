@@ -109,7 +109,7 @@ void test4(void) {
 
   solver_data* sd(s.data);
 
-  vec<intvar> args = {y, z};
+//  vec<intvar> args = {y, z};
   int_mul(sd, z, x, y);
 
   solver::result r = s.solve();
