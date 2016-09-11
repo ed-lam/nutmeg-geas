@@ -1,0 +1,20 @@
+quote(c, "#include \"c/builtins.h\"");
+
+import "atom.idl";
+import "solver.idl";
+
+/* These return false on top-level failure. */
+boolean clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
+
+typedef struct {
+  int c;
+  intvar x; 
+} linterm;
+
+// These are half-reified.
+// For strict versions, call with r = at_True
+boolean linear_le([in] solver s, atom r, [in,size_is(sz)] linterm ts[], int sz);
+
+boolean int_mul([in] solver s, atom r, intvar z, intvar x, intvar y);
+boolean int_abs([in] solver s, atom r, intvar z, intvar x);
+

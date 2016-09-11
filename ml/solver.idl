@@ -1,0 +1,30 @@
+quote(c, "#include \"../c/phage.h\"");
+
+import "atom.idl";
+
+quote(c, "void free_solver(solver* s) { destroy_solver(*s); }");
+quote(c, "void free_model(model* m) { destroy_model(*m); }");
+quote(c, "void free_intvar(intvar* v) { destroy_intvar(*v); }");
+
+typedef enum { SAT, UNSAT, UNKNOWN } result;
+
+typedef [abstract,ref,finalize(free_solver)] struct solver_s* solver;
+typedef [abstract,ref,finalize(free_model)] struct model_s* model;
+typedef [abstract,ref,finalize(free_intvar)] struct intvar_s* intvar;
+
+solver new_solver(void);
+// bool propagate([in] solver);
+
+result solve([in] solver s, int clim);
+
+boolean post_atom([in] solver s, atom at);
+
+intvar new_intvar([in] solver s, int lb, int ub);
+atom new_boolvar([in] solver s);
+
+model get_model([in] solver s);
+int int_value([in] model m, [in] intvar v);
+boolean atom_value([in] model m, atom at);
+
+atom ivar_le([in] intvar v, int k);
+atom ivar_eq([in] intvar v, int k);

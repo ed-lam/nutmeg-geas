@@ -45,6 +45,8 @@ intvar solver::new_intvar(int64_t lb, int64_t ub) {
   return ivar_man.new_var(lb, ub);
 }
 
+patom_t solver::new_boolvar(void) { return new_bool(*data); }
+
 // For debugging
 std::ostream& operator<<(std::ostream& o, const patom_t& at) {
   if(at.pid&1) {
@@ -150,6 +152,12 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
      default:
        NOT_YET;
   }
+}
+
+bool solver::post(patom_t p) {
+  if(decision_level(*data) > 0)
+    bt_to_level(data, 0); 
+  return enqueue(*data, p, reason());
 }
 
 bool enqueue(sdata& s, patom_t p, reason r) {

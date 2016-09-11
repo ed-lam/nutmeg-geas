@@ -23,8 +23,11 @@ public:
   ~solver(void);
 
   intvar new_intvar(int64_t lb, int64_t ub);
+  patom_t new_boolvar(void);
   // Post a constraint
   // bool post(bexpr& e);
+  // Assert an atom unconditionally
+  bool post(patom_t p);
 
   // Solving
   result solve(void);

@@ -25,15 +25,9 @@ CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOL
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))
 CDEPS     = $(addsuffix .d, $(basename $(CSRCS)))
 
-# CHDRS      = $(wildcard $(ENGINE)/*.h) $(wildcard $(UTILS)/*.h) $(wildcard $(VARS)/*.h)
-
-SATSRCS   = 
-SATOBJS 	= $(addsuffix .o, $(basename $(SATSRCS)))
-SATDEPS   = $(addsuffix .d, $(basename $(SATSRCS)))
-
-SCMSRCS = $(wildcard scm/*.cc)
-SCMOBJS	= $(addsuffix .o, $(basename $(SCMSRCS)))
-SCMDEPS = $(addsuffix .d, $(basename $(SCMSRCS)))
+LIBSRCS = $(wildcard c/*.cc)
+LIBOBJS = $(addsuffix .o, $(basename $(LIBSRCS)))
+LIBDEPS = $(addsuffix .d, $(basename $(LIBSRCS)))
 
 #TESTS = tests/TestVars tests/TestChain
 TESTS = 
@@ -44,11 +38,12 @@ TESTDEPS = $(addsuffix .d, $(TESTS))
 
 TARGETS = phage $(TESTS)
 #TARGETS = $(TESTS)
-all: $(TARGETS)
+LIB = libphage.a
+all: $(TARGETS) $(LIB)
 
 ## Dependencies
 $(TESTS) : % : %.o $(COBJS)
-phage:			phage.o $(SCMOBJS) $(COBJS)
+phage:			phage.o $(COBJS)
 
 .PHONY: all clean tests
 
@@ -69,8 +64,13 @@ $(TARGETS):
 	@echo Linking: "$@ ( $^ )"
 	@$(CXX) $^ $(LFLAGS) -o $@
 
+libphage.a: $(COBJS) $(LIBOBJS)
+	@echo Archiving: "$@ ( $^ )"
+	ar rc $@ $^
+	ranlib $@
+
 ## Clean rule
 clean:
-	@rm -f $(TARGETS) $(COBJS) $(SATOBJS) $(TESTOBJS) $(SCMOBJS) *.core $(CDEPS) $(SATDEPS) $(SCMDEPS) $(TESTDEPS)
+	@rm -f $(TARGETS) $(LIB) phage.o $(COBJS) $(LIBOBJS) $(TESTOBJS) $(CDEPS) $(LIBDEPS) $(TESTDEPS)
 
--include $(CDEPS) $(TESTDEPS) $(SATDEPS) $(SCMDEPS)
+-include $(CDEPS) $(LIBDEPS) $(TESTDEPS)

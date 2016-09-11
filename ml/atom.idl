@@ -1,0 +1,10 @@
+quote(c, "#include \"../c/atom.h\"")
+
+typedef struct {
+  [int32] unsigned long pid;
+  [int64,mlname(value)] unsigned long val;
+} atom;
+// quote(MLMLI, "type atom = patom_t")
+
+atom neg(atom at);
+// atom at_true(void);
