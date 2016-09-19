@@ -52,6 +52,9 @@ public:
   
   bool propagate(vec<clause_elt>& confl) {
     // Non-incremental propagator
+#ifdef LOG_ALL
+    std::cerr << "[[Running iprod]]" << std::endl;
+#endif
     int_itv z_supp(var_unsupp(z));          
     int_itv x_supp(var_unsupp(x));
     int_itv y_supp(var_unsupp(y));
@@ -96,8 +99,8 @@ public:
         if(!z_feas.empty()) {
           z_supp |= z_feas;
           // Propagate back to x, y
-          x_supp |= (x_itv & int_itv {(z_feas.ub + y_neg.ub + 1)/y_neg.ub,
-                                      z_feas.lb / y_neg.lb});
+          x_supp |= (x_itv & int_itv {z_feas.lb / y_neg.lb,
+                                      (z_feas.ub + y_neg.ub + 1)/y_neg.ub});
           y_supp |= (y_itv & int_itv {z_feas.lb / x_pos.lb,
                                       (z_feas.ub - x_pos.ub + 1)/x_pos.ub});
         }
@@ -717,6 +720,93 @@ protected:
 };
 #endif
 
+// Avoids introducing 
+class ine_bound : public propagator {
+  enum Vtag { Var_X = 1, Var_Z = 2 };
+
+  static void wake_fix(void* ptr, int k) {
+    ine_bound* p(static_cast<ine_bound*>(ptr));
+    p->new_fix |= k;
+    p->queue_prop();
+  }
+
+  static void wake_bound(void* ptr, int k) {
+    ine_bound* p(static_cast<ine_bound*>(ptr));
+    if(p->fixed) 
+      p->queue_prop();
+  }
+
+public:
+  ine_bound(solver_data* s, intvar _z, intvar _x)
+    : propagator(s), z(_z), x(_x),
+      fixed(0) {
+    z.attach(E_FIX, watch_callback(wake_fix, this, 0));
+    z.attach(E_LU, watch_callback(wake_bound, this, 0));
+
+    x.attach(E_FIX, watch_callback(wake_fix, this, 1));
+    x.attach(E_LU, watch_callback(wake_bound, this, 1));
+  }
+
+  inline bool prop_bound(intvar a, intvar b) {
+    int k = a.lb();
+    if(b.lb() == k) {
+      if(!b.set_lb(k+1, s->persist.create_expl(a < k, a > k, b < k)))
+        return false;
+    }
+    if(b.ub() == k) {
+      if(!b.set_ub(k-1, s->persist.create_expl(a < k, a > k, b > k)))
+        return false;
+    }
+    return true;
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
+    std::cout << "[[Running ineq]]" << std::endl;
+#endif
+    trail_change(s->persist, fixed, (char) (fixed|new_fix));
+    
+    switch(fixed) {
+      case Var_X:
+        return prop_bound(x, z);
+      case Var_Z:
+        return prop_bound(z, x);
+      default:
+        if(z.lb() == x.lb()) {          
+          int k = z.lb();
+          vec_push(confl, z < k, z > k, x < k, x > k);
+          return false;
+        }
+        return true;
+    }
+
+    return true;
+  }
+
+  bool check_sat(void) {
+    int lb = std::min(z.lb(), x.lb());
+    int ub = std::max(z.ub(), x.ub());
+    return lb < ub;
+  }
+
+  void root_simplify(void) { }
+
+  void cleanup(void) {
+    new_fix = 0;
+    is_queued = false;
+  }
+
+protected:
+  intvar z;
+  intvar x;
+
+  // Persistent state
+  char new_fix;
+
+  // Transient state
+  char fixed;
+};
+
 void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {
   vec<clause_elt> elts;
   for(int k : irange(z.lb(), z.ub()+1)) {
@@ -752,6 +842,26 @@ bool int_abs(solver_data* s, intvar z, intvar x) {
       return false;
   }
   new iabs(s, z, x);
+  return true;
+}
+
+// Half-reified disequality
+bool int_neq(solver_data* s, patom_t r, intvar x, intvar y) {
+  // if(x.is_small() || y.is_small()) {
+  int64_t lb = std::max(x.lb(), y.lb());
+  int64_t ub = std::min(x.ub(), y.ub());
+  if(ub - lb < 200) {
+    // for(int k : x.domain() & y.domain()) {
+    for(int k : irange(lb, ub+1)) {
+      // if(x.in_domain(k) && y.in_domain(k)) {
+        if(!add_clause(s, ~r, x != k, y != k))
+          return false;
+      // }
+    }
+  } else {
+    // FIXME
+    assert(s->state.is_entailed_l0(r));
+  }
   return true;
 }
 

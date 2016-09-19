@@ -28,7 +28,12 @@ solver::solver(options& _opts)
 solver_data::solver_data(const options& _opts)
     : opts(_opts),
       // active_prop(nullptr),
-      last_branch(default_brancher(this)) {
+      last_branch(default_brancher(this)), 
+      pred_heap(act_cmp { infer.pred_act }),
+      // Dynamic parameters
+      learnt_act_inc(opts.learnt_act_inc),
+      pred_act_inc(opts.pred_act_inc),
+      learnt_dbmax(opts.learnt_dbmax) {
   new_pred(*this, 0, 0);
 }
 
@@ -85,13 +90,18 @@ pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   s.state.new_pred(lb, ub);
   s.persist.new_pred();
   s.confl.new_pred();
-  return s.infer.new_pred();
+  pid_t pi = s.infer.new_pred();
+
+  s.pred_heap.insert(pi);
+  s.pred_heap.insert(pi+1);
+  
+  return pi;  
 }
 
 pid_t new_pred(sdata& s, pval_t lb, pval_t ub) {
   assert(decision_level(s) == 0);
   pid_t p = alloc_pred(s, lb, ub);
-  s.state.init_end = s.state.initializers.size();
+  // s.state.init_end = s.state.initializers.size();
   return p;
 }
 
@@ -110,7 +120,8 @@ pid_t new_pred(sdata& s, pred_init init) {
   initialize(p, init, s.state.p_last);
   initialize(p, init, s.state.p_vals);
 
-  s.state.initializers[p>>1] = init;
+  s.state.initializers.push(pinit_data {p>>1, init} ); 
+//  s.state.initializers[p>>1] = init;
 
   return p;
 }
@@ -131,18 +142,18 @@ patom_t new_bool(sdata& s) {
 
 void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
   confl.clear();
+
+  confl.push(p);
   switch(r.kind) {
     case reason::R_Atom:
-      confl.push(p);
       confl.push(r.at);
       break;
     case reason::R_Clause:
-      for(clause_elt e : *r.cl)
+      for(clause_elt e : r.cl->tail())
         confl.push(e);
        break;
      case reason::R_Thunk:
      {
-      confl.push(p);
       // pval_t fail_val = pval_max - s.state.p_vals[p.pid^1] + 1;
       pval_t fail_val = p.val;
       assert(fail_val <= p.val);
@@ -154,10 +165,58 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
   }
 }
 
+inline bool is_entailed(sdata& s, patom_t p) { return s.state.is_entailed(p); }
+inline bool is_inconsistent(sdata& s, patom_t p) { return s.state.is_inconsistent(p); }
+
 bool solver::post(patom_t p) {
   if(decision_level(*data) > 0)
     bt_to_level(data, 0); 
   return enqueue(*data, p, reason());
+}
+
+bool apply_assumps(solver_data& s) {
+  /*
+  int idx = s.assump_end; 
+  for(; idx < s.assumptions.size(); idx++) {
+    patom_t at(s.assumptions[idx]); 
+    s.assump_level[idx] = decision_level(s);
+
+    if(is_entailed(s, at))
+      continue;
+    if(is_inconsistent(s, at))
+      return false;
+
+    
+  }
+  */
+  return true;
+}
+
+bool solver::assume(patom_t p) {
+  /*
+  data->assumptions.push(p);
+  if(data->state.is_entailed(p))
+    return true;
+
+  push_level(&s);
+  if(!enqueue(*data, p, reason()))
+    return false;
+  trail_change(data->persist, data->assump_start, assumptions.size());
+  return propagate(*data);
+  */
+  return true;
+}
+
+void solver::retract(void) {
+  return; 
+}
+
+void solver::clear_assumptions(void) {
+  if(decision_level(*data) > 0)
+    bt_to_level(data, 0);
+  data->assumptions.clear();
+  data->assump_level.clear();
+  data->assump_end = 0;
 }
 
 bool enqueue(sdata& s, patom_t p, reason r) {
@@ -370,16 +429,21 @@ void prop_cleanup(solver_data& s) {
 bool propagate(solver_data& s) {
   // Initialize any lazy predicates
   if(s.state.init_end != s.state.initializers.size()) {
-    vec<pred_init>& inits(s.state.initializers);
+    vec<pinit_data>& inits(s.state.initializers);
     unsigned int& end = s.state.init_end;
 
+    // FIXME: Trailing should probably be done in push_level.
     trail_push(s.persist, end);
-    for(; end != inits.size(); ++end) {
-      pid_t p(end<<1); 
-      // FIXME: Deal with default initializers
-      initialize(p, inits[end], s.state.p_last);
-      initialize(p, inits[end], s.state.p_vals);
+    for(int ii = end; ii != inits.size(); ++ii) {
+      pid_t p(inits[ii].pi<<1); 
+      initialize(p, inits[end].init, s.state.p_last);
+      initialize(p, inits[end].init, s.state.p_vals);
+      // If this is at its initial value, discard it.
+      if(s.state.p_vals[p] != s.state.p_root[p]
+        || s.state.p_vals[p+1] != s.state.p_root[p+1])
+        inits[end++] = inits[ii];
     }
+    inits.shrink(inits.size() - end);
   }
 
   // Propagate any entailed clauses
@@ -401,6 +465,7 @@ prop_restart:
   
   // Fire any events for the changed predicates
   for(pid_t pi : s.wake_queue) {
+    assert(0 <= pi && pi < num_preds(&s));
     touch_pred(s, pi);
     wakeup_pred(s, pi);  
   }
@@ -469,6 +534,7 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
     find_watchlist(*s, learnt[0]).push(h);
     find_watchlist(*s, learnt[1]).push(h); 
     enqueue(*s, learnt[0].atom, c);
+    s->infer.learnts.push(c);
   }
 }
 

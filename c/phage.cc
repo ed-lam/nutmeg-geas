@@ -42,6 +42,13 @@ int post_atom(solver s, atom at) {
   return get_solver(s)->post(get_atom(at));
 }
 
+int post_clause(solver s, atom* cl, int sz) {
+  vec<phage::clause_elt> elts;
+  for(int ii : irange(sz))
+    elts.push(get_atom(cl[ii]));
+  return add_clause(*get_solver(s)->data, elts);
+}
+
 atom new_boolvar(solver s) {
   return unget_atom(get_solver(s)->new_boolvar());
 }

@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 /* These return false on top-level failure. */
-int clause(solver s, atom* cl, int sz);
+// int clause(solver s, atom* cl, int sz);
 
 typedef struct {
   int c;

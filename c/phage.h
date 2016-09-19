@@ -29,7 +29,7 @@ atom new_boolvar(solver);
 result solve(solver, int);
 
 int post_atom(solver, atom);
-
+int post_clause(solver, atom*, int);
 
 model get_model(solver);
 void destroy_model(model);

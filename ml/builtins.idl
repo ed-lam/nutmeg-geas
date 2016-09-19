@@ -4,7 +4,7 @@ import "atom.idl";
 import "solver.idl";
 
 /* These return false on top-level failure. */
-boolean clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
+// boolean clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
 
 typedef struct {
   int c;

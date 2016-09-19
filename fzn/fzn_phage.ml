@@ -1,11 +1,15 @@
 module S = Stream
 module Dy = DynArray
 
+module Opt = Phage_opts
+
 open Fzn_token
 module P = Fzn_parser
-module Opt = Phage_opts
 module M = Fzn_model
+module Reg = Fzn_registry
+module Dom = Fzn_dom
 
+module Slv = Solver
 (*
 let tok_str = function
   | Kwd k -> "{KWD}"
@@ -14,6 +18,99 @@ let tok_str = function
   | Int i -> string_of_int i
   | Bool b -> if b then "true" else "false"
   *)
+
+let put = Format.fprintf
+
+let print_array f fmt arr = 
+  put fmt "@[[" ;
+  if Array.length arr > 0 then
+    begin
+      f fmt arr.(0) ;
+      for i = 1 to Array.length arr - 1 do
+        put fmt ",@ " ;
+        f fmt arr.(i)
+      done
+    end ;
+  put fmt "@]]"
+
+let print_expr fmt assign vs expr =
+  let eval_ivar v = Slv.int_value assign (fst vs).(v)
+  and eval_bvar b = Slv.atom_value assign (snd vs).(b) in
+  let rec aux fmt expr = 
+    match expr with
+    | M.Ilit k -> put fmt "%d" k
+    | M.Ivar v -> put fmt "%d" (eval_ivar v)
+    | M.Blit b -> if b then (put fmt "true") else (put fmt "false")
+    | M.Bvar b -> if (eval_bvar b) then put fmt "true" else put fmt "false"
+    | M.Arr a -> print_array aux fmt a
+  in
+  aux fmt expr
+
+let print_assign model vs assign =
+  Hashtbl.iter (fun id expr ->
+    Format.printf "%s = " id;
+    print_expr Format.std_formatter assign vs expr ;
+    Format.printf ";@."
+  ) model.M.symbols
+
+let get_bounds ds =
+  let rec aux acc u ds =
+    match ds with
+    | [] -> (u, List.rev acc)
+    | ((l', u') :: ds') ->
+      let acc' = 
+        if u+1 < l' then
+          (u+1, l'-1) :: acc
+        else
+          acc in
+      aux acc' u' ds'
+  in
+  match ds with
+  | [] -> (1, 0, [])
+  | ((lb, u) :: ds) ->
+    let (ub, holes) = aux [] u ds in
+    (lb, ub, holes)
+
+let create_ivar solver dom =
+  match dom with
+  | None -> failwith "Unbounded integer"
+  | Some ds ->
+    let lb, ub, holes = get_bounds ds in
+    let v = Slv.new_intvar solver lb ub in
+    List.iter (fun (l, r) ->
+      ignore
+        (Slv.post_clause solver [|Slv.ivar_lt v l ; Slv.ivar_gt v r|])
+    ) holes ;
+    v
+
+let create_vars solver model = 
+  let ivars = Array.map
+    (* (fun _ -> Slv.new_intvar solver 0 10) *)
+    (fun dom -> create_ivar solver dom)
+    (Dy.to_array model.M.ivals) in
+  let bvars = Array.map
+    (fun _ -> Slv.new_boolvar solver)
+    (Dy.to_array model.M.bvals) in
+  (ivars, bvars)
+
+let post_constraint solver id args =
+  try
+    Reg.post solver id args
+  with Reg.Unknown_constraint id ->
+    Format.fprintf Format.err_formatter "Missing constraint: %s\n" id ;
+    true
+
+let post_constraints solver model =
+  Dy.fold_left
+    (fun b (id, args) -> b && post_constraint solver id args)
+    true
+    model.M.constraints
+   
+let post_fzn solver model =
+  (* Post constraints *)
+  let vars = create_vars solver model in
+  let _ = post_constraints solver model in
+  vars
 
 let main () =
   (* Parse the command-line arguments *)
@@ -34,14 +131,17 @@ let main () =
     "Info: %d intvars, %d boolvars, %d constraints@."
     (Dy.length model.M.ivals)
     (Dy.length model.M.bvals)
-    (Dy.length model.M.constraints)
-  (* *)
-  (* )
-  while S.peek lexer <> None
-  do
-    Format.printf "%s@." (tok_str (S.next lexer))
-  done
-  ( *)
-
+    (Dy.length model.M.constraints) ;
+  let solver = Slv.new_solver () in
+  let vars = post_fzn solver model  in
+  match Slv.solve solver (-1) with
+  | Slv.SAT ->
+    begin
+      Format.printf "SAT@." ;
+      let assign = Slv.get_model solver in
+      print_assign model vars assign 
+    end
+  | Slv.UNSAT -> Format.printf "UNSAT@."
+  | Slv.UNKNOWN -> Format.printf "UNKNOWN@."
 
 let _ = main ()

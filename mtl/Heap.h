@@ -158,10 +158,10 @@ class Heap {
 
 
     // COMPAT: should be removed
-    void setBounds (int n) { }
+    // void setBounds (int n) { }
     void increase  (int n) { decrease(n); }
-    int  getmin    ()      { return removeMin(); }
-
+    // int  getmin    ()      { return removeMin(); }
+    int getMin(void) const { return heap[0]; }
 };
 
 

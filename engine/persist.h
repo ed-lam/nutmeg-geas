@@ -93,6 +93,7 @@ public:
 };
 
 void push_level(solver_data* s);
+void pop_level(solver_data* s);
 void bt_to_level(solver_data* s, unsigned int l);
 
 template<class T>

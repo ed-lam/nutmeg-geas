@@ -20,7 +20,8 @@ int64_t intvar_base::ub(void) const {
 }
 
 bool intvar::is_fixed(void) const {
-  return pval_max - s->state.p_vals[pid^1] == s->state.p_vals[pid];
+  return pred_fixed(s, pid);
+  // return pval_max - s->state.p_vals[pid^1] == s->state.p_vals[pid];
 }
 
 int64_t intvar_base::lb_prev(void) const {
@@ -58,11 +59,16 @@ void intvar_base::attach(intvar_event e, watch_callback c) {
 static void wakeup(void* ptr, int idx) {
   intvar_manager* man = static_cast<intvar_manager*>(ptr);
   // Do some stuff
+  int vi = idx>>1;
+  if(pred_fixed(man->s, man->var_preds[vi])) {
+    for(auto c : man->fix_callbacks[vi])
+      c();
+  }
   if(idx&1) {
-    for(auto c : man->ub_callbacks[idx>>1])
+    for(auto c : man->ub_callbacks[vi])
       c();
   } else {
-    for(auto c : man->lb_callbacks[idx>>1])
+    for(auto c : man->lb_callbacks[vi])
       c();
   }
 //  printf("Ping: %d\n", idx);
@@ -84,6 +90,7 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
 
   lb_callbacks.push();
   ub_callbacks.push();
+  fix_callbacks.push();
 
   // fprintf(stdout, "[%lld,%lld] ~~> [%lld, %lld]\n", lb, ub, intvar::from_int(lb), intvar::from_int(ub));
   // Set bounds
@@ -106,6 +113,9 @@ void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c
   }
   if(e&E_UB) {
     ub_callbacks[v_idx].push(c);
+  }
+  if(e&E_FIX) {
+    fix_callbacks[v_idx].push(c);
   }
 }
 

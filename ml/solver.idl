@@ -8,9 +8,11 @@ quote(c, "void free_intvar(intvar* v) { destroy_intvar(*v); }");
 
 typedef enum { SAT, UNSAT, UNKNOWN } result;
 
-typedef [abstract,ref,finalize(free_solver)] struct solver_s* solver;
-typedef [abstract,ref,finalize(free_model)] struct model_s* model;
-typedef [abstract,ref,finalize(free_intvar)] struct intvar_s* intvar;
+typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
+typedef [abstract,ptr,finalize(free_model)] struct model_s* model;
+typedef [abstract,ptr,finalize(free_intvar)] struct intvar_s* intvar;
+
+quote(mlmli, "type t  = solver");
 
 solver new_solver(void);
 // bool propagate([in] solver);
@@ -18,6 +20,8 @@ solver new_solver(void);
 result solve([in] solver s, int clim);
 
 boolean post_atom([in] solver s, atom at);
+
+boolean post_clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
 
 intvar new_intvar([in] solver s, int lb, int ub);
 atom new_boolvar([in] solver s);
@@ -28,3 +32,13 @@ boolean atom_value([in] model m, atom at);
 
 atom ivar_le([in] intvar v, int k);
 atom ivar_eq([in] intvar v, int k);
+
+quote(mli, "val ivar_lt : intvar -> int -> Atom.t");
+quote(mli, "val ivar_ge : intvar -> int -> Atom.t");
+quote(mli, "val ivar_gt : intvar -> int -> Atom.t");
+quote(mli, "val ivar_ne : intvar -> int -> Atom.t");
+
+quote(ml, "let ivar_lt v k = ivar_le v (k-1)");
+quote(ml, "let ivar_ge v k = Atom.neg (ivar_lt v k)");
+quote(ml, "let ivar_gt v k = Atom.neg (ivar_le v k)");
+quote(ml, "let ivar_ne v k = Atom.neg (ivar_eq v k)");

@@ -19,10 +19,12 @@ SITE-LIB-PKG = $(SITE-LIB)/$(PKG-NAME)
 #REQ_PKG = "extlib camlidl"
 REQ_PKG = "extlib"
 
-MLMODULES=fzn_dom fzn_token fzn_model fzn_lexer fzn_parser phage_opts
+MLMODULES=fzn_dom fzn_token fzn_model fzn_registry \
+   fzn_lexer fzn_parser phage_opts
 
-OCAMLINC=
+OCAMLINC=-I ../ml
 
+OCAMLFLAGS+=$(OCAMLINC)
 OCAMLOPTFLAGS+=$(OCAMLINC)
 
 #---------------------------------------
@@ -41,7 +43,8 @@ TESTS_BYTE=$(TESTS:%=%.byte)
 TESTS_PROF=$(TESTS:%=%.p)
 TESTS_DEBUG=$(TESTS:%=%.debug)
 
-all: opt byte
+#all: opt byte
+all: opt
 
 #byte: $(TARGETS_BYTE) $(TESTS_BYTE)
 #opt: $(TARGETS) $(TESTS)
@@ -52,11 +55,13 @@ opt: $(TARGETS)
 prof: $(TARGETS_PROF)
 debug: $(TARGETS_DEBUG)
 
-$(TARGETS_BYTE) : %.byte : $(MLMODULES:%=%.cmo) %.ml
-	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -o $@ $(subst .byte,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
+#$(TARGETS_BYTE) : %.byte : $(MLMODULES:%=%.cmo) %.ml
+#	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -o $@ $(subst .byte,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml
-	$(OCAMLFIND) ocamlopt $(OCAMLFLAGS) -o $@ $@.mli $^ -package $(REQ_PKG) -linkpkg
+	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
+  -ccopt "-L /opt/local/lib/ocaml" \
+  ../ml/phage.cmxa $@.mli $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_DEBUG) : %.debug : $(MLMODULES:%=%.cmo) %.ml
 	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@ $(subst .debug,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg

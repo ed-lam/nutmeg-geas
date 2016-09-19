@@ -36,7 +36,7 @@ struct clause_extra {
 class clause {
 public:
   // Empty constructor, for temporary explanations
-  clause(void) { }
+  clause(void) : sz(0) { }
 
   // As usual, don't use this directly...
   template<class T> clause(T& elts) {
@@ -50,6 +50,8 @@ public:
   clause_elt& operator[](int ii) { return data[ii]; }
   clause_elt* begin(void) { return &(data[0]); }
   clause_elt* end(void) { return &(data[sz]); }
+  
+  range_t<clause_elt> tail(void) { return range(&data[1], &data[sz]); }
 
   clause_extra extra;
 

@@ -2,6 +2,7 @@
 (* FIXME: Deal with annotations *)
 
 exception Sym_error of string
+exception Type_mismatch
 
 (* Constraint items *)
 type ident = string
@@ -65,6 +66,12 @@ type expr =
   (* | Set of Fzn_dom.t *)
   | Arr of expr array
   (* | Call of ident * (expr list) *)
+
+val get_int : expr -> int
+val get_bool : expr -> bool
+val get_ivar : expr -> ival_id
+val get_bvar : expr -> bval_id
+val get_array : (expr -> 'a) -> expr -> 'a array
 
 type ann_expr =
   | Ann_int of int

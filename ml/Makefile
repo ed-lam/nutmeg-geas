@@ -31,7 +31,7 @@ MLLIBS = phage
 MLTARGETS = $(addsuffix .cma, $(MLLIBS)) $(addsuffix .cmxa, $(MLLIBS))
 LIBTARGETS = libphage_ml.a $(MLTARGETS)
 
-all : $(LIBTARGETS)
+all : $(LIBTARGETS) phage_top
 
 #$(TESTS) : % : %.o $(OBJS)
 #	$(CXX) $(CXXFLAGS) -o $@ $@.o $(OBJS) $(LFLAGS)
@@ -62,6 +62,12 @@ libphage_ml.a: $(OBJS)
 
 libphage_ml.so: $(OBJS)
 	$(SHARED) -o $@ $^
+
+phage_top : $(LIBTARGETS)
+	$(OCAMLMKTOP) $(OCAMLINC) -custom -o $@ \
+	phage.a phage.cma \
+  -ccopt "-L /opt/local/lib/ocaml" \
+	-ccopt "-L . " -cclib "-lcamlidl -lstdc++"
 
 clean :
 	rm -f $(TARGETS) $(TARGETOBJS) $(TESTOBJS) $(OBJS)

@@ -98,11 +98,15 @@ public:
     assert(f);
     return f(obj, data, state);
   }
+
+  operator bool() const { return f; } 
+
 protected:
   fun f;
   void* obj;
   int data;
 };
+struct pinit_data { pid_t pi; pred_init init; };
 
 }
 #endif

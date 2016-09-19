@@ -69,6 +69,26 @@ type expr =
   | Arr of expr array
   (* | Call of ident * (expr list) *)
 
+let get_int = function
+  | Ilit k -> k
+  | _ -> raise Type_mismatch
+
+let get_bool = function
+  | Blit b -> b
+  | _ -> raise Type_mismatch
+
+let get_ivar = function
+  | Ivar v -> v
+  | _ -> raise Type_mismatch
+
+let get_bvar = function
+  | Bvar v -> v
+  | _ -> raise Type_mismatch
+
+let get_array f = function
+  | Arr x -> Array.map f x
+  | _ -> raise Type_mismatch
+
 type ann_expr =
   | Ann_int of int
   | Ann_bool of bool
@@ -124,3 +144,6 @@ let bind m id expr =
     let _ = H.find m.symbols id in
     failwith (Format.sprintf "Identifier %s already bound" id)
   with Not_found -> H.add m.symbols id expr
+
+
+

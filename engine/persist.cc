@@ -133,6 +133,10 @@ void bt_preds(solver_data* s, unsigned int l) {
   dropTo_(p.pred_ltrail_lim, l);
 }
 
+void pop_level(solver_data* s) {
+  bt_to_level(s, s->infer.trail_lim.size()-1);
+}
+
 void bt_to_level(solver_data* s, unsigned int l) {
   // Three components of state:
   // predicates, explanations, and opaque data

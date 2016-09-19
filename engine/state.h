@@ -32,10 +32,9 @@ public:
 // Representing the current state of atomic predicates
 class pred_state {
 public:
-  pred_state(void) {
-    // Add Boolean placeholder
-    // solver_data constructor should call instead
-    // new_pred();
+  pred_state(void)
+    : init_end(0) {
+      // solver_data constructor will call new_pred 
   }
 
   // As with infer, preds are added in pairs.
@@ -52,7 +51,7 @@ public:
     p_root.push(lb);
     p_root.push(uval);
 
-    initializers.push();
+    // initializers.push();
 
     return p;
   }
@@ -99,7 +98,8 @@ public:
 
   // Initialization thunks for
   // lazily added predicates.
-  vec<pred_init> initializers;
+  // struct pinit_data { int pi; pred_init init; };
+  vec<pinit_data> initializers;
   unsigned int init_end;
 };
 

@@ -18,7 +18,7 @@ LFLAGS    = -lz -Wall -Wno-deprecated
 COPTIMIZE = -O0
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
-CXXFLAGS += -g
+CXXFLAGS += -ggdb
 #CXXFLAGS += -pg
 
 CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(CONSTRAINTS)/*.cc) $(wildcard $(UTILS)/*.cc)

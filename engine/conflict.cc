@@ -1,7 +1,60 @@
+#include <algorithm>
 #include "solver/solver_data.h"
 #include "engine/conflict.h"
 
 namespace phage {
+
+// ex_val is the bound which must be entailed
+static inline void bump_clause_act(solver_data* s, clause& cl) {
+  cl.extra.act += s->learnt_act_inc;
+}
+
+static inline void bump_pred_act(solver_data* s, pid_t p) {
+  // FIXME: Update order in heap, also.
+  s->infer.pred_act[p] += s->pred_act_inc;
+  if(s->pred_heap.inHeap(p))
+    s->pred_heap.decrease(p);
+}
+
+struct cmp_clause_act {
+  bool operator()(clause* x, clause* y) { return x->extra.act > y->extra.act; }
+};
+
+inline void remove_watch(watch_node* watch, clause* cl) {
+  // Locate the clause_head matching cl. 
+  for(clause_head& elt : watch->ws) {
+    if(elt.c == cl) {
+      elt = watch->ws.last();
+      watch->ws.pop();
+      return;
+    }
+  }
+}
+
+inline void detach_clause(clause* cl) {
+  // At least the current watches should be cached
+  assert((*cl)[0].watch);
+  assert((*cl)[1].watch);
+  remove_watch((*cl)[0].watch, cl);
+  remove_watch((*cl)[1].watch, cl);
+}
+
+void reduce_db(solver_data* s) {
+  // Find the median of the clauses by activity
+  vec<clause*>& learnts(s->infer.learnts);
+  clause** mid = &learnts[s->learnt_dbmax/2];
+  std::nth_element(learnts.begin(), mid, learnts.end(), cmp_clause_act());
+  
+  // Deal with clauses that are asserting.
+  for(clause* c : range(mid, learnts.end())) {
+    // Detach the clause, then free it.
+    detach_clause(c);
+    delete c;
+  }
+  learnts.shrink(learnts.end() - mid);
+  
+  s->learnt_dbmax *= s->opts.learnt_growthrate;
+}
 
 // Pre: Conflict stuff is in 
 
@@ -22,6 +75,8 @@ static void add(solver_data* s, clause_elt elt) {
   pval_t val = pval_max - elt.atom.val + 1;
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
+    bump_pred_act(s, pid);
+
     s->confl.pred_seen.insert(pid);
     s->confl.pred_eval[pid] = val;
     s->confl.pred_hint[pid] = elt.watch;
@@ -80,7 +135,6 @@ static inline void bt_infer_to_pos(solver_data* s, unsigned int pos) {
   inf.trail.shrink(inf.trail.size() - pos);
 }
 
-// ex_val is the bound which must be entailed
 static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
   switch(r.kind) {
     case reason::R_Atom:
@@ -89,6 +143,7 @@ static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, r
     case reason::R_Clause:
       {
         // Skip the first literal (which we're resolving on)
+        bump_clause_act(s, *r.cl);
         auto it = r.cl->begin();
         for(++it; it != r.cl->end(); ++it)
           add(s, *it);
