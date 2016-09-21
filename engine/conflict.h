@@ -38,6 +38,7 @@ public:
 
 // Returns the appropriate backtrack level.
 int compute_learnt(solver_data* s, vec<clause_elt>& confl);
+void reduce_db(solver_data* s);
 
 }
 

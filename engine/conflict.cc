@@ -39,15 +39,27 @@ inline void detach_clause(clause* cl) {
   remove_watch((*cl)[1].watch, cl);
 }
 
+inline bool is_locked(solver_data* s, clause* c) {
+  int depth = c->extra.depth;
+  if(s->infer.trail.size() <= depth)
+    return false;
+
+  reason& r(s->infer.trail[depth].expl); 
+  return r.kind == reason::R_Clause && r.cl == c;
+}
+
 void reduce_db(solver_data* s) {
   // Find the median of the clauses by activity
   vec<clause*>& learnts(s->infer.learnts);
   clause** mid = &learnts[s->learnt_dbmax/2];
   std::nth_element(learnts.begin(), mid, learnts.end(), cmp_clause_act());
   
-  // Deal with clauses that are asserting.
   for(clause* c : range(mid, learnts.end())) {
-    // Detach the clause, then free it.
+    // If this clause is locked, we can't detach it
+    if(is_locked(s, c)) {
+      *mid = c; ++mid; 
+      continue;
+    }
     detach_clause(c);
     delete c;
   }
@@ -251,7 +263,7 @@ level_found:
   // Now push the remaining elts
   for(unsigned int p : s->confl.pred_seen)
     confl.push(get_clause_elt(s, p));
-  clear(s); 
+  clear(s);
  
   return bt_level;
 }

@@ -28,8 +28,9 @@ public:
 
 struct clause_extra {
   clause_extra(void)
-    : is_learnt(false), act(0) { }
+    : is_learnt(false), depth(0), act(0) { }
   bool is_learnt;
+  int depth;
   double act;
 };
 

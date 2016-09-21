@@ -5,6 +5,7 @@ module H = Hashtbl
 module Dom = Fzn_dom
 
 exception Sym_error of string
+exception Type_mismatch
 
 (* Constraint items *)
 type ident = string

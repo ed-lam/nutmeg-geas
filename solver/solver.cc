@@ -223,24 +223,7 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
   std::cout << "|- " << p << std::endl;
 #endif
-  /*
-  if(is_bool(s, p.pid)) {
-    NOT_YET;
-//    int var = p.pid&1 ? pval_max - p.val : p.val;
-    return true; 
-  } else {
-    if(s.state.p_vals[p.pid] < p.val) {
-      if(s.state.is_inconsistent(p)) {
-        // Setup conflict
-        return false;
-      }
-      infer_info::entry e = { p.pid, s.state.p_vals[p.pid], r };
-      s.infer.trail.push(e);
-      s.state.p_vals[p.pid] = p.val;
-    }
-    return true;
-  }
-  */
+
   assert(p.pid < s.pred_queued.size());
   // assert(!s.state.is_entailed(p));
   if(s.state.is_entailed(p))
@@ -266,13 +249,6 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 // Modifies elt.watch;
 inline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
-  /*
-  if(is_bool(s, elt.atom.pid)) {
-    int idx = elt.atom.pid&1 ? pval_max - elt.atom.val : elt.atom.val;
-    return s.infer.bool_watches[idx];
-  }
-  */
-
   if(elt.watch)
     return elt.watch->ws;
 
@@ -343,9 +319,11 @@ bool update_watchlist(solver_data& s,
         goto next_clause;
       }
     }
-    // No watches found
+    // No watches found; either unit or conflicting.
     c[1] = elt;
     ws[jj++] = ch;
+    // Save the trail location, so we can tell if it's locked.
+    c.extra.depth = s.infer.trail.size();
     if(!enqueue(s, c[0].atom, &c)) {
       for(ii++; ii < ws.size(); ii++)
         ws[jj++] = ws[ii];
@@ -361,30 +339,23 @@ next_clause:
 
 //inline
 bool propagate_pred(solver_data& s, pid_t p) {
-  /*
-  if(is_bool(s, p)) {
-    NOT_YET;
-    return true; 
-  } else {
-    */
-    // Process watches
-    watch_node* curr = s.infer.pred_watches[p];
-    while(curr->succ) {
-      watch_node* next = curr->succ;
-      patom_t atom(next->atom);
-      if(!s.state.is_entailed(atom))
-        break;
-      
-      curr = next;
-      if(!update_watchlist(s, ~atom, curr->ws)) {
-        return false;
-      }
+  // Process watches
+  watch_node* curr = s.infer.pred_watches[p];
+  while(curr->succ) {
+    watch_node* next = curr->succ;
+    patom_t atom(next->atom);
+    if(!s.state.is_entailed(atom))
+      break;
+    
+    curr = next;
+    if(!update_watchlist(s, ~atom, curr->ws)) {
+      return false;
     }
-    // Trail head of watches 
-    trail_change(s.persist, s.infer.pred_watches[p], curr);
+  }
+  // Trail head of watches 
+  trail_change(s.persist, s.infer.pred_watches[p], curr);
 
-    return true;
-  // }
+  return true;
 }
 
 // Record that the value of p has changed at the
@@ -403,6 +374,7 @@ inline void wakeup_pred(solver_data& s, pid_t p) {
   s.wake_queued[p] = false;
 }
 
+// FIXME: Allow attachment to patoms.
 void attach(solver_data& s, patom_t p, const watch_callback& cb) {
   NOT_YET;
 }
@@ -495,7 +467,7 @@ prop_restart:
 //inline
 void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   // Allocate the clause
-  WARN("Collection of learnt clauses not yet implemented.");
+  // WARN("Collection of learnt clauses not yet implemented.");
 
   // Construct the clause
   int jj = 0;
@@ -657,13 +629,27 @@ model solver::get_model(void) {
 solver::result solver::solve(void) {
   // Top-level failure
   sdata& s(*data);
+  int confl_num = 0;
+
+  int restart_lim = s.opts.restart_limit;
+  // FIXME: On successive runs, this may be smaller than
+  // the existing database
+  int gc_lim = s.opts.learnt_dbmax; 
+
+  int next_restart = restart_lim;
+  int next_gc = gc_lim - s.infer.learnts.size();
+  int next_pause = std::min(next_restart, next_gc);
+
   while(true) {
     if(!propagate(s)) {
+      ++confl_num;
 #ifdef LOG_ALL
       std::cout << "Conflict: " << s.infer.confl << std::endl;
 #endif
-      if(decision_level(s) == 0)
+      if(decision_level(s) == 0) {
+        s.stats.conflicts += confl_num;
         return UNSAT;
+      }
         
       // Conflict
       int bt_level = compute_learnt(&s, s.infer.confl);
@@ -678,6 +664,36 @@ solver::result solver::solve(void) {
 
       add_learnt(&s, s.infer.confl);
       s.infer.confl.clear();
+
+      if(confl_num == next_pause) {
+        s.stats.conflicts += confl_num;
+        next_restart -= confl_num;
+        next_gc -= confl_num;
+
+        confl_num = 0;
+
+        if(next_restart == 0) {
+#ifdef LOG_ALL
+          std::cout << "[| Restarting |]" << std::endl;
+#endif
+          s.stats.restarts++;
+  
+          next_restart = restart_lim = restart_lim * s.opts.restart_growthrate;
+          if(decision_level(s) > 0)
+            bt_to_level(&s, 0);
+        }
+        if(next_gc == 0) {
+#ifdef LOG_ALL
+          std::cout << "[| GC |]" << std::endl;
+#endif
+          reduce_db(&s);
+
+          gc_lim = gc_lim * s.opts.learnt_growthrate;
+          next_gc = gc_lim - s.infer.learnts.size();
+        }
+
+        next_pause = std::min(next_restart, next_gc);
+      }
       continue;
     }
 
@@ -687,6 +703,8 @@ solver::result solver::solve(void) {
     patom_t dec = branch(&s);
     if(dec == at_Undef) {
       save_model(data);
+      s.stats.conflicts += confl_num;
+      s.stats.solutions++;
       return SAT;
     }
 
@@ -700,6 +718,7 @@ solver::result solver::solve(void) {
     enqueue(s, dec, reason());
   }
 
+  // Unreachable
   return SAT;
 } 
 

@@ -13,6 +13,7 @@
 // #include "solver/solver.h"
 #include "solver/branch.h"
 #include "solver/options.h"
+#include "solver/stats.h"
 #include "solver/model.h"
 
 namespace phage {
@@ -30,6 +31,7 @@ public:
   model incumbent;
 
   options opts;
+  statistics stats;
    
   pred_state state;
   infer_info infer;
@@ -64,6 +66,7 @@ public:
   double learnt_act_inc;
   double pred_act_inc;
   int learnt_dbmax;
+  int restart_limit;
 };
 
 inline int num_preds(solver_data* s) { return s->pred_callbacks.size(); }
