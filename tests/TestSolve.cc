@@ -156,8 +156,6 @@ void test5(void) {
   }
 }
 
-
-
 int main(int argc, char** argv) {
   test1();
   test2();

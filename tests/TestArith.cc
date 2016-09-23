@@ -66,9 +66,37 @@ void test2(void) {
   }
 }
 
+void test3(void) {
+  solver s;
+  solver_data* sd(s.data);
+
+  std::cout << "Testing imul. Expected: SAT" << std::endl;
+
+  intvar x = s.new_intvar(-10, 10);
+  intvar y = s.new_intvar(-10, 10);
+
+  patom_t b = s.new_boolvar();
+
+  int_le(sd, y, x, b);
+  int_le(sd, x, y, ~b);
+  add_clause(sd, ~b, x < 5);
+  add_clause(sd, b, x < -5);
+
+  if(!enqueue(*sd, ~b, reason()))
+    ERROR;
+  solver::result r = s.solve();
+  std::cout << "Result: " << r << std::endl;
+
+  if(r == solver::SAT) {
+    model m(s.get_model());
+    fprintf(stdout, "[b, x, y] ~> [%d, %lld, %lld]\n", m.value(b), m[x], m[y]);
+  }
+}
+
 int main(int argc, char** argv) {
   test1();
   test2();
+  test3();
 
   return 0;
 }

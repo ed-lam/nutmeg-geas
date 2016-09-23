@@ -149,6 +149,88 @@ inline int_itv var_range(intvar x) {
   return int_itv { x.lb(), x.ub() };
 }
 
+/*
+class intview {
+public:
+  // intvar_base(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
+  intview(intvar _x, int64_t _coef, int64_t _off)
+    : x(_x), coef(_coef), off(_off) {
+    assert(coef != 0);     
+  }
+
+  int64_t lb(void) const {
+    return (coef < 0) ? coef*x.ub() + off : coef*x.lb() + off; 
+  }
+  int64_t ub(void) const {
+    return (coef < 0) ? coef*x.lb() + off : coef*x.ub() + off;
+  }
+  bool is_fixed(void) const {
+    return x.is_fixed();
+  }
+
+  int64_t lb_prev(void) const {
+    return (coef < 0) ? coef*x.ub_prev() + off : coef*x.lb_prev() + off; 
+  }
+  int64_t ub_prev(void) const {
+    return (coef < 0) ? coef*x.lb_prev() + off : coef*x.ub_prev() + off;
+  }
+
+  int64_t lb_0(void) const {
+    return (coef < 0) ? coef*x.ub_0() + off : coef*x.lb_0() + off; 
+  }
+
+  int64_t ub_0(void) const {
+    return (coef < 0) ? coef*x.lb_0() + off : coef*x.ub_0() + off;
+  }
+
+  bool set_lb(int64_t min, reason r) {
+    NOT_YET;
+    return true; 
+  }
+  bool set_ub(int64_t max, reason r) {
+    NOT_YET;
+    return true;
+  }
+
+  void attach(intvar_event e, watch_callback c) {
+    // Switch events  
+  }
+
+  int64_t model_val(const model& m) const {
+    return coef * x.model_val(m) + off;
+  }
+
+  // k x + c >= v ~~> x >= (v - c)/k
+  patom_t operator>=(int64_t v) { 
+    NOT_YET;
+    return at_True;
+  }
+  patom_t operator>(int64_t v) {
+    return (*this) >= v+1;
+  }
+  patom_t operator<=(int64_t v) {
+    return ~((*this) > v);
+  }
+  patom_t operator<(int64_t v) {
+    return ~((*this) >= v);
+  }
+  patom_t operator==(int64_t v) {
+    if((v - off)%k == 0) {
+      return (x == ((v - off)/k));
+    } else {
+      return at_False;
+    }
+  }
+
+  patom_t operator!=(int64_t v) {
+    return ~((*this) == v);
+  }
+  
+  intvar x;
+  int coef;
+  int off;
+};
+*/
 
 }
 #endif

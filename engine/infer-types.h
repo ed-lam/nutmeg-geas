@@ -113,6 +113,7 @@ public:
   watch_extra extra;
   watch_node* succ;  
   vec<clause_head> ws;
+  vec<watch_callback> callbacks;
 };
 
 // For a given pid_t, map values to the corresponding

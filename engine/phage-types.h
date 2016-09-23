@@ -37,6 +37,9 @@ typedef uint32_t pid_t;
 
 class patom_t {
 public:
+  // So it's accessible during debugging
+  static pval_t val_max;
+
   patom_t(void) : pid(UINT32_MAX), val(0) { }
 
   patom_t(pid_t _pid, pval_t _val) : pid(_pid), val(_val) { }
@@ -59,6 +62,8 @@ public:
 static const pid_t pid_None = UINT32_MAX;
 static const patom_t at_Undef = patom_t(UINT32_MAX, 0);
 static const patom_t at_Error = patom_t(UINT32_MAX, pval_max);
+static const patom_t at_True = patom_t(0, 0);
+static const patom_t at_False = ~at_True;
 
 inline patom_t ge_atom(pid_t p, pval_t v) { return patom_t(p, v); }
 inline patom_t le_atom(pid_t p, pval_t v) { return ~patom_t(p, v+1); }

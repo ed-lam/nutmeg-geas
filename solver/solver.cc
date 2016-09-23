@@ -4,7 +4,10 @@
 #include "solver/solver_debug.h"
 #include "engine/conflict.h"
 
+
 namespace phage {
+
+pval_t patom_t::val_max = pval_max;
 
 typedef solver_data sdata;
 
@@ -114,13 +117,14 @@ void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
 pid_t new_pred(sdata& s, pred_init init) {
   pred_init::prange_t r0(init(s.state.p_root)); 
 
-  pid_t p = alloc_pred(s, r0[0], pval_max - r0[1]);
+  pid_t p = alloc_pred(s, r0[0], r0[1]);
   // Set up the prev and current values
   // Root values are set up during allocation
   initialize(p, init, s.state.p_last);
   initialize(p, init, s.state.p_vals);
 
-  s.state.initializers.push(pinit_data {p>>1, init} ); 
+  if(decision_level(s) > 0)
+    s.state.initializers.push(pinit_data {p>>1, init} ); 
 //  s.state.initializers[p>>1] = init;
 
   return p;
@@ -351,6 +355,8 @@ bool propagate_pred(solver_data& s, pid_t p) {
     if(!update_watchlist(s, ~atom, curr->ws)) {
       return false;
     }
+    for(watch_callback call : curr->callbacks)
+      call();
   }
   // Trail head of watches 
   trail_change(s.persist, s.infer.pred_watches[p], curr);
@@ -375,8 +381,9 @@ inline void wakeup_pred(solver_data& s, pid_t p) {
 }
 
 // FIXME: Allow attachment to patoms.
-void attach(solver_data& s, patom_t p, const watch_callback& cb) {
-  NOT_YET;
+void attach(solver_data* s, patom_t p, const watch_callback& cb) {
+  watch_node* watch = s->infer.get_watch(p.pid, p.val);
+  watch->callbacks.push(cb);
 }
 
 void prop_cleanup(solver_data& s) {

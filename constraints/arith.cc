@@ -846,17 +846,15 @@ bool int_abs(solver_data* s, intvar z, intvar x) {
 }
 
 // Half-reified disequality
-bool int_neq(solver_data* s, patom_t r, intvar x, intvar y) {
+bool int_neq(solver_data* s, intvar x, intvar y, patom_t r) {
   // if(x.is_small() || y.is_small()) {
   int64_t lb = std::max(x.lb(), y.lb());
   int64_t ub = std::min(x.ub(), y.ub());
   if(ub - lb < 200) {
-    // for(int k : x.domain() & y.domain()) {
+    // FIXME
     for(int k : irange(lb, ub+1)) {
-      // if(x.in_domain(k) && y.in_domain(k)) {
-        if(!add_clause(s, ~r, x != k, y != k))
-          return false;
-      // }
+      if(!add_clause(s, ~r, x != k, y != k))
+        return false;
     }
   } else {
     // FIXME
@@ -864,5 +862,103 @@ bool int_neq(solver_data* s, patom_t r, intvar x, intvar y) {
   }
   return true;
 }
+
+class ile_hr : public propagator {
+  enum status { S_Active = 1, S_Red = 2 };
+
+  static void wake_r(void* ptr, int _xi) {
+    ile_hr* p(static_cast<ile_hr*>(ptr));
+    if(p->state & S_Red)
+      return;
+    trail_change(p->s->persist, p->state, (char) S_Active);
+    p->queue_prop();
+  }
+
+  static void wake_xs(void* ptr, int xi) {
+    ile_hr* p(static_cast<ile_hr*>(ptr));
+    if(p->state&S_Red)
+      return;
+    p->queue_prop();
+  }
+
+  static void ex_r(void* ptr, int sep, pval_t _val,
+    vec<clause_elt>& expl) {
+    ile_hr* p(static_cast<ile_hr*>(ptr));
+    vec_push(expl, p->x > sep, p->y <= sep);
+  }
+
+  static void ex_var(void* ptr, int var,
+                        pval_t val, vec<clause_elt>& expl) {
+    ile_hr* p(static_cast<ile_hr*>(ptr));
+    expl.push(~(p->r));
+    if(var) {
+      expl.push(p->x > to_int(val));
+    } else {
+      expl.push(p->y < to_int(val));
+    }
+  }
+public:
+  ile_hr(solver_data* s, intvar _x, intvar _y, patom_t _r)
+    : propagator(s), r(_r), x(_x), y(_y) {
+    x.attach(E_LB, watch_callback(wake_xs, this, 0));
+    y.attach(E_UB, watch_callback(wake_xs, this, 1));
+    attach(s, r, watch_callback(wake_r, this, 0));
+  }
+  
+  bool propagate(vec<clause_elt>& confl) {
+    // Non-incremental propagator
+#ifdef LOG_ALL
+    std::cerr << "[[Running ile]]" << std::endl;
+#endif
+    if(state & S_Active) {
+      if(x.lb() > y.lb()) {
+        if(!y.set_lb(x.lb(), expl_thunk { ex_var, this, 1 }))
+          return false;
+      }
+      if(y.ub() < x.ub()) {
+        if(!x.set_ub(y.ub(), expl_thunk { ex_var, this, 0}))
+          return false;
+      }
+    } else {
+      if(x.lb() > y.ub()) {
+        if(!enqueue(*s, ~r, expl_thunk { ex_r, this, (int) x.lb() }))
+          return false;
+        trail_change(s->persist, state, (char) S_Red);
+      }
+    }
+    return true;
+  }
+
+  void root_simplify(void) {
+    if(x.ub() <= y.lb() || s->state.is_inconsistent(r)) {
+      state = S_Red;
+      return;
+    }
+
+    if(s->state.is_entailed(r)) {
+      state = S_Active; 
+    }
+  }
+
+  void cleanup(void) { is_queued = false; }
+
+protected:
+  // Parameters
+  patom_t r;
+  intvar x;
+  intvar y;
+
+  // Persistent state
+  char state;
+};
+
+bool int_le(solver_data* s, intvar x, intvar y, patom_t r) {
+  if(s->state.is_entailed(r) && y.ub() < x.lb())
+    return false;
+
+  new ile_hr(s, x, y, r);
+  return true;
+}
+
 
 }

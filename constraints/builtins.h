@@ -23,6 +23,9 @@ void int_max(solver_data* s, intvar z, vec<intvar>& xs);
 bool int_abs(solver_data* s, intvar z, intvar x);
 void int_mul(solver_data* s, intvar z, intvar x, intvar y);
 
+// r -> (x < y)
+bool int_le(solver_data* s, intvar x, intvar y, patom_t r = at_True);
+
 // alldifferent.cc
 void all_different(solver_data* s, vec<intvar>& xs);
 }
