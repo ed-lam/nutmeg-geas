@@ -36,8 +36,8 @@ all : $(LIBTARGETS) phage_top
 #$(TESTS) : % : %.o $(OBJS)
 #	$(CXX) $(CXXFLAGS) -o $@ $@.o $(OBJS) $(LFLAGS)
 
-libphage.a:
-	cp ../libphage.a .
+#libphage.a:
+#	cp ../libphage.a .
 
 $(STUBS) : $(MLIS)
 
@@ -45,14 +45,14 @@ $(STUBS) : $(MLIS)
 	@echo Generating interfaces: " $^ "
 	camlidl -no-include $^
 
-phage.cma: $(CMIS) $(CMOS) libphage_ml.a libphage.a
+phage.cma: $(CMIS) $(CMOS) libphage_ml.a ../libphage.a
 	$(OCAMLC) $(OCAMLFLAGS) $(OCAMLINC) -custom -a -o $@ \
-	$(CMOS) libphage_ml.a libphage.a \
+	$(CMOS) libphage_ml.a ../libphage.a \
 	-ccopt "-L ." -cclib "-lcamlidl -lstdc++"
 
-phage.cmxa phage.a: $(CMIS) $(CMXS) libphage_ml.a libphage.a
+phage.cmxa phage.a: $(CMIS) $(CMXS) libphage_ml.a ../libphage.a
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) $(OCAMLINC) -a -o $@ \
-	$(CMXS) libphage_ml.a libphage.a \
+	$(CMXS) libphage_ml.a ../libphage.a \
 	-ccopt "-L . " -cclib "-lcamlidl -lstdc++"
 	$(RANLIB) phage.a
 

@@ -10,8 +10,9 @@ typedef struct {
   uint64_t val;
 } atom;
 
+typedef uint32_t pred_t;
+
 atom neg(atom);
-//atom at_true(void);
 
 #ifdef __cplusplus
 }

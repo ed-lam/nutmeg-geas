@@ -6,8 +6,9 @@ module Opt = Phage_opts
 open Fzn_token
 module P = Fzn_parser
 module M = Fzn_model
+module E = Fzn_env
+
 module Reg = Fzn_registry
-module Dom = Fzn_dom
 
 module Slv = Solver
 (*
@@ -33,9 +34,9 @@ let print_array f fmt arr =
     end ;
   put fmt "@]]"
 
-let print_expr fmt assign vs expr =
-  let eval_ivar v = Slv.int_value assign (fst vs).(v)
-  and eval_bvar b = Slv.atom_value assign (snd vs).(b) in
+let print_expr fmt assign env expr =
+  let eval_ivar v = Slv.int_value assign (env.E.ivars).(v)
+  and eval_bvar b = Slv.atom_value assign (env.E.bvars).(b) in
   let rec aux fmt expr = 
     match expr with
     | M.Ilit k -> put fmt "%d" k
@@ -46,13 +47,14 @@ let print_expr fmt assign vs expr =
   in
   aux fmt expr
 
-let print_assign model vs assign =
+let print_assign model env assign =
   Hashtbl.iter (fun id expr ->
     Format.printf "%s = " id;
-    print_expr Format.std_formatter assign vs expr ;
+    print_expr Format.std_formatter assign env expr ;
     Format.printf ";@."
   ) model.M.symbols
 
+(*
 let get_bounds ds =
   let rec aux acc u ds =
     match ds with
@@ -92,6 +94,7 @@ let create_vars solver model =
     (fun _ -> Slv.new_boolvar solver)
     (Dy.to_array model.M.bvals) in
   (ivars, bvars)
+*)
 
 let post_constraint solver id args =
   try
@@ -108,9 +111,10 @@ let post_constraints solver model =
    
 let post_fzn solver model =
   (* Post constraints *)
-  let vars = create_vars solver model in
+  (* let vars = create_vars solver model in *)
+  let env = E.create solver model in
   let _ = post_constraints solver model in
-  vars
+  env
 
 let main () =
   (* Parse the command-line arguments *)
@@ -133,13 +137,13 @@ let main () =
     (Dy.length model.M.bvals)
     (Dy.length model.M.constraints) ;
   let solver = Slv.new_solver () in
-  let vars = post_fzn solver model  in
+  let env = post_fzn solver model  in
   match Slv.solve solver (-1) with
   | Slv.SAT ->
     begin
       Format.printf "SAT@." ;
       let assign = Slv.get_model solver in
-      print_assign model vars assign 
+      print_assign model env assign 
     end
   | Slv.UNSAT -> Format.printf "UNSAT@."
   | Slv.UNKNOWN -> Format.printf "UNKNOWN@."

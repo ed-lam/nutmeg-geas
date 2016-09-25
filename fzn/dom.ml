@@ -44,3 +44,15 @@ let intersect =
     | None, _ -> dy
     | _, None -> dx
     | Some xs, Some ys -> Some (aux xs ys [])
+
+let iter_range f (l, u) =
+  for k = l to u
+  do
+    f k
+  done 
+
+let iter f d =
+  match d with
+  | None -> ()
+  | Some rs -> List.iter (iter_range f) rs
+

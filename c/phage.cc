@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+const atom at_True = unget_atom(phage::at_True);
+
 atom neg(atom at) {
   return unget_atom(~get_atom(at));
 }
@@ -76,6 +78,15 @@ atom ivar_le(intvar v, int k) {
 
 atom ivar_eq(intvar v, int k) {
   return unget_atom( (*get_intvar(v)) == k );
+}
+
+pred_t new_pred(solver s, int lb, int ub) {
+  return phage::new_pred(*(get_solver(s)->data),
+    phage::from_int(lb), phage::from_int(ub));
+}
+
+atom pred_ge(pred_t p, int k) {
+  return unget_atom(phage::patom_t(p, k));
 }
 
 #ifdef __cplusplus

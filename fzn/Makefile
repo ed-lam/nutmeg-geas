@@ -19,7 +19,9 @@ SITE-LIB-PKG = $(SITE-LIB)/$(PKG-NAME)
 #REQ_PKG = "extlib camlidl"
 REQ_PKG = "extlib"
 
-MLMODULES=fzn_dom fzn_token fzn_model fzn_registry \
+MLMODULES=dom fzn_token fzn_model fzn_env \
+   arith bool \
+   fzn_registry \
    fzn_lexer fzn_parser phage_opts
 
 OCAMLINC=-I ../ml
@@ -57,6 +59,12 @@ debug: $(TARGETS_DEBUG)
 
 #$(TARGETS_BYTE) : %.byte : $(MLMODULES:%=%.cmo) %.ml
 #	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -o $@ $(subst .byte,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
+
+libphage_ml.a : ../ml/libphage_ml.a
+	cp ../ml/libphage_ml.a .
+
+$(TARGETS) : libphage_ml.a
+$(TARGETS_DEBUG) : libphage_ml.a
 
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml
 	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \

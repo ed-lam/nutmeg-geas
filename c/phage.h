@@ -40,6 +40,9 @@ int atom_value(model, atom);
 atom ivar_le(intvar, int);
 atom ivar_eq(intvar, int);
 
+pred_t new_pred(solver, int, int);
+atom pred_ge(pred_t, int);
+
 #ifdef __cplusplus
 }
 #endif

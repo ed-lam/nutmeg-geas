@@ -4,11 +4,14 @@
 
 namespace phage {
 // linear.cc
-void linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k);
+bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
+  patom_t r = at_True);
 
 // element.cc
-void int_element(solver_data* s, intvar x, intvar i, vec<int>& ys);
-void var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys);
+void int_element(solver_data* s, intvar x, intvar i, vec<int>& ys,
+  patom_t r = at_True);
+void var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys,
+  patom_t r = at_True);
 
 // disjunctive.cc
 void disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du); 
@@ -19,14 +22,14 @@ void cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& durations, vec<int>& resources, int cap);
 
 // arith.cc
-void int_max(solver_data* s, intvar z, vec<intvar>& xs);
-bool int_abs(solver_data* s, intvar z, intvar x);
-void int_mul(solver_data* s, intvar z, intvar x, intvar y);
+bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r = at_True);
+bool int_abs(solver_data* s, intvar z, intvar x, patom_t r = at_True);
+bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r = at_True);
 
 // r -> (x < y)
 bool int_le(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 
 // alldifferent.cc
-void all_different(solver_data* s, vec<intvar>& xs);
+void all_different(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
 }
 #endif

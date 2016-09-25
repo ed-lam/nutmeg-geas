@@ -8,3 +8,5 @@ val set : int list -> t
 val free : t
 
 val intersect : t -> t -> t
+
+val iter : (int -> unit) -> t -> unit

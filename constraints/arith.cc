@@ -248,9 +248,12 @@ void imul_decomp(solver_data* s, intvar z, intvar x, intvar y) {
   }
 }
 
-void int_mul(solver_data* s, intvar z, intvar x, intvar y) {
+bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   // imul_decomp(s, z, x, y);
+  if(!s->state.is_entailed_l0(r))
+    WARN("Half-reified int_mul not yet implemented.");
   new iprod(s, z, x, y);
+  return true;
 }
 
 class iabs : public propagator {
@@ -828,15 +831,22 @@ void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {
   add_clause(*s, elts);
 }
 
-void int_max(solver_data* s, intvar z, vec<intvar>& xs) {
+bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r) {
   // FIXME: Choose whether to use propagator or decomposition
   // imax_decomp(s, z, xs);
+  if(!s->state.is_entailed_l0(r))
+    WARN("Half-reified int_max not yet implemented.");
+
   new imax(s, z, xs);
+  return true;
 }
 
-bool int_abs(solver_data* s, intvar z, intvar x) {
+bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   // FIXME: Implement propagator when domains are large
   // iabs_decomp(s, z, x);
+  if(!s->state.is_entailed_l0(r))
+    WARN("Half-reified int_abs not yet implemented.");
+
   if(z.lb() < 0) {
     if(!z.set_lb(0, reason ()))
       return false;

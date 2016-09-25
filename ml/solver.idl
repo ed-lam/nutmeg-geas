@@ -30,8 +30,11 @@ model get_model([in] solver s);
 int int_value([in] model m, [in] intvar v);
 boolean atom_value([in] model m, atom at);
 
-atom ivar_le([in] intvar v, int k);
-atom ivar_eq([in] intvar v, int k);
+atom ivar_le([in] intvar v, [in] int k);
+atom ivar_eq([in] intvar v, [in] int k);
+
+pred_t new_pred([in] solver s, [in] int lb, [in] int ub);
+atom pred_ge([in] pred_t p, [in] int k);
 
 quote(mli, "val ivar_lt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ge : intvar -> int -> Atom.t");

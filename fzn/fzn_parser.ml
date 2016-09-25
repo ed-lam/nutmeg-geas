@@ -3,7 +3,6 @@ open Fzn_token
 module S = Stream
 module Lex = Fzn_lexer
 module M = Fzn_model
-module Dom = Fzn_dom
 
 exception Tok_error of Fzn_token.t
 

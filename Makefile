@@ -37,9 +37,12 @@ TESTS = $(basename $(TESTSRC))
 TESTDEPS = $(addsuffix .d, $(TESTS))
 
 TARGETS = phage $(TESTS)
+MLTARGETS = ml/libphage_ml.a ml/phage.cma ml/phage.cmxa ml/phage.a
+FZN_TARGETS = fzn/fzn_phage
+
 #TARGETS = $(TESTS)
 LIB = libphage.a
-all: $(TARGETS) $(LIB)
+all: $(TARGETS) $(LIB) $(MLTARGETS) $(FZN_TARGETS)
 
 ## Dependencies
 $(TESTS) : % : %.o $(COBJS)
@@ -69,8 +72,23 @@ libphage.a: $(COBJS) $(LIBOBJS)
 	ar rc $@ $^
 	ranlib $@
 
+ml/libphage_ml.a ml/phage.a ml/phage.cmxa ml/phage.cma : libphage.a
+	@echo Building ML interface
+	$(MAKE) -C $(@D) $(@F)
+
+$(FZN_TARGETS) : % : $(LIB) $(ML_TARGETS) 
+	@echo Building FZN interface
+	$(MAKE) -C $(@D) $(@F)
+
 ## Clean rule
 clean:
+	$(MAKE) -C ml clean
+	$(MAKE) -C fzn clean
 	@rm -f $(TARGETS) $(LIB) phage.o $(COBJS) $(LIBOBJS) $(TESTOBJS) $(CDEPS) $(LIBDEPS) $(TESTDEPS)
+
+clobber: clean
+	$(MAKE) -C ml clobber
+	$(MAKE) -C fzn clobber
+
 
 -include $(CDEPS) $(LIBDEPS) $(TESTDEPS)

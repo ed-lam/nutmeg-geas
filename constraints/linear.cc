@@ -320,8 +320,13 @@ void linear_le_dec(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k) {
   dec(k);
 }
 
-void linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k) {
+bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
+  patom_t r) {
+  if(!s->state.is_entailed_l0(r)) {
+    WARN("Half-reification not yet implemented for linear_le.");
+  }
   new int_linear_le(s, ks, vs, k);
+  return true;
 }
 
 }
