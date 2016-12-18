@@ -140,12 +140,13 @@ struct expl_thunk {
   void* ptr;
   int data;
 
-  char flags;
+  char flags; // pack flags in ptr?
 };
 
 class reason {
+  struct le_info { pid_t p; pval_t offset; };
 public:
-  enum RKind { R_Clause = 0, R_Atom = 1, R_Thunk = 2 };
+  enum RKind { R_Clause = 0, R_Atom = 1, R_Thunk = 2, R_LE = 3 };
 
   reason(void)
     : kind(R_Clause), cl(nullptr) { }
@@ -159,10 +160,14 @@ public:
   reason(expl_thunk t)
     : kind(R_Thunk), eth(t) { }
 
+  reason(pid_t p, pval_t offset)
+    : kind(R_LE), le({p, offset}) { }
+
   RKind kind; 
   union {
     patom_t at; 
     clause* cl;
+    le_info le;
     /* Deal with thunk. */
     expl_thunk eth;
   };

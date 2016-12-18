@@ -10,6 +10,8 @@ namespace phage {
 
 class infer_info {
 public:
+  struct bin_le { pid_t p; pval_t offset; };
+
   // Predicates 0 and 1 are placeholders, and always
   // exist.
   infer_info(void) {
@@ -62,6 +64,8 @@ protected:
     pred_watch_heads.push(w);
     pred_act.push(0.0);
 
+    pred_ineqs.push();
+
     watch_maps.push();
     watch_maps.last().add(0, w);
     return pid;
@@ -92,14 +96,13 @@ public:
     reason expl;
   } entry;
   
-  // Watches and learnts for Bools
-  vec< vec<clause_head> > bool_watches;
-
-  // Same for predicates
+  // Tracking watch lists for predicates
   vec<watch_map> watch_maps; // (pid_t -> pval_t -> watch_node*)
   vec<watch_node*> pred_watches;
   vec<watch_node*> pred_watch_heads; // Watches for [| pid >= min_val |].
   vec<double> pred_act;
+
+  vec< vec<bin_le> > pred_ineqs; // Primitive binary inequalities
 
   // Inference graph and backtracking
   vec<int> trail_lim;

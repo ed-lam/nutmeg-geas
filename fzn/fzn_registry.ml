@@ -1,6 +1,8 @@
 (* Constraint registry *)
 module H = Hashtbl
-type poster = (Solver.t -> Fzn_model.expr array -> bool)
+module Env = Fzn_env
+
+type poster = (Fzn_env.t -> Fzn_model.expr array -> bool)
 
 exception Unknown_constraint of string
 
@@ -18,6 +20,11 @@ let not_yet solver args = failwith "Constraint not implemented."
 
 let bool2int solver args = failwith "Implement me."
 
+(*
+let array_bool_and slv args = (* b <-> b_1 /\ ... *)
+  let b = expr_bvar slv 
+  *)
+   
 let init_builtins () =
   (* Standard Flatzinc predicates *)
   register "array_bool_and" not_yet ;

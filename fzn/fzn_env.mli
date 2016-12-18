@@ -1,4 +1,5 @@
 type env = {
+  solver : Solver.t ;
   ivars : Solver.intvar array ;
   bvars : Atom.t array
 }

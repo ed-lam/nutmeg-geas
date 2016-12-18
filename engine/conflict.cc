@@ -161,6 +161,12 @@ static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, r
           add(s, *it);
       }
       break;
+    case reason::R_LE:
+      {
+        // p <= q + offset.
+        add(s, patom_t(r.le.p, ex_val - r.le.offset));
+      }
+      break;
     case reason::R_Thunk:
       {
         if(r.eth.flags) {

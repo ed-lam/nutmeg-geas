@@ -96,16 +96,16 @@ let create_vars solver model =
   (ivars, bvars)
 *)
 
-let post_constraint solver id args =
+let post_constraint env id args =
   try
-    Reg.post solver id args
+    Reg.post env id args
   with Reg.Unknown_constraint id ->
     Format.fprintf Format.err_formatter "Missing constraint: %s\n" id ;
     true
 
-let post_constraints solver model =
+let post_constraints env model =
   Dy.fold_left
-    (fun b (id, args) -> b && post_constraint solver id args)
+    (fun b (id, args) -> b && post_constraint env id args)
     true
     model.M.constraints
    
@@ -113,7 +113,7 @@ let post_fzn solver model =
   (* Post constraints *)
   (* let vars = create_vars solver model in *)
   let env = E.create solver model in
-  let _ = post_constraints solver model in
+  let _ = post_constraints env model in
   env
 
 let main () =

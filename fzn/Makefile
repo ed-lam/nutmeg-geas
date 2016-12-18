@@ -21,10 +21,11 @@ REQ_PKG = "extlib"
 
 MLMODULES=dom fzn_token fzn_model fzn_env \
    arith bool \
+   congruence/congruence \
    fzn_registry \
    fzn_lexer fzn_parser phage_opts
 
-OCAMLINC=-I ../ml
+OCAMLINC=-I ../ml -I congruence
 
 OCAMLFLAGS+=$(OCAMLINC)
 OCAMLOPTFLAGS+=$(OCAMLINC)
@@ -83,6 +84,7 @@ clobber: clean
 
 clean:
 	/bin/rm -f *.cm[ioxat] *.cmti *.o *.cmxa *.annot *.html *.ps *.pdf *.dvi *.out
+	/bin/rm -f congruence/*.cm[ioxat] congruence/*.o congruence/*.annot
 	/bin/rm -f *.aux *.bbl *.blg *.dvi *.pdf *.log *.toc *.idx *.ilg *.ind ocamldoc*.tex ocamldoc.sty
 	/bin/rm -f tests/*.cm[ioxat] tests/*.cmti tests/*.o tests/*.a tests/*.cmxa tests/*.annot
 

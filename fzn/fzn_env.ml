@@ -5,6 +5,7 @@ module Dy = DynArray
 type expr = M.expr
 
 type env = {
+  solver : Solver.t ;
   ivars : Solver.intvar array ;
   bvars : Atom.t array
 }
@@ -61,5 +62,5 @@ let create solver model =
   let bvars = Array.map
     (fun _ -> Slv.new_boolvar solver)
     (Dy.to_array model.M.bvals) in
-  { ivars = ivars ; bvars = bvars }
+  { solver = solver ; ivars = ivars ; bvars = bvars }
 

@@ -46,6 +46,46 @@ void int_element(solver_data* s, patom_t r, intvar x, intvar z,
   return;
 }
 
+class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
+  // Wakeup and explanation
+  static void wake_x(void* ptr, int xi) {
+    elem_var_bnd* p(static_cast<elem_var_bnd*>(ptr)); 
+    p->queue_prop();     
+  }
+  static void wake_z(void* ptr, int yi) {
+    elem_var_bnd* p(static_cast<elem_var_bnd*>(ptr)); 
+    p->queue_prop();     
+  }
+  static void wake_r(void* ptr, int dummy) {
+    elem_var_bnd* p(static_cast<elem_var_bnd*>(ptr)); 
+    p->queue_prop();
+  }
+
+public:
+  elem_var_bnd(solver_data* s, intvar _x, intvar _z, vec<intvar>& _ys, patom_t _r)
+    : propagator(s), x(_x), z(_z), ys(_ys), r(_r) {
+     
+  }
+
+  void root_simplify(void) {
+    
+  }
+    
+   bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
+      std::cout << "[[Running elem_var_bnd]]" << std::endl;
+#endif
+
+      return true;
+    }
+
+    intvar x;
+    intvar z;
+    vec<intvar> ys;
+
+    patom_t r;
+};
+
 void int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
   int_element(s, r, x, z, ys, 1);
 }

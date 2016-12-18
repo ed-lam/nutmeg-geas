@@ -341,7 +341,21 @@ next_clause:
   return true;
 }
 
-//inline
+forceinline
+bool propagate_ineqs(solver_data& s, pid_t p) {
+  pval_t val_p = s.state.p_vals[p];
+
+  for(infer_info::bin_le ineq : s.infer.pred_ineqs[p]) {
+    pval_t val_q = val_p + ineq.offset;
+    if(s.state.p_vals[ineq.p] >= val_q)
+      continue;
+    if(!enqueue(s, patom_t { ineq.p, val_q }, reason(p, ineq.offset)))
+      return false;
+  }
+  return true;
+}
+
+forceinline
 bool propagate_pred(solver_data& s, pid_t p) {
   // Process watches
   watch_node* curr = s.infer.pred_watches[p];
@@ -358,22 +372,32 @@ bool propagate_pred(solver_data& s, pid_t p) {
     for(watch_callback call : curr->callbacks)
       call();
   }
-  // Trail head of watches 
-  trail_change(s.persist, s.infer.pred_watches[p], curr);
+  // Propagate binary inequalities
+  if(!propagate_ineqs(s, p))
+    return false;
 
+  // Trail head of watches 
+  if(curr != s.infer.pred_watches[p]) {
+    // FIXME: This may not be safe.
+    // If new preds are introduced during search, the
+    // pred_watches vector may be resized, invalidating
+    // the previous trail entries.
+    trail_change(s.persist, s.infer.pred_watches[p], curr);
+  }
+   
   return true;
 }
 
 // Record that the value of p has changed at the
 // current decision level.
-inline void touch_pred(solver_data& s, pid_t p) {
+forceinline void touch_pred(solver_data& s, pid_t p) {
   if(!s.persist.pred_touched[p]) {
     s.persist.pred_touched[p] = true;
     s.persist.touched_preds.push(p);
   }
 }
 
-inline void wakeup_pred(solver_data& s, pid_t p) {
+forceinline void wakeup_pred(solver_data& s, pid_t p) {
   // assert(!is_bool(s, p)); // Handle Bool wake-up separately
   for(watch_callback call : s.pred_callbacks[p])
     call();
