@@ -109,7 +109,8 @@ class watch_node {
 public:
   watch_node(void)
     : succ(nullptr) { }
-  patom_t atom; 
+  // patom_t atom;
+  pval_t succ_val;
   watch_extra extra;
   watch_node* succ;  
   vec<clause_head> ws;

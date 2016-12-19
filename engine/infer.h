@@ -22,11 +22,12 @@ public:
   ~infer_info(void) {
     // Clear watches
     watch_maps.clear();
-    for(watch_node* h : pred_watch_heads) {
-      while(h) {
-        watch_node* s = h->succ;
-        delete(h);
-        h = s;
+    for(watch_head h : pred_watch_heads) {
+      watch_node* p = h.ptr;
+      while(p) {
+        watch_node* s = p->succ;
+        delete(p);
+        p = s;
       }
     }
     
@@ -59,9 +60,10 @@ protected:
     pid_t pid = watch_maps.size();
     // Create the root watch-node
     watch_node* w(new watch_node); 
-    w->atom = patom_t(pid, 0);
+    // w->atom = patom_t(pid, 0);
+    w->succ_val = pval_max;
     pred_watches.push(w);
-    pred_watch_heads.push(w);
+    pred_watch_heads.push(watch_head {0, w});
     pred_act.push(0.0);
 
     pred_ineqs.push();
@@ -78,14 +80,16 @@ public:
     if(it != watch_maps[p].end()) 
       return (*it).value;
     watch_node* w(new watch_node);
-    w->atom = patom_t(p, val);
+    // w->atom = patom_t(p, val);
 
     // This repeats the lookup performed by
     // find. Modify avoid this.
     it = watch_maps[p].add(val, w);
     --it;
     watch_node* pred = (*it).value;
+    w->succ_val = pred->succ_val;
     w->succ = pred->succ;
+    pred->succ_val = val;
     pred->succ = w;
     return w;
   }
@@ -96,10 +100,15 @@ public:
     reason expl;
   } entry;
   
+  typedef struct {
+    pval_t val;
+    watch_node* ptr;
+  } watch_head;
+
   // Tracking watch lists for predicates
   vec<watch_map> watch_maps; // (pid_t -> pval_t -> watch_node*)
   vec<watch_node*> pred_watches;
-  vec<watch_node*> pred_watch_heads; // Watches for [| pid >= min_val |].
+  vec<watch_head> pred_watch_heads; // Watches for [| pid >= min_val |].
   vec<double> pred_act;
 
   vec< vec<bin_le> > pred_ineqs; // Primitive binary inequalities

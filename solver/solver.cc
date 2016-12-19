@@ -359,19 +359,18 @@ forceinline
 bool propagate_pred(solver_data& s, pid_t p) {
   // Process watches
   watch_node* curr = s.infer.pred_watches[p];
-  while(curr->succ) {
-    watch_node* next = curr->succ;
-    patom_t atom(next->atom);
-    if(!s.state.is_entailed(atom))
-      break;
-    
-    curr = next;
+  patom_t atom(p, curr->succ_val);
+  while(s.state.is_entailed(atom)) {
+    curr = curr->succ;
+
     if(!update_watchlist(s, ~atom, curr->ws)) {
       return false;
     }
     for(watch_callback call : curr->callbacks)
       call();
+    atom.val = curr->succ_val;
   }
+
   // Propagate binary inequalities
   if(!propagate_ineqs(s, p))
     return false;
@@ -607,12 +606,27 @@ inline void simplify_at_root(solver_data& s) {
     s.state.p_root[pi] = s.state.p_vals[pi];
     
     // Do garbage collection on the watch_node*-s.
+    pval_t head_val = s.infer.pred_watch_heads[pi].val;
+    watch_node* head = s.infer.pred_watch_heads[pi].ptr;
+    watch_node* dest = s.infer.pred_watches[pi];
+
+    while(head != dest) {
+      s.infer.watch_maps[pi].rem(head_val);
+      watch_node* w = head;
+      head_val = head->succ_val;
+      head = head->succ; 
+      delete w;
+    }
+    s.infer.pred_watch_heads[pi].val = head_val;
+    s.infer.pred_watch_heads[pi].ptr = head;
+    /*
     while(s.infer.pred_watch_heads[pi] != s.infer.pred_watches[pi]) {
       watch_node* w = s.infer.pred_watch_heads[pi];
       s.infer.pred_watch_heads[pi] = w->succ;
-      s.infer.watch_maps[pi].rem(w->atom.val);
+      s.infer.watch_maps[pi].rem(watch_val);
       delete w;
     }
+    */
     // Now that entailed watches are deleted, we're committed
     // to simplifying all the clauses.
   }
