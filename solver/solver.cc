@@ -175,6 +175,8 @@ inline bool is_inconsistent(sdata& s, patom_t p) { return s.state.is_inconsisten
 bool solver::post(patom_t p) {
   if(decision_level(*data) > 0)
     bt_to_level(data, 0); 
+  if(is_inconsistent(*data, p))
+    return false;
   return enqueue(*data, p, reason());
 }
 

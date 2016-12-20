@@ -1,12 +1,12 @@
 (* Representation of domains for preprocessing *)
-type ranges = (int * int) list
-
-type t = ranges option
+type t =
+  | Range of int * int
+  | Set of int list
 
 val range : int -> int -> t
 val set : int list -> t
-val free : t
 
-val intersect : t -> t -> t
+val union : t -> t -> t
 
-val iter : (int -> unit) -> t -> unit
+val bounds : t -> (int * int)
+val holes : t -> (int * int) list

@@ -1,151 +1,152 @@
 module S = Stream
+module H = Hashtbl
 module Dy = DynArray
 
-module Opt = Phage_opts
+module U = Util
 
-open Fzn_token
-module P = Fzn_parser
-module M = Fzn_model
-module E = Fzn_env
+open Token
+module P = Parser
 
-module Reg = Fzn_registry
+module Pr = Problem
 
-module Slv = Solver
-(*
-let tok_str = function
-  | Kwd k -> "{KWD}"
-  | Id s -> s
-  | Str s -> "\"" ^ s ^ "\""
-  | Int i -> string_of_int i
-  | Bool b -> if b then "true" else "false"
-  *)
+module Sol = Solver
+
+exception Unknown_constraint of string
 
 let put = Format.fprintf
 
-let print_array f fmt arr = 
-  put fmt "@[[" ;
-  if Array.length arr > 0 then
-    begin
-      f fmt arr.(0) ;
-      for i = 1 to Array.length arr - 1 do
-        put fmt ",@ " ;
-        f fmt arr.(i)
-      done
-    end ;
-  put fmt "@]]"
+let make_intvar solver dom =
+  let lb, ub = Dom.bounds dom in
+  (* Create the var *)
+  let v = Sol.new_intvar solver lb ub in
+  (* Punch any holes. post_clause should never fail here. *)
+  (* FIXME: export bindings for sparse vars. *)
+  List.iter
+    (fun (hl, hu) ->
+     ignore @@
+       Sol.post_clause solver
+                       [|Sol.ivar_lt v hl ; Sol.ivar_gt v hu|]) (Dom.holes dom)  ;
+  (* Then return the constructed variable *)
+  v
 
-let print_expr fmt assign env expr =
-  let eval_ivar v = Slv.int_value assign (env.E.ivars).(v)
-  and eval_bvar b = Slv.atom_value assign (env.E.bvars).(b) in
-  let rec aux fmt expr = 
-    match expr with
-    | M.Ilit k -> put fmt "%d" k
-    | M.Ivar v -> put fmt "%d" (eval_ivar v)
-    | M.Blit b -> if b then (put fmt "true") else (put fmt "false")
-    | M.Bvar b -> if (eval_bvar b) then put fmt "true" else put fmt "false"
-    | M.Arr a -> print_array aux fmt a
-  in
-  aux fmt expr
+(* Constraint registry. FIXME: Maybe move to a separate module. *)
+let registry = H.create 17
 
-let print_assign model env assign =
-  Hashtbl.iter (fun id expr ->
-    Format.printf "%s = " id;
-    print_expr Format.std_formatter assign env expr ;
-    Format.printf ";@."
-  ) model.M.symbols
+type env = { ivars : Sol.intvar array ; bvars : Atom.atom array }
 
-(*
-let get_bounds ds =
-  let rec aux acc u ds =
-    match ds with
-    | [] -> (u, List.rev acc)
-    | ((l', u') :: ds') ->
-      let acc' = 
-        if u+1 < l' then
-          (u+1, l'-1) :: acc
-        else
-          acc in
-      aux acc' u' ds'
-  in
-  match ds with
-  | [] -> (1, 0, [])
-  | ((lb, u) :: ds) ->
-    let (ub, holes) = aux [] u ds in
-    (lb, ub, holes)
+let rec resolve_expr env expr =
+  match expr with
+  | Pr.Ilit v -> Pr.Ilit v
+  | Pr.Ivar iv -> Pr.Ivar env.ivars.(iv)
+  | Pr.Blit b -> Pr.Blit b
+  | Pr.Bvar bv -> Pr.Bvar env.bvars.(bv)
+  | Pr.Set dom -> Pr.Set dom
+  | Pr.Arr es -> Pr.Arr (Array.map (resolve_expr env) es)
 
-let create_ivar solver dom =
-  match dom with
-  | None -> failwith "Unbounded integer"
-  | Some ds ->
-    let lb, ub, holes = get_bounds ds in
-    let v = Slv.new_intvar solver lb ub in
-    List.iter (fun (l, r) ->
-      ignore
-        (Slv.post_clause solver [|Slv.ivar_lt v l ; Slv.ivar_gt v r|])
-    ) holes ;
-    v
-
-let create_vars solver model = 
-  let ivars = Array.map
-    (* (fun _ -> Slv.new_intvar solver 0 10) *)
-    (fun dom -> create_ivar solver dom)
-    (Dy.to_array model.M.ivals) in
-  let bvars = Array.map
-    (fun _ -> Slv.new_boolvar solver)
-    (Dy.to_array model.M.bvals) in
-  (ivars, bvars)
-*)
-
-let post_constraint env id args =
+let post_constraint solver env ident expr anns = 
   try
-    Reg.post env id args
-  with Reg.Unknown_constraint id ->
-    Format.fprintf Format.err_formatter "Missing constraint: %s\n" id ;
-    true
+    let handler = H.find registry ident in
+    handler solver (resolve_expr env) anns
+  with Not_found ->
+    (* raise (Unknown_constraint ident) *)
+       Format.fprintf Format.err_formatter "Warning: Unknown constraint '%s'.@." ident
 
-let post_constraints env model =
-  Dy.fold_left
-    (fun b (id, args) -> b && post_constraint env id args)
-    true
-    model.M.constraints
-   
-let post_fzn solver model =
-  (* Post constraints *)
-  (* let vars = create_vars solver model in *)
-  let env = E.create solver model in
-  let _ = post_constraints env model in
+let build_problem solver problem =
+  (* Allocate variables *)
+  let ivars =
+    Array.init
+      (Dy.length problem.Pr.ivals)
+      (fun i ->
+       let vinfo = Dy.get problem.Pr.ivals i in
+       make_intvar solver vinfo.Pr.dom)
+  in
+  let bvars =
+    Array.init
+      (Dy.length problem.Pr.bvals)
+      (fun i -> Sol.new_boolvar solver)
+  in
+  let env = { ivars = ivars; bvars = bvars } in
+  (* Process constraints *)
+  Dy.iter (fun ((ident, expr), anns) ->
+           post_constraint solver env ident expr anns)
+          problem.Pr.constraints ;
+  (* Then, return the bindings *)
   env
 
+let solve_satisfy solver =
+  let fmt = Format.std_formatter in
+  match Sol.solve solver (-1) with
+  | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
+  | Sol.UNSAT -> Format.fprintf fmt "UNSAT@."
+  | Sol.SAT -> Format.fprintf fmt "SAT@."
+
+let decrease_ivar ivar solver model =
+  let model_val = Sol.int_value model ivar in
+  Sol.post_atom solver (Sol.ivar_lt ivar model_val)
+      
+let increase_ivar ivar solver model =
+  let model_val = Sol.int_value model ivar in
+  Sol.post_atom solver (Sol.ivar_gt ivar model_val)
+
+let solve_optimize constrain solver =
+  let fmt = Format.std_formatter in
+  let rec aux model =
+    if not (constrain solver model) then
+      Format.fprintf fmt "OPTIMAL@."
+    else
+      match Sol.solve solver (-1) with
+      | Sol.UNKNOWN -> Format.fprintf fmt "INCOMPLETE@."
+      | Sol.UNSAT -> Format.fprintf fmt "OPTIMAL@."
+      | Sol.SAT -> aux (Sol.get_model solver)
+  in
+  match Sol.solve solver (-1) with
+  | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
+  | Sol.UNSAT -> Format.fprintf fmt "UNSAT@."
+  | Sol.SAT -> aux (Sol.get_model solver)
+ 
 let main () =
   (* Parse the command-line arguments *)
   Arg.parse
-    Phage_opts.speclist
-      (begin fun infile -> Opt.infile := Some infile end)
+    Opts.speclist
+      (begin fun infile -> Opts.infile := Some infile end)
       "fzn_phage <options> <inputfile>"
   ;
+  Half_reify.initialize () ;
   (* Parse the program *)
-  let input = match !Opt.infile with
+  let input = match !Opts.infile with
       | None -> stdin
       | Some file -> open_in file
   in
   let lexer = P.lexer input in
-  (* *)
-  let model = P.read_model lexer in
-  Format.printf
-    "Info: %d intvars, %d boolvars, %d constraints@."
-    (Dy.length model.M.ivals)
-    (Dy.length model.M.bvals)
-    (Dy.length model.M.constraints) ;
-  let solver = Slv.new_solver () in
-  let env = post_fzn solver model  in
-  match Slv.solve solver (-1) with
-  | Slv.SAT ->
+  let orig_problem = P.read_problem lexer in
+  let problem = Simplify.simplify orig_problem in
+  let solver = Sol.new_solver () in
+  (* Do stuff *)
+  let env = build_problem solver problem in
+  (*
+  let problem_HR =
+    if !Opts.noop then
+      problem
+    else
+      Half_reify.half_reify problem in
+   *)
+  (*
+  if not !Opts.quiet then
     begin
-      Format.printf "SAT@." ;
-      let assign = Slv.get_model solver in
-      print_assign model env assign 
-    end
-  | Slv.UNSAT -> Format.printf "UNSAT@."
-  | Slv.UNKNOWN -> Format.printf "UNKNOWN@."
+      let output = match !Opts.outfile with
+          | None -> stdout
+          | Some file -> open_out file in 
+      let fmt = Format.formatter_of_out_channel output in
+      (* Pr.print fmt problem_HR ; *)
+      Pr.print fmt problem ;
+      close_out output
+    end ;
+   *)
+  match fst problem.Pr.objective with
+  | Pr.Satisfy -> solve_satisfy solver
+  | Pr.Minimize obj ->
+     solve_optimize (decrease_ivar env.ivars.(obj)) solver
+  | Pr.Maximize obj ->
+     solve_optimize (increase_ivar env.ivars.(obj)) solver
 
 let _ = main ()

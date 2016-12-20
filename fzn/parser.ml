@@ -1,10 +1,14 @@
 (* Recursive-descent parser for FlatZinc. *)
-open Fzn_token
+open Token
 module S = Stream
-module Lex = Fzn_lexer
-module M = Fzn_model
+module Lex = Lexer
+module M = Problem
 
-exception Tok_error of Fzn_token.t
+exception Tok_error of Token.t
+
+let debug_printf (fstr : ('a, Format.formatter, unit) format) =
+  if !Opts.verbosity > 1 then
+    Format.fprintf Format.err_formatter fstr
 
 (* Convert the ocamllex lexer into a Stream.t *)
 let lexer channel =
@@ -82,25 +86,23 @@ let parse_range toks =
   chomp toks (Kwd Ddot) ;
   Dom.range l (parse_int toks)
 
-(*
 let parse_int_or_range toks =  
   let x = parse_int toks in
   if S.peek toks = Some (Kwd Ddot) then
     (S.junk toks ; M.Set (Dom.range x (parse_int toks)))
   else
     M.Ilit x
-    *)
 
 let rec parse_expr model toks =
   match must_peek toks with
-  | Int k -> (S.junk toks ; M.Ilit k)
-    (* parse_int_or_range toks *)
+  | Int k -> (* (S.junk toks ; M.Ilit k) *)
+      parse_int_or_range toks
   | Bool b -> (S.junk toks ; M.Blit b)
   | Id id -> (S.junk toks; M.resolve model id)
     (* parse_id_or_call model toks *)
     (* Either an identifier, or the start of a call. *)
   | (Kwd Lbrak) -> M.Arr (parse_array (parse_expr model) toks)
-  (* | (Kwd Lbrace) -> M.Set (Dom.set (parse_set toks)) *)
+  | (Kwd Lbrace) -> M.Set (Dom.set (parse_set toks))
   | tok -> raise (Tok_error tok)
 (*
 and parse_id_or_call model toks =
@@ -151,18 +153,19 @@ let parse_anns toks =
   in aux []
 
 (* Ignore predicate declarations *)
-let parse_pred model toks = (* Format.printf "Pred@." ; *)
+let parse_pred model toks =
+  debug_printf "Pred@." ;
   junk_upto toks (Kwd Semi)
 
 let read_constraint model toks =
-  (* Format.printf "Cstr@." ; *)
+  debug_printf "Cstr@." ;
   chomp toks (Kwd Constraint) ;
   let id = parse_ident toks in
   let args =
     Array.of_list
       (parse_seq (parse_expr model) (Kwd Lpar) (Kwd Rpar) toks) in 
-  let _ = parse_anns toks in
-  M.post model id args [| |] ;
+  let anns = parse_anns toks in
+  M.post model id args anns ;
   chomp toks (Kwd Semi)
 
 (* Format of declarations:
@@ -184,9 +187,9 @@ let parse_obj model toks =
   | _ -> failwith "Objective must resolve to var int."
 
 let read_solve model toks =
-  (* Format.printf "Solve@." ; *)
+  debug_printf "Solve@." ;
   chomp toks (Kwd Solve) ;
-  let _ = parse_anns toks in
+  let anns = parse_anns toks in
   let goal =
     match S.next toks with
     | Kwd Minimize -> M.Minimize (parse_obj model toks)
@@ -196,7 +199,7 @@ let read_solve model toks =
       failwith (Format.sprintf
                  "Expected (satisfy | inimize | maximize), got %s."
                  (tok_str tok)) in
-  model.M.objective <- goal ;
+  model.M.objective <- (goal, anns) ;
   chomp toks (Kwd Semi)
 
 (* Format of declarations:
@@ -204,36 +207,96 @@ let read_solve model toks =
 
 (* This is _slightly_ dodgy.
  * Make more robust eventually *)
+let read_bool toks =
+  match S.next toks with
+  | Bool b -> b
+  | _ -> failwith "Expected bool literal"
+
+let read_int toks =
+  match S.next toks with
+  | Int k -> k
+  | _ -> failwith "Expected int linteral"
+
+let read_bvar_decl model toks =
+  chomp toks (Kwd BoolT) ;
+  chomp toks (Kwd Colon) ;
+  let id = parse_ident toks in
+  let anns = parse_anns toks in
+  if S.peek toks = Some (Kwd Eq) then
+    begin
+      S.junk toks ;
+      match S.next toks with
+      | Bool b -> M.bind model id (M.Blit b) []
+      | Id id' -> M.bind model id (M.resolve model id')  []
+      | _ -> failwith "Unexpected token in binding."
+    end
+  else
+    M.bind model id (M.Bvar (M.new_bvar model id anns)) [] ;
+  chomp toks (Kwd Semi)
+
+let read_ivar_decl model toks =
+  let dom =
+    match must_peek toks with
+    | Int _ -> parse_range toks
+    | Kwd Lbrace -> Dom.Set (parse_set toks)
+    | _ -> failwith "Expected integer domain"
+  in
+  chomp toks (Kwd Colon) ; 
+  let id = parse_ident toks in
+  let anns = parse_anns toks in
+  if S.peek toks = Some (Kwd Eq) then
+    begin
+      S.junk toks ;
+      match S.next toks with
+      | Int k -> M.bind model id (M.Ilit k) []
+      | Id id' -> M.bind model id (M.resolve model id') []
+      | _ -> failwith "Unexpected token in binding."
+    end
+  else
+    M.bind model id (M.Ivar (M.new_ivar model id dom anns)) [] ;
+  chomp toks (Kwd Semi)
+
 let read_var_decl model toks =
   chomp toks (Kwd Var) ;
   (* One of: bool, int, a range or a set *)
-  let expr = 
+  match must_peek toks with
+  | Kwd BoolT -> read_bvar_decl model toks
+  | _ -> read_ivar_decl model toks
+  (*
+  let declare = 
     match must_peek toks with
-    | Kwd BoolT -> (S.junk toks ; M.Bvar (M.new_bval model))
-    | Kwd IntT -> (S.junk toks ; M.Ivar (M.new_ival model Dom.free))
-    | Kwd Lbrace -> M.Ivar (M.new_ival model (Dom.set (parse_set toks)))
-    | Int _ -> M.Ivar (M.new_ival model (parse_range toks))
+    | Kwd BoolT -> (S.junk toks; fun id anns -> M.Bvar (M.new_bvar model id anns))
+    (* | Kwd IntT -> (S.junk toks ; M.Ivar (M.new_ival model Dom.free)) *)
+    | Kwd Lbrace ->
+        (* An array literal *)
+        let vals = parse_set toks in
+        (fun id anns -> M.Ivar (M.new_ivar model id (Dom.Set vals) anns))
+    | Int _ ->
+        let dom = parse_range toks in
+        (fun id anns -> M.Ivar (M.new_ivar model id dom anns))
     | _ -> failwith "Expected var domain"
   in
   chomp toks (Kwd Colon) ;
   let id = parse_ident toks in
-  let _ = parse_anns toks in
+  let anns = parse_anns toks in
   chomp toks (Kwd Semi) ;
-  M.bind model id expr
+  M.bind model id (declare id anns)
+*)
 
 let read_decl model toks =
-  (* Format.printf "Decl@." ; *)
+  debug_printf "Decl@." ;
   match must_peek toks with
   | Kwd Var -> read_var_decl model toks
   | _ ->
+    (* Only other possibility is array *)
     begin
       junk_upto toks (Kwd Colon) ;
       let id = parse_ident toks in
-      let _ = parse_anns toks in
+      let anns = parse_anns toks in
       chomp toks (Kwd Eq) ;
       let expr = parse_expr model toks in
       chomp toks (Kwd Semi) ;
-      M.bind model id expr
+      M.bind model id expr anns
     end
 
 let read_item model toks =
@@ -244,7 +307,7 @@ let read_item model toks =
   | Some _ -> read_decl model toks
   | None -> raise (S.Error "Unexpected end of tokens.")
 
-let read_model toks =
+let read_problem toks =
   let model = M.create () in
   while S.peek toks <> None do
     read_item model toks

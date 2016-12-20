@@ -1,4 +1,4 @@
-include ../Makefile.config
+include Makefile.config
 
 #---------------------------------------
 # Directories
@@ -17,15 +17,17 @@ SITE-LIB-PKG = $(SITE-LIB)/$(PKG-NAME)
 #---------------------------------------
 
 #REQ_PKG = "extlib camlidl"
-REQ_PKG = "extlib"
+REQ_PKG = ""
 
-MLMODULES=dom fzn_token fzn_model fzn_env \
-   arith bool \
-   congruence/congruence \
-   fzn_registry \
-   fzn_lexer fzn_parser phage_opts
+MLMODULES=\
+   dynArray \
+	 opts \
+   util dom token problem \
+	 polarity half_reify \
+	 simplify \
+   lexer parser
 
-OCAMLINC=-I ../ml -I congruence
+OCAMLINC=-I ../ml
 
 OCAMLFLAGS+=$(OCAMLINC)
 OCAMLOPTFLAGS+=$(OCAMLINC)
@@ -61,22 +63,34 @@ debug: $(TARGETS_DEBUG)
 #$(TARGETS_BYTE) : %.byte : $(MLMODULES:%=%.cmo) %.ml
 #	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -o $@ $(subst .byte,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
 
-libphage_ml.a : ../ml/libphage_ml.a
+#libphage_ml.a : ../ml/libphage_ml.a
+#	cp ../ml/libphage_ml.a .
+
+$(TARGETS) : phage.a libphage_ml.a
+$(TARGETS_DEBUG) : phage.a libphage_ml.a
+
+phage.a: ../ml/phage.a
+	cp ../ml/phage.a .
+libphage_ml.a: ../ml/libphage_ml.a
 	cp ../ml/libphage_ml.a .
 
-$(TARGETS) : libphage_ml.a
-$(TARGETS_DEBUG) : libphage_ml.a
-
-$(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml
+$(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
 	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
   -ccopt "-L /opt/local/lib/ocaml" \
-  ../ml/phage.cmxa $@.mli $^ -package $(REQ_PKG) -linkpkg
+  ../ml/phage.cmxa \
+  $@.mli $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_DEBUG) : %.debug : $(MLMODULES:%=%.cmo) %.ml
-	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@ $(subst .debug,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
+	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@ \
+  -ccopt "-L /opt/local/lib/ocaml" \
+  ../ml/phage.cma \
+  $(subst .debug,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_PROF) : %.p : $(MLMODULES:%=%.p.cmx) %.ml
-	$(OCAMLFIND) ocamlopt -p $(OCAMLFLAGS) -o $@ $(subst .p,.mli,$@) $^ -package $(REQ_PKG) -linkpkg
+	$(OCAMLFIND) ocamlopt -p $(OCAMLFLAGS) -o $@ \
+  -ccopt "-L /opt/local/lib/ocaml" \
+  ../ml/phage.cmxa \
+  $(subst .p,.mli,$@) $^ -package $(REQ_PKG) -linkpkg
 
 clobber: clean
 	/bin/rm -f Makefile.depend TAGS
@@ -84,9 +98,8 @@ clobber: clean
 
 clean:
 	/bin/rm -f *.cm[ioxat] *.cmti *.o *.cmxa *.annot *.html *.ps *.pdf *.dvi *.out
-	/bin/rm -f congruence/*.cm[ioxat] congruence/*.o congruence/*.annot
+	/bin/rm -f lexer.ml
 	/bin/rm -f *.aux *.bbl *.blg *.dvi *.pdf *.log *.toc *.idx *.ilg *.ind ocamldoc*.tex ocamldoc.sty
-	/bin/rm -f tests/*.cm[ioxat] tests/*.cmti tests/*.o tests/*.a tests/*.cmxa tests/*.annot
 
 wc: $(SRC)
 	wc $^

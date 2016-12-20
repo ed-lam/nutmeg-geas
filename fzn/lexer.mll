@@ -1,6 +1,6 @@
 (* Lexer for FlatZinc. *)
 {
-open Fzn_token
+open Token
 
 let keywords = Hashtbl.create 17
 
@@ -68,7 +68,7 @@ let kw_toks =
     "bool", Kwd BoolT ;
     "int", Kwd IntT ;
     "float", Kwd FloatT ;
-    "array", Kwd Array ;
+    "array", Kwd ArrayK ;
     "of", Kwd Of ;
     "par", Kwd Par ;
     "var", Kwd Var ;

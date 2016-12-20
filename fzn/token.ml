@@ -3,7 +3,7 @@
 type kwd =
   | Lpar | Rpar | Lbrak | Rbrak | Lbrace | Rbrace
   | Comma | Ddot | Semi | Colon | Dcolon
-  | BoolT | IntT | FloatT | Array | Of | Any
+  | BoolT | IntT | FloatT | ArrayK | Of | Any
   | Var | Par
   | Annot
   | Eq
@@ -35,7 +35,7 @@ let kwd_str = function
   | BoolT -> "bool"
   | IntT -> "int"
   | FloatT -> "float"
-  | Array -> "array"
+  | ArrayK -> "array"
   | Of -> "of"
   | Any -> "any"
   | Var -> "var"

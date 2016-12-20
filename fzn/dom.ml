@@ -1,58 +1,55 @@
-type ranges = (int * int) list
+(* Representation of domains for preprocessing *)
+type t =
+  | Range of int * int
+  | Set of int list
 
-type t = ranges option
+let range lb ub = Range (lb, ub)
+let set ks = Set ks
 
-let range lb ub = Some [lb, ub]
-let free = None
+let rappend xs ys = List.fold_left (fun s k -> k :: s) ys xs
 
-let dedup ks =
-  let rec aux x ys acc =
-    match ys with
-    | [] -> List.rev (x :: acc)
-    | y :: ys' ->
-      if x = y then
-        aux x ys' acc
-      else
-        aux y ys' (x :: acc)
-  in match (List.sort compare ks) with
-  | [] -> []
-  | x :: xs -> aux x xs []
-    
-let set ks = Some (List.map (fun x -> (x, x)) (dedup ks))
-
-let intersect =
+let rec merge xs ys =
   let rec aux xs ys acc =
     match xs, ys with
-    | (lx, ux) :: xs', (ly, uy) :: ys' ->
-      if ly < lx then (* Out of order *)
-        aux ((ly, uy) :: ys') ((lx, ux) :: xs') acc
-      else
-        if ux < ly then
-          (* No overlap with first interval *)
-          aux xs' ((ly, uy) :: ys') acc
+    | ([], s) | (s, []) -> rappend acc s
+    | x :: xs', y :: ys' ->
+        if x < y then
+          aux xs' ys (x :: acc) 
+        else if y < x then
+          aux xs ys' (y :: acc)
         else
-          (* Some overlap starting from ly *)
-          if uy < ux then
-            (* y ends before x *)
-            aux ((lx, ux) :: xs') ys' ((ly, uy) :: acc)
-          else
-            (* x ends no later than y *)
-            aux xs' ((ly, uy) :: ys') ((ly, ux) :: acc)
-    | _, _ -> List.rev acc
-  in fun dx dy ->
-    match dx, dy with
-    | None, _ -> dy
-    | _, None -> dx
-    | Some xs, Some ys -> Some (aux xs ys [])
+          aux xs' ys' (x :: acc)
+  in aux xs ys []
 
-let iter_range f (l, u) =
-  for k = l to u
-  do
-    f k
-  done 
+let union x y = match x, y with
+  | Set kx, Set ky -> Set (merge kx ky)
+  | Range (lx, ux), Range (ly, uy) ->
+      Range (min lx ly, max ux uy)
+  | (Range (l, u), Set k) | (Set k, Range (l, u)) ->
+      Range
+        ((List.fold_left min l k),
+         (List.fold_left max u k))
 
-let iter f d =
+let bounds d =
   match d with
-  | None -> ()
-  | Some rs -> List.iter (iter_range f) rs
+  | Range (l, u) -> l, u
+  | Set (k :: ks) -> List.fold_left min k ks, List.fold_left max k ks
+  | _ -> failwith "Bounds of empty domain"
 
+(* Compute the set of holes in a given domain *)
+let holes d =
+  match d with
+  | Range _ -> []
+  | Set ks ->
+     let rec aux x ys acc =
+       match ys with
+       | [] -> List.rev acc
+       | y :: ys' ->
+          if x < y then
+            aux (y+1) ys' ((x, y-1) :: acc)
+          else
+            aux (y+1) ys' acc
+     in
+     match List.sort compare ks with
+     | x :: xs -> aux (x+1) xs []
+     | _ -> []
