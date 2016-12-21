@@ -54,7 +54,7 @@ type goal =
   | Maximize of ival_id
   | Minimize of ival_id
 
-type fzn_expr = (ival_id, ival_id) expr
+type fzn_expr = (ival_id, bval_id) expr
 
 type cstr = (ident * (fzn_expr array))
 type ival_info = { id : ident ; dom : Dom.t ; ann : ann_expr list }

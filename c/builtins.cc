@@ -55,6 +55,24 @@ int int_max(solver s, atom r, intvar z, intvar* xs, int sz) {
                         *get_intvar(z), p_xs, get_atom(r));
 }
 
+int int_element(solver s, atom r, intvar z, intvar x, int* elts, int sz) {
+  vec<int> p_elts;
+  for(int* v = elts; v != elts+sz; ++v) {
+    p_elts.push(*v);
+  }
+  return phage::int_element(get_solver(s)->data,
+                        *get_intvar(z), *get_intvar(x), p_elts, get_atom(r));
+}
+
+int var_int_element(solver s, atom r, intvar z, intvar x, intvar* elts, int sz) {
+  vec<phage::intvar> p_elts;
+  for(intvar* v = elts; v != elts+sz; ++v) {
+    p_elts.push(*get_intvar(*v));
+  }
+  return phage::var_int_element(get_solver(s)->data,
+                        *get_intvar(z), *get_intvar(x), p_elts, get_atom(r));
+}
+
 #ifdef __cplusplus
 }
 #endif

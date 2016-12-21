@@ -147,10 +147,10 @@ struct expl_thunk {
 class reason {
   struct le_info { pid_t p; pval_t offset; };
 public:
-  enum RKind { R_Clause = 0, R_Atom = 1, R_Thunk = 2, R_LE = 3 };
+  enum RKind { R_Clause = 0, R_Atom = 1, R_Thunk = 2, R_LE = 3, R_NIL = 4 };
 
   reason(void)
-    : kind(R_Clause), cl(nullptr) { }
+    : kind(R_NIL) { }
 
   reason(patom_t _at)
     : kind(R_Atom), at(_at) { }

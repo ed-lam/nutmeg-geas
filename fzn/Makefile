@@ -25,6 +25,7 @@ MLMODULES=\
    util dom token problem \
 	 polarity half_reify \
 	 simplify \
+   registry \
    lexer parser
 
 OCAMLINC=-I ../ml

@@ -164,6 +164,9 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
       r.eth(fail_val, confl);
       break;
      }
+     case reason::R_NIL:
+      assert(decision_level(s) == 0);
+      return;
      default:
        NOT_YET;
   }

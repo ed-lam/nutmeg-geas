@@ -30,7 +30,7 @@ let make_intvar solver dom =
   v
 
 (* Constraint registry. FIXME: Maybe move to a separate module. *)
-let registry = H.create 17
+(* let registry = H.create 17 *)
 
 type env = { ivars : Sol.intvar array ; bvars : Atom.atom array }
 
@@ -43,13 +43,20 @@ let rec resolve_expr env expr =
   | Pr.Set dom -> Pr.Set dom
   | Pr.Arr es -> Pr.Arr (Array.map (resolve_expr env) es)
 
-let post_constraint solver env ident expr anns = 
+let expr_array = function
+  | Pr.Arr es -> es
+  | _ -> failwith "Expected array" 
+               
+let post_constraint solver env ident exprs anns = 
   try
-    let handler = H.find registry ident in
-    handler solver (resolve_expr env) anns
+    (* let handler = H.find registry ident in *)
+    let handler = Registry.lookup ident in
+    let args = Array.map (resolve_expr env) exprs in
+    handler solver args anns
   with Not_found ->
     (* raise (Unknown_constraint ident) *)
-       Format.fprintf Format.err_formatter "Warning: Unknown constraint '%s'.@." ident
+       (Format.fprintf Format.err_formatter "Warning: Unknown constraint '%s'.@." ident ;
+        true)
 
 let build_problem solver problem =
   (* Allocate variables *)
@@ -68,7 +75,7 @@ let build_problem solver problem =
   let env = { ivars = ivars; bvars = bvars } in
   (* Process constraints *)
   Dy.iter (fun ((ident, expr), anns) ->
-           post_constraint solver env ident expr anns)
+           ignore @@ post_constraint solver env ident expr anns)
           problem.Pr.constraints ;
   (* Then, return the bindings *)
   env
@@ -112,6 +119,7 @@ let main () =
       "fzn_phage <options> <inputfile>"
   ;
   Half_reify.initialize () ;
+  Registry.initialize () ;
   (* Parse the program *)
   let input = match !Opts.infile with
       | None -> stdin

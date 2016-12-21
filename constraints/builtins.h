@@ -8,9 +8,9 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r = at_True);
 
 // element.cc
-void int_element(solver_data* s, intvar x, intvar i, vec<int>& ys,
+bool int_element(solver_data* s, intvar x, intvar i, vec<int>& ys,
   patom_t r = at_True);
-void var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys,
+bool var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys,
   patom_t r = at_True);
 
 // disjunctive.cc

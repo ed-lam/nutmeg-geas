@@ -23,6 +23,9 @@ int int_mul(solver s, atom r, intvar z, intvar x, intvar y);
 int int_abs(solver s, atom r, intvar z, intvar x);
 
 int int_max(solver s, atom r, intvar z, intvar* xs, int sz);
+
+int int_element(solver s, atom r, intvar z, intvar i, int* elts, int sz);
+int var_int_element(solver s, atom r, intvar z, intvar i, intvar* elts, int sz);
 #ifdef __cplusplus
 }
 #endif
