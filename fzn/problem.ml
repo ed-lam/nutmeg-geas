@@ -152,6 +152,10 @@ let expr_ivars expr =
   Util.HashSet.elements hs
 
 let ann_has_id ann id = List.exists ((=) (Ann_id id)) ann
+let ann_has_call ann id =
+  List.exists (fun ann -> match ann with
+                          | Ann_call (id', _) -> id = id'
+                          | _ -> false) ann
 
 let rec resolve_ann state = function
   | Ann_int k -> Ilit k

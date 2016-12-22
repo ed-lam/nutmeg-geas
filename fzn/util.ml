@@ -1,4 +1,6 @@
 (** Various helper functions *)
+exception Not_yet
+
 module H = Hashtbl
 module Q = Queue
 

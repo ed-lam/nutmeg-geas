@@ -45,6 +45,8 @@ int post_atom(solver s, atom at) {
 }
 
 int post_clause(solver s, atom* cl, int sz) {
+  if(get_solver(s)->data->infer.trail_lim.size() > 0)
+    bt_to_level(get_solver(s)->data, 0);
   vec<phage::clause_elt> elts;
   for(int ii : irange(sz))
     elts.push(get_atom(cl[ii]));

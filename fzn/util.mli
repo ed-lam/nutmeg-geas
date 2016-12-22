@@ -1,4 +1,5 @@
 (** Various helper functions *)
+exception Not_yet
 
 module HashSet :
 sig
