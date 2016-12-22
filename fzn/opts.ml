@@ -2,8 +2,9 @@ let infile = ref None
 let outfile = ref None
 let verbosity = ref 0
 
-let noop = ref false
 let quiet = ref false
+
+let max_solutions = ref 1
 
 let native = ref false
 
@@ -28,13 +29,8 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
        " : suppress printing of model"
      ) ;
      (
-       "-noop",
-       Arg.Unit (fun () -> noop := true),
-       " : skip processing the model"
-     ) ;
-     (
-       "-native",
-       Arg.Unit (fun () -> native := true),
-       " : rewrite only into 'standard' constraints (so no _HR variants)"
+       "-nof_solutions",
+       Arg.Int (fun k -> max_solutions := k),
+       " : maximum number of solutions to report"
      )
     ]

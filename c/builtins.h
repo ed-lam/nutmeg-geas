@@ -19,6 +19,9 @@ typedef struct {
 // For strict versions, call with r = at_True
 int linear_le(solver s, atom r, linterm* ts, int sz, int k);
 
+// x <= y + k
+int int_le(solver s, intvar x, intvar y, int k);
+
 int int_mul(solver s, atom r, intvar z, intvar x, intvar y);
 int int_abs(solver s, atom r, intvar z, intvar x);
 

@@ -417,83 +417,6 @@ void iabs_decomp(solver_data* s, intvar z, intvar x) {
   }
 }
 
-#if 0
-// Non-incremental implementation. FIXME
-class imax : public propagator {
-  static void wake_z(void* ptr, int _k) {
-    imax* p(static_cast<imax*>(ptr)); 
-    p->queue_prop();     
-  }
-  static void wake_x(void* ptr, int xi) {
-    imax* p(static_cast<imax*>(ptr)); 
-    p->queue_prop();     
-  }
-
-public:
-  imax(solver_data* s, intvar _z, vec<intvar>& _xs)
-    : propagator(s), z(_z), xs(_xs) { 
-    z.attach(E_LU, watch_callback(wake_z, this, 0));
-
-    for(int ii = 0; ii < xs.size(); ii++)
-      xs[ii].attach(E_LU, watch_callback(wake_x, this, ii));
-  }
- 
-  bool propagate(vec<clause_elt>& confl) {
-    std::cout << "[[Running imax]]" << std::endl;
-    int lb = INT_MIN;
-    int ub = INT_MIN;
-    int z_ub = z.ub();
-    for(intvar x : xs) {
-      lb = std::max(lb, (int) x.lb()); 
-      ub = std::max(ub, (int) x.ub());
-      if(z_ub < x.ub()) {
-        if(!x.set_ub(z_ub, z <= z_ub))
-          return false;
-      }
-    }
-
-    if(ub < z.ub()) {
-      expl_builder c(s->persist.alloc_expl(1 + xs.size()));
-      for(intvar x : xs) {
-        c.push(x > ub); 
-      }
-      if(!z.set_ub(ub, *c))
-        return false;
-    }
-
-    if(lb > z.lb()) {
-      expl_builder c(s->persist.alloc_expl(1 + xs.size()));
-      for(intvar x : xs) {
-        c.push(x < lb);
-      }
-
-      if(!z.set_lb(lb, *c))
-        return false;
-    }
-
-    return true;
-  }
-
-  bool check_sat(void) {
-    int lb = INT_MIN; 
-    int ub = INT_MIN;
-    for(intvar x : xs) {
-      lb = std::max(lb, (int) x.lb());
-      ub = std::max(ub, (int) x.ub());
-    }
-    return lb <= z.ub() && z.lb() <= ub;
-  }
-
-  void root_simplify(void) { }
-
-  void cleanup(void) { is_queued = false; }
-
-protected:
-  intvar z;
-  vec<intvar> xs;
-};
-
-#else
 // Incremental version
 class imax : public propagator {
   static void wake_z(void* ptr, int k) {
@@ -721,7 +644,6 @@ protected:
   char supp_change;
   boolset lb_change;
 };
-#endif
 
 // Avoids introducing 
 class ine_bound : public propagator {
@@ -970,5 +892,20 @@ bool int_le(solver_data* s, intvar x, intvar y, patom_t r) {
   return true;
 }
 
+bool int_le(solver_data* s, intvar x, intvar y, pval_t k) {
+  if(y.ub() + k < x.lb())
+    return false;
+  
+  if(!enqueue(*s, y >= x.lb() - k, reason()))
+    return false;
+  if(!enqueue(*s, x <= y.ub() + k, reason()))
+    return false;
+
+  pid_t px = x.pid;
+  pid_t py = y.pid;  
+  s->infer.pred_ineqs[px].push({py, k});
+  s->infer.pred_ineqs[py^1].push({px^1, k});
+  return true;
+}
 
 }

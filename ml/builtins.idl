@@ -20,6 +20,8 @@ boolean int_abs([in] solver s, atom r, intvar z, intvar x);
 boolean int_max([in] solver s, atom r,
   intvar z, [in,size_is(sz)] intvar xs[], int sz);
 
+boolean int_le([in] solver s, intvar z, intvar x, int k);
+
 boolean int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] int elts[], int sz);
 boolean var_int_element([in] solver s, atom r,
