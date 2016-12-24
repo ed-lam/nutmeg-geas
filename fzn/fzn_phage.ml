@@ -192,16 +192,17 @@ let increase_ivar ivar solver model =
 let solve_optimize print_model constrain solver =
   let fmt = Format.std_formatter in
   let rec aux model =
+    print_model fmt model ;
     if not (constrain solver model) then
-      (print_model fmt model ;
+      ((* print_model fmt model ; *)
        Format.fprintf fmt "============@.")
     else
       match Sol.solve solver (-1) with
       | Sol.UNKNOWN ->
-         (print_model fmt model ;
+         ((* print_model fmt model ; *)
           Format.fprintf fmt "INCOMPLETE@.")
       | Sol.UNSAT ->
-         (print_model fmt model ;
+         ((* print_model fmt model ; *)
           Format.fprintf fmt "==============@.")
       | Sol.SAT -> aux (Sol.get_model solver)
   in

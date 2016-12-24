@@ -230,7 +230,7 @@ void solver::clear_assumptions(void) {
 
 bool enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
-  std::cout << "|- " << p << std::endl;
+  std::cout << "|- " << p << "{" << s.infer.trail.size() << "}" << std::endl;
 #endif
 
   assert(p.pid < s.pred_queued.size());
@@ -256,7 +256,7 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 }
 
 // Modifies elt.watch;
-inline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
+forceinline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
   if(elt.watch)
     return elt.watch->ws;
@@ -294,9 +294,14 @@ bool update_watchlist(solver_data& s,
     }
     // Normal case: look for a new watch
     clause& c(*ch.c);
+    assert(c[0].watch);
+    assert(c[1].watch);
     if(c[1].atom != elt.atom) {
       assert(c[0].atom == elt.atom);
+      elt.watch = c[0].watch;
       c[0] = c[1];
+    } else {
+      elt.watch = c[1].watch;
     }
 
     if(s.state.is_entailed(c[0].atom)) {
@@ -306,6 +311,8 @@ bool update_watchlist(solver_data& s,
       c[1] = elt;
       ch.e0 = c[0].atom;
       ws[jj++] = ch;
+      assert(c[0].watch);
+      assert(c[1].watch);
       goto next_clause;
     }
 
@@ -315,6 +322,8 @@ bool update_watchlist(solver_data& s,
         c[1] = elt;
         ch.e0 = c[li].atom;
         ws[jj++] = ch;
+        assert(c[0].watch);
+        assert(c[1].watch);
         goto next_clause;
       }
       if(!s.state.is_inconsistent(c[li].atom)) {
@@ -323,19 +332,23 @@ bool update_watchlist(solver_data& s,
         c[1] = new_watch;
         c[li] = elt;
         // Modifies c[1].watch in place
-        vec<clause_head>& dest(find_watchlist(s, c[1]));
-        dest.push(ch);
+        find_watchlist(s, c[1]).push(ch);
+        assert(c[0].watch);
+        assert(c[1].watch);
         goto next_clause;
       }
     }
     // No watches found; either unit or conflicting.
     c[1] = elt;
     ws[jj++] = ch;
+    assert(c[0].watch);
+    assert(c[1].watch);
     // Save the trail location, so we can tell if it's locked.
     c.extra.depth = s.infer.trail.size();
     if(!enqueue(s, c[0].atom, &c)) {
       for(ii++; ii < ws.size(); ii++)
         ws[jj++] = ws[ii];
+      ws.shrink(ii - jj);
       return false;
     }
 
@@ -423,6 +436,7 @@ void prop_cleanup(solver_data& s) {
   }
   for(pid_t pi : s.wake_queue) {
     touch_pred(s, pi);
+    s.wake_queued[pi] = false;
   }
   s.wake_queue.clear();
 
@@ -503,6 +517,10 @@ prop_restart:
 void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   // Allocate the clause
   // WARN("Collection of learnt clauses not yet implemented.");
+#ifdef CHECK_STATE
+  for(int ei = 1; ei < learnt.size(); ei++)
+    assert(s->state.is_inconsistent(learnt[ei].atom));
+#endif
 
   // Construct the clause
   int jj = 0;
@@ -533,13 +551,16 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   } else {
     // Normal clause
     clause* c(clause_new(learnt));
+    c->extra.is_learnt = true;
+    c->extra.depth = s->infer.trail.size();
+
     // Assumption:
     // learnt[0] is the asserting literal;
     // learnt[1] is at the current level
     clause_head h(learnt[2].atom, c);
 
-    find_watchlist(*s, learnt[0]).push(h);
-    find_watchlist(*s, learnt[1]).push(h); 
+    find_watchlist(*s, (*c)[0]).push(h);
+    find_watchlist(*s, (*c)[1]).push(h); 
     enqueue(*s, learnt[0].atom, c);
     s->infer.learnts.push(c);
   }
@@ -610,6 +631,7 @@ inline void simplify_at_root(solver_data& s) {
     s.state.p_last[pi] = s.state.p_vals[pi];
     s.state.p_root[pi] = s.state.p_vals[pi];
     
+#if 0
     // Do garbage collection on the watch_node*-s.
     pval_t head_val = s.infer.pred_watch_heads[pi].val;
     watch_node* head = s.infer.pred_watch_heads[pi].ptr;
@@ -634,8 +656,10 @@ inline void simplify_at_root(solver_data& s) {
     */
     // Now that entailed watches are deleted, we're committed
     // to simplifying all the clauses.
+#endif
   }
 
+#if 0
   // Watches may be invalidated when a clause is
   // deleted because it is satisfied at the root.
   // This is dealt with in cimplify_clause.
@@ -650,6 +674,7 @@ inline void simplify_at_root(solver_data& s) {
     lj = simplify_clause(s, c, lj);
   }
   s.infer.learnts.shrink_(s.infer.learnts.end() - lj);
+#endif
 
   for(propagator* p : s.propagators)
     p->root_simplify();
@@ -681,6 +706,9 @@ solver::result solver::solve(void) {
   sdata& s(*data);
   int confl_num = 0;
 
+  // int max_conflicts = 5000;
+  int max_conflicts = 0;
+
   int restart_lim = s.opts.restart_limit;
   // FIXME: On successive runs, this may be smaller than
   // the existing database
@@ -688,10 +716,20 @@ solver::result solver::solve(void) {
 
   int next_restart = restart_lim;
   int next_gc = gc_lim - s.infer.learnts.size();
+  int budget = max_conflicts;
+
   int next_pause = std::min(next_restart, next_gc);
+  if(budget)
+    next_pause = std::min(next_pause, budget);
 
   while(true) {
     if(!propagate(s)) {
+#ifdef CHECK_STATE
+      int pi = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
+      for(; pi < s.infer.trail.size(); pi++)
+        assert(s.persist.pred_touched[s.infer.trail[pi].pid]);
+#endif
+
       ++confl_num;
 #ifdef LOG_ALL
       std::cout << "Conflict: " << s.infer.confl << std::endl;
@@ -705,6 +743,11 @@ solver::result solver::solve(void) {
       int bt_level = compute_learnt(&s, s.infer.confl);
 #ifdef LOG_ALL
       std::cout << "Learnt: " << s.infer.confl << std::endl;
+      std::cout << "*" << bt_level << ">" << std::endl;
+#endif
+#ifdef CHECK_STATE
+      for(int ei = 1; ei < s.infer.confl.size(); ei++)
+        assert(s.state.is_inconsistent(s.infer.confl[ei].atom));
 #endif
       bt_to_level(&s, bt_level);
 
@@ -720,10 +763,17 @@ solver::result solver::solve(void) {
         next_restart -= confl_num;
         next_gc -= confl_num;
 
+        if(budget) {
+          std::cout << budget << ", " << confl_num << std::endl;
+          budget -= confl_num;
+          if(!budget)
+            return UNKNOWN;
+        }
+
         confl_num = 0;
 
         if(next_restart == 0) {
-#ifdef LOG_ALL
+#ifdef LOG_RESTART
           std::cout << "[| Restarting |]" << std::endl;
 #endif
           s.stats.restarts++;
@@ -733,19 +783,28 @@ solver::result solver::solve(void) {
             bt_to_level(&s, 0);
         }
         if(next_gc == 0) {
-#ifdef LOG_ALL
-          std::cout << "[| GC |]" << std::endl;
+#ifdef LOG_GC
+          std::cout << "[| GC : " << s.infer.learnts.size() << "|]";
 #endif
           reduce_db(&s);
-
           gc_lim = gc_lim * s.opts.learnt_growthrate;
           next_gc = gc_lim - s.infer.learnts.size();
+#ifdef LOG_GC
+          std::cout << " ~~> " << s.infer.learnts.size() << std::endl;
+#endif
         }
 
         next_pause = std::min(next_restart, next_gc);
+        if(budget)
+          next_pause = std::min(next_pause, budget);
       }
       continue;
     }
+#ifdef CHECK_STATE
+    int pi = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
+    for(; pi < s.infer.trail.size(); pi++)
+      assert(s.persist.pred_touched[s.infer.trail[pi].pid]);
+#endif
 
     if(decision_level(s) == 0)
       simplify_at_root(s);
@@ -819,8 +878,8 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
     // Any two watches should be fine
     clause_head h(elts[2].atom, c);
 
-    find_watchlist(s, elts[0]).push(h);
-    find_watchlist(s, elts[1]).push(h); 
+    find_watchlist(s, (*c)[0]).push(h);
+    find_watchlist(s, (*c)[1]).push(h); 
   }
   return true;
 }
@@ -858,8 +917,8 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
     // FIXME: Choose appropriate watches
     clause_head h(elts[2].atom, c);
 
-    find_watchlist(s, elts[0]).push(h);
-    find_watchlist(s, elts[1]).push(h); 
+    find_watchlist(s, (*c)[0]).push(h);
+    find_watchlist(s, (*c)[1]).push(h); 
   }
   return true;
 }

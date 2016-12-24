@@ -40,13 +40,19 @@ result solve(solver s, int lim) {
   return unget_result(get_solver(s)->solve()); 
 }
 
+void reset(solver s) {
+  phage::solver_data* sd = get_solver(s)->data;
+  if(sd->infer.trail_lim.size() > 0)
+    phage::bt_to_level(sd, 0);
+}
+
 int post_atom(solver s, atom at) {
+  reset(s);
   return get_solver(s)->post(get_atom(at));
 }
 
 int post_clause(solver s, atom* cl, int sz) {
-  if(get_solver(s)->data->infer.trail_lim.size() > 0)
-    bt_to_level(get_solver(s)->data, 0);
+  reset(s);
   vec<phage::clause_elt> elts;
   for(int ii : irange(sz))
     elts.push(get_atom(cl[ii]));

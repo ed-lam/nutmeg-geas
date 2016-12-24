@@ -1,5 +1,6 @@
 #include <algorithm>
 #include "solver/solver_data.h"
+#include "solver/solver_debug.h"
 #include "engine/conflict.h"
 
 namespace phage {
@@ -121,6 +122,7 @@ std::ostream& operator<<(std::ostream& o, reason r) {
       {
         vec<clause_elt> es;
         auto it = r.cl->begin();
+        o << "(" << *it << ")";
         for(++it; it != r.cl->end(); ++it)
           es.push(*it);
         o << es;
@@ -128,7 +130,17 @@ std::ostream& operator<<(std::ostream& o, reason r) {
       break;
     case reason::R_Thunk:
       {
-        o << "{{?}}";
+        o << "{thunk}";
+        break;
+      }
+    case reason::R_LE:
+      {
+        o << "{<=}";
+        break;
+      }
+    case reason::R_NIL:
+      {
+        o << "true";
         break;
       }
     default:
@@ -184,6 +196,8 @@ static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, r
           add(s, e);
       }
       break;
+    case reason::R_NIL:
+      break;
     default:
       NOT_YET;
   }
@@ -223,23 +237,29 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   assert(s->confl.clevel > 0);
 
   // Allocate conflict for everything
-
+  // NOTE: This should be safe, since if we're conflicting
+  // there must be at least one entry on the trail.
   unsigned int pos = s->infer.trail.size()-1;
-  while(!needed(s, s->infer.trail[pos]))
+  while(!needed(s, s->infer.trail[pos])) {
+    assert(pos >= 1);
     pos--;
+  }
 
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
     pval_t ex_val(s->confl.pred_eval[e.pid]);
     remove(s, e.pid);
 #ifdef LOG_ALL
-    std::cout << " <~ " << e.expl << std::endl;
+    std::cout << " <~ {" << pos << "} " << e.expl << std::endl;
 #endif
     add_reason(s, pos, ex_val, e.expl); 
 
+    assert(pos >= 1);
     pos--;
-    while(!needed(s, s->infer.trail[pos]))
+    while(!needed(s, s->infer.trail[pos])) {
+      assert(pos >= 1);
       pos--;
+    }
     e = s->infer.trail[pos];
   }
   
@@ -252,9 +272,11 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   // Identify the backtrack level and position the
   // second watch.
   int bt_level = 0;
-  pos = s->persist.pred_ltrail.size()-1;
+  pos = s->persist.pred_ltrail.size();
   for(int l = s->persist.pred_ltrail_lim.size()-1; l > 0; l--) {
-    for(; pos > s->persist.pred_ltrail_lim[l]; pos--) {
+    // The awkwardness here is to avoid pos underflowing.
+    while(pos > s->persist.pred_ltrail_lim[l]) {
+      --pos;
       persistence::pred_entry e(s->persist.pred_ltrail[pos]);
       if(l_needed(s, e)) {
         // Literal would become unfixed at the previous level
@@ -265,6 +287,9 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
       }
     }
   }
+#ifdef CHECK_STATE
+  assert(bt_level < s->infer.trail_lim.size());
+#endif
 level_found:
   // Now push the remaining elts
   for(unsigned int p : s->confl.pred_seen)

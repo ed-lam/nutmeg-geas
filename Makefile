@@ -1,6 +1,6 @@
-#CXX       = g++
+CXX       = g++
 #CXX       = g++-4.9
-CXX       = clang++
+#CXX       = clang++
 MTL       = ./mtl
 ENGINE	  = ./engine
 SOLVER	  = ./solver
@@ -38,7 +38,7 @@ TESTDEPS = $(addsuffix .d, $(TESTS))
 
 TARGETS = phage $(TESTS)
 MLTARGETS = ml/libphage_ml.a ml/phage.cma ml/phage.cmxa ml/phage.a
-FZN_TARGETS = fzn/fzn_phage
+FZN_TARGETS = fzn/fzn_phage fzn/fzn_phage.debug
 
 #TARGETS = $(TESTS)
 LIB = libphage.a

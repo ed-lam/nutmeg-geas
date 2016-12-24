@@ -106,6 +106,7 @@ public:
 
     // Size operations:
     int      size   (void) const       { return sz; }
+    int&     _size  (void)             { return sz; }
     void     shrink (int nelems)       { assert(nelems <= sz); for (int i = 0; i < nelems; i++) sz--, data[sz].~T(); }
     void     shrink_(int nelems)       { assert(nelems <= sz); sz -= nelems; }
     void     pop    (void)             { sz--, data[sz].~T(); }
