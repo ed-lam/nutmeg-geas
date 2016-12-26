@@ -247,8 +247,8 @@ let initialize () =
      "array_bool_and", array_bool_and ;
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *)
+     (* "array_int_element", array_int_element ; *)
      (*
-     "array_int_element", array_int_element ;
      "array_var_int_element", array_var_int_element *) ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers

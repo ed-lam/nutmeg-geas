@@ -646,20 +646,12 @@ inline void simplify_at_root(solver_data& s) {
     }
     s.infer.pred_watch_heads[pi].val = head_val;
     s.infer.pred_watch_heads[pi].ptr = head;
-    /*
-    while(s.infer.pred_watch_heads[pi] != s.infer.pred_watches[pi]) {
-      watch_node* w = s.infer.pred_watch_heads[pi];
-      s.infer.pred_watch_heads[pi] = w->succ;
-      s.infer.watch_maps[pi].rem(watch_val);
-      delete w;
-    }
-    */
     // Now that entailed watches are deleted, we're committed
     // to simplifying all the clauses.
 #endif
   }
 
-#if 0
+#if 1
   // Watches may be invalidated when a clause is
   // deleted because it is satisfied at the root.
   // This is dealt with in cimplify_clause.
@@ -786,8 +778,10 @@ solver::result solver::solve(void) {
 #ifdef LOG_GC
           std::cout << "[| GC : " << s.infer.learnts.size() << "|]";
 #endif
-          reduce_db(&s);
-          gc_lim = gc_lim * s.opts.learnt_growthrate;
+          if(s.infer.learnts.size() >= gc_lim) {
+            reduce_db(&s);
+            gc_lim = gc_lim * s.opts.learnt_growthrate;
+          }
           next_gc = gc_lim - s.infer.learnts.size();
 #ifdef LOG_GC
           std::cout << " ~~> " << s.infer.learnts.size() << std::endl;

@@ -4,8 +4,8 @@
 
 // #define CHECK_STATE
 // #define LOG_ALL
-#define LOG_RESTART
-#define LOG_GC
+// #define LOG_RESTART
+// #define LOG_GC
 
 #ifdef LOG_ALL
 

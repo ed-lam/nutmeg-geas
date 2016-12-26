@@ -1,5 +1,6 @@
 #include "solver/solver.h"
 #include "solver/model.h"
+#include "solver/branch.h"
 #include "c/phage.h"
 #include "c/marshal.h"
 
@@ -33,6 +34,43 @@ intvar new_intvar(solver s, int lb, int ub) {
 
 void destroy_intvar(intvar v) {
   delete get_intvar(v);
+}
+
+forceinline phage::VarChoice get_varc(var_choice c) {
+  switch(c) {
+    case VAR_INORDER: return phage::Var_InputOrder;
+    case VAR_FIRSTFAIL: return phage::Var_FirstFail;
+    case VAR_LEAST: return phage::Var_Smallest;
+    case VAR_GREATEST: return phage::Var_Largest;
+  }
+}
+
+forceinline phage::ValChoice get_valc(val_choice c) {
+  switch(c) {
+    case VAL_MIN: return phage::Val_Min;
+    case VAL_MAX: return phage::Val_Max;
+    case VAL_SPLIT: return phage::Val_Split;
+  }
+}
+
+brancher new_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) {
+  vec<phage::pid_t> vars;
+  intvar* end = vs+sz;
+  for(; vs != end; ++vs)
+    vars.push(get_intvar(*vs)->pid);
+  return ((brancher) phage::basic_brancher(get_varc(varc), get_valc(valc), vars));
+}
+
+brancher seq_brancher(brancher* bs, int sz) {
+  vec<phage::brancher*> branchers;
+  brancher* end = bs + sz;
+  for(; bs != end; ++bs)
+    branchers.push((phage::brancher*) (*bs));
+  return ((brancher) phage::seq_brancher(branchers));
+}
+
+void add_brancher(solver s, brancher b) {
+  get_solver(s)->data->branchers.push((phage::brancher*) b);
 }
 
 result solve(solver s, int lim) {
@@ -95,6 +133,16 @@ pred_t new_pred(solver s, int lb, int ub) {
 
 atom pred_ge(pred_t p, int k) {
   return unget_atom(phage::patom_t(p, k));
+}
+
+stats get_statistics(solver s) {
+  phage::solver_data* data(get_solver(s)->data);
+
+  stats st = {
+    data->stats.conflicts,
+    data->stats.restarts
+  };
+  return st;
 }
 
 #ifdef __cplusplus

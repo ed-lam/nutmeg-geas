@@ -11,10 +11,17 @@ public:
   virtual patom_t branch(solver_data* s) = 0;
 };
 
+// Standard branchers
+enum VarChoice { Var_InputOrder, Var_FirstFail, Var_Smallest, Var_Largest };
+enum ValChoice { Val_Min, Val_Max, Val_Split };
+
 brancher* default_brancher(solver_data* s);
 brancher* pred_act_branch(solver_data* s);
 brancher* atom_act_branch(solver_data* s);
 
+brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>& preds);
+brancher* seq_brancher(vec<brancher*>& branchers);
+  
 patom_t branch(solver_data* s);
 
 }

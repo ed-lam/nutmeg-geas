@@ -7,15 +7,27 @@ quote(c, "void free_model(model* m) { destroy_model(*m); }");
 quote(c, "void free_intvar(intvar* v) { destroy_intvar(*v); }");
 
 typedef enum { SAT, UNSAT, UNKNOWN } result;
+typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
+typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
+
+typedef struct {
+  int conflicts;
+  int restarts;
+} stats;
 
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
 typedef [abstract,ptr,finalize(free_model)] struct model_s* model;
 typedef [abstract,ptr,finalize(free_intvar)] struct intvar_s* intvar;
+typedef [abstract,ptr] struct brancher_s* brancher;
 
 quote(mlmli, "type t  = solver");
 
 solver new_solver(void);
 // bool propagate([in] solver);
+
+brancher new_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);
+brancher seq_brancher([in,size_is(sz)] brancher bs[], int sz);
+void add_brancher([in] solver s, [in] brancher b);
 
 result solve([in] solver s, int clim);
 
@@ -35,6 +47,8 @@ atom ivar_eq([in] intvar v, [in] int k);
 
 pred_t new_pred([in] solver s, [in] int lb, [in] int ub);
 atom pred_ge([in] pred_t p, [in] int k);
+
+stats get_statistics([in] solver s);
 
 quote(mli, "val ivar_lt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ge : intvar -> int -> Atom.t");

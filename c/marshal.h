@@ -23,6 +23,10 @@ inline phage::model* get_model(model m) {
   return (phage::model*) m;
 }
 
+inline phage::brancher* get_brancher(brancher b) {
+  return (phage::brancher*) b;
+}
+
 inline result unget_result(phage::solver::result r) {
   switch(r) {
     case phage::solver::SAT:

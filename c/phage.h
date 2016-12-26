@@ -18,6 +18,14 @@ typedef struct intvar_s* intvar;
 struct model_s;
 typedef struct model_s* model;
 
+struct brancher_s;
+typedef struct brancher_s* brancher;
+
+typedef struct {
+  int conflicts;
+  int restarts;
+} stats;
+
 solver new_solver(void);
 void destroy_solver(solver);
 
@@ -25,6 +33,13 @@ intvar new_intvar(solver, int lb, int ub);
 void destroy_intvar(intvar);
 
 atom new_boolvar(solver);
+
+typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
+typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
+
+brancher new_brancher(var_choice, val_choice, intvar*, int);
+brancher seq_brancher(brancher*, int);
+void add_brancher(solver, brancher);
 
 result solve(solver, int);
 
@@ -42,6 +57,8 @@ atom ivar_eq(intvar, int);
 
 pred_t new_pred(solver, int, int);
 atom pred_ge(pred_t, int);
+
+stats get_statistics(solver);
 
 #ifdef __cplusplus
 }

@@ -19,9 +19,11 @@ let alext = alnum | ':' | '_' | '''
 
 let sym = lower alext*
 let ident = (alpha | '_') (alnum | '_')*
+let comment = '%' [^ '\n']* '\n'
 
 rule token = parse
     [' ' '\t'] { token lexbuf }
+  | comment { token lexbuf }
   | ['\n'] { token lexbuf }
   | (('-'?)digit)+ as lxm { Int (int_of_string lxm) }
   | ident as lxm  { get_ident lxm }

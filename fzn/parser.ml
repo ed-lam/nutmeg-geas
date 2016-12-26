@@ -197,7 +197,7 @@ let read_solve model toks =
     | Kwd Satisfy -> M.Satisfy
     | tok ->
       failwith (Format.sprintf
-                 "Expected (satisfy | inimize | maximize), got %s."
+                 "Expected (satisfy | minimize | maximize), got %s."
                  (tok_str tok)) in
   model.M.objective <- (goal, anns) ;
   chomp toks (Kwd Semi)

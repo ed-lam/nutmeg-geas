@@ -21,6 +21,191 @@ public:
   }
 };
 
+static forceinline pval_t lb(solver_data* s, pid_t pi) {
+  return s->state.p_vals[pi];
+}
+static forceinline pval_t ub(solver_data* s, pid_t pi) {
+  return pval_max - s->state.p_vals[pi^1];
+}
+
+template<int ValC>
+struct branch_val {
+  static forceinline patom_t branch(solver_data* s, pid_t p) {
+    switch(ValC) {
+      case Val_Min:
+        return ~patom_t(p, lb(s, p)+1);
+      case Val_Max:
+        return patom_t(p, ub(s, p));
+      case Val_Split:
+        {
+          pval_t mid = lb(s, p) + ((ub(s, p) - lb(s, p) + 1)/2);
+          return patom_t(p, mid);
+        }
+      default:
+        NOT_YET; 
+        return at_Error;
+    }
+  }
+};
+
+template<int ValC>
+class inorder_branch : public brancher {
+public:
+  inorder_branch(vec<pid_t>& _preds)
+    : vars(_preds), start(0) { }
+
+  patom_t branch(solver_data* s) {
+    pid_t* p = vars.begin() + start;
+    pid_t* end = vars.end();
+
+    if(p == end)
+      return at_Undef;
+    
+    if(lb(s, *p) != ub(s, *p))
+      return branch_val<ValC>::branch(s, *p);
+
+    patom_t at = at_Undef;
+    for(++p; p != end; ++p) {
+      if(lb(s, *p) != ub(s, *p)) {
+        // Branch found
+        at = branch_val<ValC>::branch(s, *p);  
+        break;
+      }
+    }
+    trail_change(s->persist, start, (unsigned int) (p - vars.begin()));
+    return at;
+  }
+  
+  vec<pid_t> vars;
+  unsigned int start;
+};
+
+template<int VarC, int ValC>
+class basic_branch : public brancher {
+public:
+  basic_branch(vec<pid_t>& _preds)
+    : vars(_preds), start(0) { }
+
+  forceinline pval_t score(solver_data* s, pid_t p) {
+    switch(VarC) {
+      case Var_Smallest:
+        return lb(s, p);
+      case Var_Largest:
+        return pval_max - ub(s, p);
+      case Var_FirstFail:
+        return ub(s, p) - lb(s, p); 
+      default:
+        return 0;
+    }
+  }
+   
+  patom_t branch(solver_data* s) {
+    pid_t* end = vars.end();
+
+    pid_t* choice = end;
+    pval_t choice_score = pval_err;
+     
+    pid_t* p = vars.begin() + start;
+    for(; p != end; ++p) {
+      if(lb(s, *p) == ub(s, *p))
+        continue;
+      pval_t p_score = score(s, *p);
+      if(p_score < choice_score) {
+        choice = p;
+        choice_score = p_score;
+      }
+    }
+
+    if(choice == end)
+      return at_Undef;
+
+    return branch_val<ValC>::branch(s, *choice);
+  }
+
+  vec<pid_t> vars;
+  unsigned int start;
+};
+
+class seq_branch : public brancher {
+public:
+  seq_branch(vec<brancher*>& _bs)
+    : branchers(_bs), start(0) { }
+
+  patom_t branch(solver_data* s) {
+    brancher** end = branchers.end();
+    brancher** b = branchers.begin() + start;
+
+    if(b == end)
+      return at_Undef;
+    
+    patom_t at = (*b)->branch(s); 
+    if(at != at_Undef)
+      return at;
+
+    for(++b; b != end; ++b) {
+      at = (*b)->branch(s);
+      if(at != at_Undef) {
+        break; 
+      }
+    }
+    
+    trail_change(s->persist, start, ((unsigned int) (b - branchers.begin())));
+    return at;
+  }
+
+  vec<brancher*> branchers;
+  unsigned int start;
+};
+
+brancher* seq_brancher(vec<brancher*>& bs) {
+  return new seq_branch(bs); 
+}
+
+brancher* select_inorder_brancher(ValChoice val_choice, vec<pid_t>& preds) {
+  switch(val_choice) {
+    case Val_Min:
+      return new inorder_branch<Val_Min>(preds);
+    case Val_Max:
+      return new inorder_branch<Val_Max>(preds);
+    case Val_Split:
+      return new inorder_branch<Val_Split>(preds);
+    default:
+      NOT_YET;
+      return nullptr;
+  }
+}
+
+template<int VarC>
+brancher* select_basic_brancher(ValChoice val_choice, vec<pid_t>& preds) {
+  switch(val_choice) {
+    case Val_Min:
+      return new basic_branch<VarC, Val_Min>(preds);
+    case Val_Max:
+      return new basic_branch<VarC, Val_Max>(preds);
+    case Val_Split:
+      return new basic_branch<VarC, Val_Split>(preds);
+    default:
+      NOT_YET;
+      return nullptr;
+  }
+}
+
+brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>& preds) {
+  switch(var_choice) {
+    case Var_InputOrder:
+      return select_inorder_brancher(val_choice, preds);
+    case Var_FirstFail:
+      return select_basic_brancher<Var_FirstFail>(val_choice, preds);
+    case Var_Smallest:
+      return select_basic_brancher<Var_Smallest>(val_choice, preds);
+    case Var_Largest:
+      return select_basic_brancher<Var_Smallest>(val_choice, preds);
+    default:
+      NOT_YET;
+      return nullptr;
+  }
+}
+
 class pred_act_brancher : public brancher {
 public:
   pred_act_brancher(solver_data* _s)

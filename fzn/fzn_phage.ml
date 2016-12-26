@@ -93,6 +93,46 @@ let build_problem solver problem =
   (* Then, return the bindings *)
   env
 
+let get_var_branch ann =
+  match ann with
+  | Pr.Ann_id "input_order" -> Sol.VAR_INORDER
+  | Pr.Ann_id "first_fail" -> Sol.VAR_FIRSTFAIL
+  | Pr.Ann_id "smallest" -> Sol.VAR_LEAST
+  | Pr.Ann_id "largest" -> Sol.VAR_GREATEST
+  | _ -> failwith "Unknown var-branch annotation."
+
+let get_val_branch ann =
+  match ann with
+  | Pr.Ann_id "indomain_min" -> Sol.VAL_MIN
+  | Pr.Ann_id "indomain_max" -> Sol.VAL_MAX 
+  | Pr.Ann_id "indomain_split" -> Sol.VAL_SPLIT
+  | _ -> failwith "Unknown val-branch annotation."
+
+let get_ann_array f ann =
+  match ann with
+  | Pr.Ann_arr xs -> Array.map f xs
+  | _ -> failwith "Expected annotation array."
+
+let get_ann_ivar ann = failwith "Implement"
+ 
+let rec parse_branching problem env ann =
+  match ann with  
+  | Pr.Ann_call ("seq_search", args) ->
+      let sub = get_ann_array (fun x -> x) args.(0) in
+      Sol.seq_brancher (Array.map (parse_branching problem env) sub)
+  | Pr.Ann_call ("int_search", args) ->
+      let varb = get_var_branch args.(1) in
+      let valb = get_val_branch args.(2) in
+      let vars =
+        Pr.get_array (fun x -> env.ivars.(Pr.get_ivar x))
+          (Pr.resolve_ann problem args.(0)) in
+      Sol.new_brancher varb valb vars
+  | _ -> failwith "Unknown search annotation"
+
+let build_branching problem env solver anns =
+  List.iter (fun ann ->
+    Sol.add_brancher solver (parse_branching problem env ann)) anns
+
 (* Print a variable assignment *)
 let print_binding fmt id expr =
   let rec aux fmt expr =
@@ -211,6 +251,9 @@ let solve_optimize print_model constrain solver =
   | Sol.UNSAT -> Format.fprintf fmt "UNSAT@."
   | Sol.SAT -> aux (Sol.get_model solver)
  
+let print_stats fmt stats =
+  Format.fprintf fmt "%d conflicts, %d restarts" stats.Sol.conflicts stats.Sol.restarts
+
 let main () =
   (* Parse the command-line arguments *)
   Arg.parse
@@ -231,6 +274,7 @@ let main () =
   let solver = Sol.new_solver () in
   (* Do stuff *)
   let env = build_problem solver problem in
+  build_branching problem env solver (snd problem.Pr.objective) ;
   (*
   let problem_HR =
     if !Opts.noop then
@@ -254,6 +298,7 @@ let main () =
     (fun fmt model ->
      print_solution fmt problem env model ;
      Format.fprintf fmt "------------@.") in
+  begin
   match fst problem.Pr.objective with
   | Pr.Satisfy ->
      if !Opts.max_solutions = 1 then
@@ -265,5 +310,7 @@ let main () =
      solve_optimize print_model (decrease_ivar env.ivars.(obj)) solver
   | Pr.Maximize obj ->
      solve_optimize print_model (increase_ivar env.ivars.(obj)) solver
+  end ;
+  print_stats Format.std_formatter (Sol.get_statistics solver)
 
 let _ = main ()
