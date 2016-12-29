@@ -106,6 +106,7 @@ let get_val_branch ann =
   | Pr.Ann_id "indomain_min" -> Sol.VAL_MIN
   | Pr.Ann_id "indomain_max" -> Sol.VAL_MAX 
   | Pr.Ann_id "indomain_split" -> Sol.VAL_SPLIT
+  | Pr.Ann_id ("indomain"|"default") -> Sol.VAL_MIN
   | _ -> failwith "Unknown val-branch annotation."
 
 let get_ann_array f ann =
@@ -113,8 +114,18 @@ let get_ann_array f ann =
   | Pr.Ann_arr xs -> Array.map f xs
   | _ -> failwith "Expected annotation array."
 
-let get_ann_ivar ann = failwith "Implement"
- 
+let collect_array_ivars env expr =
+  let vars = 
+    match expr with
+    | Pr.Arr es ->
+      Array.fold_left (fun vs e ->
+        match e with
+        | Pr.Ivar v -> env.ivars.(v) :: vs
+        | _ -> vs) [] es
+    | _ -> failwith "Expected array in collect_array_ivars"
+    in
+    Array.of_list vars
+
 let rec parse_branching problem env ann =
   match ann with  
   | Pr.Ann_call ("seq_search", args) ->
@@ -123,9 +134,7 @@ let rec parse_branching problem env ann =
   | Pr.Ann_call ("int_search", args) ->
       let varb = get_var_branch args.(1) in
       let valb = get_val_branch args.(2) in
-      let vars =
-        Pr.get_array (fun x -> env.ivars.(Pr.get_ivar x))
-          (Pr.resolve_ann problem args.(0)) in
+      let vars = collect_array_ivars env (Pr.resolve_ann problem args.(0)) in
       Sol.new_brancher varb valb vars
   | _ -> failwith "Unknown search annotation"
 
@@ -189,11 +198,18 @@ let output_vars problem env : (Sol.intvar list) * (Atom.t list) =
 let block_solution problem env =
   let ivars, atoms = output_vars problem env in
   fun solver model ->
+  (*
     let iv_atoms =
-      List.map (fun x -> Sol.ivar_ne x (Sol.int_value model x)) ivars in
+      List.map (fun x -> Sol.ivar_ne x (Sol.int_value model x)) ivars in 
+      *)
+    let iv_low =
+      List.map (fun x -> Sol.ivar_lt x (Sol.int_value model x)) ivars in
+    let iv_high =
+      List.map (fun x -> Sol.ivar_gt x (Sol.int_value model x)) ivars in
     let bv_atoms =
       List.map (fun b -> if Sol.atom_value model b then Atom.neg b else b) atoms in
-    Sol.post_clause solver (Array.of_list (iv_atoms @ bv_atoms))
+    (* Sol.post_clause solver (Array.of_list (iv_atoms @ bv_atoms)) *)
+    Sol.post_clause solver (Array.of_list (iv_low @ (iv_high @ bv_atoms)))
       
 let solve_satisfy print_model solver =
   let fmt = Format.std_formatter in
@@ -252,7 +268,8 @@ let solve_optimize print_model constrain solver =
   | Sol.SAT -> aux (Sol.get_model solver)
  
 let print_stats fmt stats =
-  Format.fprintf fmt "%d conflicts, %d restarts" stats.Sol.conflicts stats.Sol.restarts
+  if !Opts.print_stats then
+    Format.fprintf fmt "%d solutions, %d conflicts, %d restarts@." stats.Sol.solutions stats.Sol.conflicts stats.Sol.restarts
 
 let main () =
   (* Parse the command-line arguments *)
@@ -296,8 +313,11 @@ let main () =
    *)
   let print_model =
     (fun fmt model ->
-     print_solution fmt problem env model ;
-     Format.fprintf fmt "------------@.") in
+      if not !Opts.quiet then
+        begin
+          print_solution fmt problem env model ;
+          Format.fprintf fmt "------------@."
+        end) in
   begin
   match fst problem.Pr.objective with
   | Pr.Satisfy ->

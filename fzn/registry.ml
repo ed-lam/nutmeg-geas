@@ -40,6 +40,8 @@ let force_ivar solver expr =
   | Pr.Ivar v -> v
   | _ -> failwith "Expected int-sorted value."
 
+let ignore_constraint _ _ _ = true
+
 let bool_clause solver args anns =
   let pos = Pr.get_array get_atom args.(0) in
   let neg = Pr.get_array (fun x -> Atom.neg (get_atom x)) args.(1) in
@@ -72,6 +74,15 @@ let int_lin_le solver args anns =
                          (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
   let k = Pr.get_int args.(2) in
   Builtins.linear_le solver At.at_True terms k
+
+let int_lin_ne solver args anns =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array Pr.get_ivar args.(1) in
+  let terms = Array.init (Array.length xs)
+                         (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
+  let k = Pr.get_int args.(2) in
+  Builtins.linear_ne solver At.at_True terms k
+
 
 let int_lin_eq solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
@@ -121,12 +132,12 @@ let array_var_int_element solver args anns =
     let elts = Pr.get_array Pr.get_int args.(1) in
     B.int_element solver At.at_True res idx elts
   else 
-    (*
     let elts = Pr.get_array (force_ivar solver) args.(1) in
     B.var_int_element solver At.at_True res idx elts
-    *)
+    (*
     (Format.fprintf Format.std_formatter "WARNING: var_int_element.@.";
      true)
+    *)
  
 let bool_iff solver x y =
   S.post_clause solver [|x ; At.neg y|]
@@ -239,6 +250,8 @@ let initialize () =
      "int_times", int_mul ;
      "int_lin_le", int_lin_le ;
      "int_lin_eq", int_lin_eq ;
+     "int_lin_ne", int_lin_ne ;
+     (* "int_lin_ne", ignore_constraint ; *)
      "int_eq", int_eq ;
      (* "int_ne", int_ne ; *)
      "int_eq_reif", int_eq_reif ;
@@ -247,7 +260,8 @@ let initialize () =
      "array_bool_and", array_bool_and ;
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *)
-     (* "array_int_element", array_int_element ; *)
+     "array_int_element", array_int_element ; 
+     "array_var_int_element", array_var_int_element ; 
      (*
      "array_var_int_element", array_var_int_element *) ] in
   List.iter (fun (id, handler) ->

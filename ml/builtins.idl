@@ -14,6 +14,7 @@ typedef struct {
 // These are half-reified.
 // For strict versions, call with r = at_True
 boolean linear_le([in] solver s, atom r, [in,size_is(sz)] linterm ts[], int sz, int k);
+boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] linterm ts[], int sz, int k);
 
 boolean int_mul([in] solver s, atom r, intvar z, intvar x, intvar y);
 boolean int_abs([in] solver s, atom r, intvar z, intvar x);

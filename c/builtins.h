@@ -18,6 +18,7 @@ typedef struct {
 // These are half-reified.
 // For strict versions, call with r = at_True
 int linear_le(solver s, atom r, linterm* ts, int sz, int k);
+int linear_ne(solver s, atom r, linterm* ts, int sz, int k);
 
 // x <= y + k
 int int_le(solver s, intvar x, intvar y, int k);

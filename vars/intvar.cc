@@ -57,19 +57,25 @@ void intvar_base::attach(intvar_event e, watch_callback c) {
 }
 
 static void wakeup(void* ptr, int idx) {
+  // This is a bit ugly
   intvar_manager* man = static_cast<intvar_manager*>(ptr);
+  void* origin = man->s->active_prop;
   // Do some stuff
   int vi = idx>>1;
   if(pred_fixed(man->s, man->var_preds[vi])) {
-    for(auto c : man->fix_callbacks[vi])
-      c();
+    for(auto c : man->fix_callbacks[vi]) {
+      if(!c.can_skip(origin))
+        c();
+    }
   }
   if(idx&1) {
     for(auto c : man->ub_callbacks[vi])
-      c();
+      if(!c.can_skip(origin))
+        c();
   } else {
     for(auto c : man->lb_callbacks[vi])
-      c();
+      if(!c.can_skip(origin))
+        c();
   }
 //  printf("Ping: %d\n", idx);
 }
@@ -104,6 +110,12 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
 
   s->state.p_last[p^1] = pval_max - from_int(ub);
   s->state.p_root[p^1] = pval_max - from_int(ub);
+
+/*
+  if(ub - lb < 100)
+    for(int ii : irange(lb, ub+1))  
+      make_eqatom(idx, ii);
+      */
   return v;
 }
 
@@ -120,8 +132,16 @@ void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c
 }
 
 bool intvar_manager::in_domain(unsigned int vid, int64_t val) {
-  NOT_YET;
-  return false;
+  pval_t pval = from_int(val);
+
+  // If the eq-atom exists, [x = k] != False
+  auto it = eqtable[vid].find(val);
+  if(it != eqtable[vid].end())
+    return !s->state.is_inconsistent((*it).second);
+
+  // Otherwise, return lb(x) <= k <= ub(x)
+  pid_t pid = var_preds[vid];
+  return s->state.p_vals[pid] <= pval && pval <= pval_max - s->state.p_vals[pid^1];
 }
 
 patom_t intvar_manager::make_eqatom(unsigned int vid, int64_t ival) {
@@ -143,6 +163,7 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, int64_t ival) {
 
   eqtable[vid].insert(std::make_pair(val, at));
 
+  // FIXME: Set up p_val, p_last, p_root and initializer
   return at;
 }
 

@@ -1,6 +1,7 @@
 #ifndef PHAGE_TYPES__H
 #define PHAGE_TYPES__H
 #include <stdint.h>
+#include "utils/defs.h"
 #include "mtl/Vec.h"
 
 namespace phage {
@@ -73,15 +74,20 @@ class watch_callback {
 public:
   typedef void (*fun)(void*, int);
 
-  watch_callback(fun _f, void* _obj, int _data)
-    : f(_f), obj(_obj), data(_data)
+  watch_callback(fun _f, void* _obj, int _data, bool _is_idem = false)
+    : f(_f), obj(_obj), data(_data), is_idempotent(_is_idem)
   { }
 
   void operator()(void) { f(obj, data); }
+
+  forceinline bool can_skip(void* origin) {
+    return is_idempotent && origin == obj;
+  }
 protected:
   fun f;
   void* obj;
   int data;
+  bool is_idempotent;
 };
 
 // For late initialization of a predicate

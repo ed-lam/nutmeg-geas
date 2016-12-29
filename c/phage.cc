@@ -1,6 +1,8 @@
 #include "solver/solver.h"
 #include "solver/model.h"
 #include "solver/branch.h"
+#include "engine/logging.h"
+
 #include "c/phage.h"
 #include "c/marshal.h"
 
@@ -139,10 +141,19 @@ stats get_statistics(solver s) {
   phage::solver_data* data(get_solver(s)->data);
 
   stats st = {
+    data->stats.solutions,
     data->stats.conflicts,
     data->stats.restarts
   };
   return st;
+}
+
+void set_cons_id(solver s, int id) {
+  get_solver(s)->data->log.scope_constraint = id;
+}
+
+void set_log_file(solver s, FILE* f) {
+  get_solver(s)->data->log.log_file = f;
 }
 
 #ifdef __cplusplus

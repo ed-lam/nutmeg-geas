@@ -4,11 +4,13 @@
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 
+#include "utils/interval.h"
+
 namespace phage {
 
 typedef std::pair<int, int> ipair;
 
-bool int_element(solver_data* s, patom_t r, intvar x, intvar z,
+bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
                    vec<int>& ys, int base) {
   // Also set domain of ys.
   if(s->state.is_entailed_l0(r)) {
@@ -54,23 +56,63 @@ bool int_element(solver_data* s, patom_t r, intvar x, intvar z,
 
 class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   // Wakeup and explanation
-  static void wake_x(void* ptr, int xi) {
-    elem_var_bnd* p(static_cast<elem_var_bnd*>(ptr)); 
-    p->queue_prop();     
-  }
-  static void wake_z(void* ptr, int yi) {
-    elem_var_bnd* p(static_cast<elem_var_bnd*>(ptr)); 
-    p->queue_prop();     
-  }
-  static void wake_r(void* ptr, int dummy) {
-    elem_var_bnd* p(static_cast<elem_var_bnd*>(ptr)); 
-    p->queue_prop();
+  static void ex_y_lb(elem_var_bnd* p, int yi, int64_t lb, vec<clause_elt>& expl) {
+    expl.push(p->x != yi + p->base);
+    expl.push(p->z < lb);
   }
 
+  static void ex_y_ub(elem_var_bnd* p, int yi, int64_t ub, vec<clause_elt>& expl) {
+    expl.push(p->x != yi + p->base);
+    expl.push(p->z > ub);
+  }
+   
+  static void ex_x_lb(elem_var_bnd* p, int vi, vec<clause_elt>& expl) {
+    p->push_hints(0, vi, expl);
+  }
+
+  static void ex_x_ub(elem_var_bnd* p, int vi, vec<clause_elt>& expl) {
+    p->push_hints(vi+1, p->ys.size(), expl);
+  }
+
+  static void ex_z(void* ptr, int pos, pval_t pval, vec<clause_elt>& expl) {
+    NOT_YET;
+  }
+
+  void push_hints(int low, int high, vec<clause_elt>& expl) {
+    int64_t z_ub = z.ub();
+
+    int64_t z_low = z.ub_0()+1;
+    int64_t z_high = z.lb_0()-1;
+
+    for(int ii : irange(low, high)) {
+      int64_t hint = cut_hint[ii];
+      if(z_ub < hint) {
+        assert(ys[ii].lb() >= hint);
+        z_high = std::max(z_high, hint);
+        expl.push(ys[ii] < hint);
+      } else {
+        assert(z.lb() >= hint);
+        expl.push(ys[ii] >= hint);
+        z_low = std::min(z_low, hint);
+      }
+    }
+    expl.push(z < z_low);
+    expl.push(z >= z_high);
+  }
 public:
-  elem_var_bnd(solver_data* s, intvar _x, intvar _z, vec<intvar>& _ys, patom_t _r)
-    : propagator(s), x(_x), z(_z), ys(_ys), r(_r) {
-     
+  elem_var_bnd(solver_data* _s, intvar _x, intvar _z, vec<intvar>& _ys, int _base, patom_t _r)
+    : propagator(_s), base(_base), x(_x), z(_z), ys(_ys), r(_r) {
+    x.attach(E_LU, watch_callback(wake_default, this, 0, true));
+    z.attach(E_LU, watch_callback(wake_default, this, 0, true));
+    for(int ii : irange(ys.size())) {
+      ys[ii].attach(E_LU, watch_callback(wake_default, this, ii, true)); 
+      cut_hint.push(ys[ii].lb());
+    }
+    // Set initial bounds
+    if(base > x.lb())
+      x.set_lb(base, reason());
+    if(base + ys.size() < x.ub())
+      x.set_ub(base + ys.size(), reason()); 
   }
 
   void root_simplify(void) {
@@ -81,15 +123,207 @@ public:
 #ifdef LOG_ALL
       std::cout << "[[Running elem_var_bnd]]" << std::endl;
 #endif
+       
+      int_itv z_dom { z.lb(), z.ub() };
+      int_itv z_supp { z.ub()+1, z.lb()-1 };
+
+      // Run forward, to find the lower bound
+      int vi = x.lb() - base;
+      int vend = x.ub() + 1 - base;
+
+      for(; vi != vend; ++vi) {
+        int_itv y_dom { ys[vi].lb(), ys[vi].ub() };
+        int_itv y_supp = z_dom & y_dom;
+        if(y_supp.empty()) {
+          cut_hint[vi] = std::max(z_dom.lb, y_dom.lb);
+        } else {
+          z_supp = y_supp;
+          break;
+        }
+      }
+
+      if(vi + base > x.lb()) {
+        if(!x.set_lb(vi + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
+          return false;
+      }
+
+      int high = vi;
+      for(++vi; vi != vend; ++vi) {
+        int_itv y_dom { ys[vi].lb(), ys[vi].ub() };
+        int_itv y_supp = z_dom & y_dom;
+        if(y_supp.empty()) {
+          cut_hint[vi] = std::max(z_dom.lb, y_dom.lb);
+        } else {
+          z_supp |= y_supp;
+          high = vi;
+        }
+      }
+      if(high + base < x.ub()) {
+        if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
+          return false;
+      }
 
       return true;
     }
 
+    int base;
     intvar x;
     intvar z;
     vec<intvar> ys;
 
     patom_t r;
+
+    vec<int64_t> cut_hint;
+};
+
+// Non-incremental interval-based propagation
+class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
+  // Wakeup and explanation
+  static void wake(void* ptr, int xi) {
+    elem_var_simple* p(static_cast<elem_var_simple*>(ptr)); 
+    p->queue_prop();
+  }
+
+  // dom(z) inter dom(ys[i]) -> x != i.
+  static void ex_x_ne_xi(void* ptr, int xi, pval_t pval, vec<clause_elt>& expl) {
+    elem_var_simple* p(static_cast<elem_var_simple*>(ptr));
+    
+    int64_t hint = p->cut_hint[xi];
+    if(p->z.ub() < hint) {
+      expl.push(p->z >= hint);
+      expl.push(p->ys[xi] < hint);
+    } else {
+      expl.push(p->ys[xi] >= hint);
+      expl.push(p->z < hint);
+    }
+  }
+
+  /*
+  static void ex_y_lb(void* ptr, int yi, pval_t pval, vec<clause_elt>& expl) {
+    elem_var_simple* p(static_cast<elem_var_simple*>(ptr));
+    
+    expl.push(p->x != yi + p->base);
+    expl.push(p->z < from_int(pval));
+  }
+  */
+  static void ex_y_lb(elem_var_simple* p, int yi, int64_t lb, vec<clause_elt>& expl) {
+    expl.push(p->x != yi + p->base);
+    expl.push(p->z < lb);
+  }
+
+  static void ex_y_ub(elem_var_simple* p, int yi, int64_t ub, vec<clause_elt>& expl) {
+    expl.push(p->x != yi + p->base);
+    expl.push(p->z > ub);
+  }
+
+  static void ex_z(void* ptr, int pos, pval_t pval, vec<clause_elt>& expl) {
+    NOT_YET;
+  }
+
+public:
+  elem_var_simple(solver_data* _s, intvar _z, intvar _x, vec<intvar>& _ys, int _base, patom_t _r)
+    : propagator(_s), base(_base), x(_x), z(_z), ys(_ys), r(_r) {
+    // We assume the propagator is not half reified
+    if(r != at_True) {
+      NOT_YET;
+    }
+     
+    // Set initial explanation hints
+    for(intvar& y : ys)
+      cut_hint.push(y.lb());
+  }
+
+  void root_simplify(void) {
+    
+  }
+    
+   // FIXME
+   /*
+   forceinline indom(intvar& x, int k) {
+     if(DOM) {
+       return x.man->in_domain(x.idx, k);
+     } else {
+       return x.lb() <= k && k <= x.ub();
+     }
+   }
+   */
+
+   bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
+      std::cout << "[[Running elem_var_simple]]" << std::endl;
+#endif
+       
+      int_itv z_dom { z.lb(), z.ub() };
+      int_itv z_supp { z.ub()+1, z.lb()-1 };
+
+      // Run forward, collect supported tuples
+      intvar* y = ys.begin();
+      intvar* end = ys.end();
+      int vv = base;
+
+      for(; y != end; ++y, ++vv) {
+        if(!in_domain(x, vv))
+          continue;
+
+        int_itv y_supp = z_dom & int_itv {(*y).lb(), (*y).ub()};
+        if(y_supp.empty()) {
+          if(!enqueue(*s, x != vv, expl_thunk { ex_x_ne_xi, this, vv - base }))
+            return false;
+        } else {
+          z_supp = y_supp;
+          goto support_found;
+        }
+      }
+
+      // No support, definitely false
+      return false;
+
+support_found:
+      intvar* supp = y;
+      for(++y, ++vv; y != end; ++y, ++vv) {
+        int_itv y_supp = z_dom & int_itv {(*y).lb(), (*y).ub()};
+        if(y_supp.empty()) {
+          if(!enqueue(*s, x != vv, expl_thunk { ex_x_ne_xi, this, vv - base }))
+            return false;
+        } else {
+          z_supp |= y_supp;
+          supp = end;
+        }
+      }
+
+      if(z_supp.lb > z.lb()) {
+        if(!z.set_lb(z_supp.lb, expl_thunk { ex_z, this, 0 }))
+          return false;
+      }
+
+      if(z_supp.ub < z.ub()) {
+        if(!z.set_ub(z_supp.ub, expl_thunk { ex_z, this, 1}))
+          return false;
+      }
+       
+      if(supp < end) {
+        if(z_supp.lb > supp->lb()) {
+          if(!supp->set_lb(z_supp.lb, expl_thunk { ex_lb<ex_y_lb>, this, (int) (supp - ys.begin()), expl_thunk::Ex_BTPRED }))
+            return false;
+        }
+        if(z_supp.ub < supp->ub()) {
+          if(!supp->set_ub(z_supp.ub, expl_thunk { ex_ub<ex_y_ub>, this, (int) (supp - ys.begin()), expl_thunk::Ex_BTPRED }))
+            return false;
+        }
+      }
+      return true;
+    }
+
+    // Constraint parameters
+    int base;
+    intvar x;
+    intvar z;
+    vec<intvar> ys;
+
+    patom_t r;
+
+    // Explanation hints
+    vec<int64_t> cut_hint;
 };
 
 bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
@@ -97,7 +331,8 @@ bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
 }
 
 bool var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys, patom_t r) {
-  NOT_YET;
-  return false; 
+  new elem_var_simple(s, x, i, ys, 1, r);
+  // new elem_var_bnd(s, x, i, ys, 1, r);
+  return true; 
 }
 }

@@ -131,10 +131,10 @@ class int_linear_le : public propagator {
       {
       for(int ii = 0; ii < vs.size(); ii++) {
         if(ks[ii] > 0) {
-          vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size()));
+          vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size(), true));
           xs.push(elt(ks[ii], vs[ii]));
         } else if(ks[ii] < 0) {
-          vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size()));
+          vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));
           ys.push(elt(-ks[ii], vs[ii]));
         }
       }
@@ -283,15 +283,15 @@ class int_linear_le : public propagator {
       return true;
     }
 
+    vec<elt> xs;
+    vec<elt> ys;
+    int k;
+
 #ifdef EXPL_EAGER
     // Eager explanations
     vec< vec<patom_t> > expls;
     unsigned int expls_sz;
 #endif
-
-    vec<elt> xs;
-    vec<elt> ys;
-    int k;
 };
 
 // MDD-style decomposition.
@@ -373,6 +373,107 @@ protected:
   vec<pid_t> ps_preds;
 };
 
+class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
+  static void wake(void* ptr, int xi) {
+    int_linear_ne* p(static_cast<int_linear_ne*>(ptr)); 
+    p->queue_prop();     
+  }
+
+  static void expl(void* ptr, int xi, pval_t pval,
+                       vec<clause_elt>& expl) {
+    int_linear_ne* p(static_cast<int_linear_ne*>(ptr));
+    for(int ii = 0; ii < xi; ii++) {
+      // expl.push(p->vs[ii].x != p->vs[ii].x.lb());
+      assert(p->vs[ii].x.is_fixed());
+      expl.push(p->vs[ii].x < p->vs[ii].x.lb());
+      expl.push(p->vs[ii].x > p->vs[ii].x.ub());
+    }
+    int sz = p->vs.size();
+    for(int ii = xi+1; ii < sz; ++ii) {
+      // expl.push(p->vs[ii].x != p->vs[ii].x.lb());
+      assert(p->vs[ii].x.is_fixed());
+      expl.push(p->vs[ii].x < p->vs[ii].x.lb());
+      expl.push(p->vs[ii].x > p->vs[ii].x.ub());
+    }
+  }
+
+public:
+  struct elt {
+    elt(int _c, intvar _x)
+      : c(_c), x(_x) { }
+    int c;
+    intvar x;
+  };
+  
+  int_linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& xs, int _k)
+    : propagator(s), k(_k) {
+    for(int ii = 0; ii < xs.size(); ii++) {
+      xs[ii].attach(E_FIX, watch_callback(wake, this, vs.size(), true));
+      vs.push(elt { ks[ii], xs[ii] });
+    }
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    // Find the first un-fixed variable   
+ //   return true;
+    elt* e = vs.begin();
+    elt* end = vs.end();
+
+    int r = k;
+    for(; e != end; ++e) {
+      elt el = *e;
+      if(!el.x.is_fixed())
+        goto found_unfixed;
+      r -= el.c * el.x.lb();
+    }
+    // All fixed
+    if(r == 0) {
+      // Set the conflict.
+      // Could use x < e.x.lb() \/ x > e.x.ub() instead.
+      for(elt e : vs) {
+        // confl.push(e.x != e.x.lb());    
+        confl.push(e.x < e.x.lb());    
+        confl.push(e.x > e.x.ub());    
+      }
+      return false; 
+    }
+    return true;
+
+found_unfixed:
+    elt* fst = e; 
+    for(++e; e != end; ++e) {
+      elt el = *e;
+      if(!el.x.is_fixed()) {
+        // Two unfixed variables.
+        return true;
+      }
+      r -= el.c * el.x.lb();
+    }
+    
+    int gap = r/fst->c;
+//    if(r % fst->c == 0 && in_domain(fst->x, gap)) {
+//      if(!enqueue(*s, fst->x != gap, expl_thunk { expl, this, (int) (fst - vs.begin()) }))
+//        return false;
+//    }
+    if(r % fst->c == 0) {
+      if(fst->x.lb() == gap) {
+        if(!fst->x.set_lb(gap+1, expl_thunk { expl, this, (int) (fst - vs.begin()) }))
+          return false;
+      } else if(fst->x.ub() == gap) {
+        if(!fst->x.set_ub(gap-1, expl_thunk { expl, this, (int) (fst - vs.begin()) }))
+          return false;
+      }
+    }
+    return true;
+  }
+
+  // virtual bool check_sat(void) { return true; }
+  // void root_simplify(void) { }
+
+  vec<elt> vs;
+  int k;
+};
+
 void linear_le_dec(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k) {
   linear_decomposer dec(s, ks, vs);
   dec(k);
@@ -384,6 +485,15 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
     WARN("Half-reification not yet implemented for linear_le.");
   }
   new int_linear_le(s, ks, vs, k);
+  return true;
+}
+
+bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
+  patom_t r) {
+  if(!s->state.is_entailed_l0(r)) {
+    WARN("Half-reification not yet implemented for linear_le.");
+  }
+  new int_linear_ne(s, ks, vs, k);
   return true;
 }
 

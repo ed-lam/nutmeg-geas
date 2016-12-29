@@ -11,6 +11,7 @@ typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
 typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
 
 typedef struct {
+  int solutions;
   int conflicts;
   int restarts;
 } stats;

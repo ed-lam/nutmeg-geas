@@ -3,6 +3,14 @@
 
 namespace phage {
 
+propagator::propagator(solver_data* _s)
+    : is_queued(false), s(_s) {
+#ifdef PROOF_LOG
+    cons_id = s->log.scope_constraint;
+#endif
+    queue_prop(); 
+  }
+
 void propagator::queue_prop(void) {
   if(!is_queued) {
     s->prop_queue.insert(this);

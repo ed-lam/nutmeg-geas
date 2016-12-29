@@ -2,6 +2,7 @@ let infile = ref None
 let outfile = ref None
 let verbosity = ref 0
 
+let print_stats = ref false
 let quiet = ref false
 
 let max_solutions = ref 1
@@ -17,6 +18,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "-verbosity",
       Arg.Set_int(verbosity),
       "<int> : verbosity level, from 0 to 2 (default:0)"
+     ) ;
+     (
+      "-S",
+      Arg.Unit (fun () -> print_stats := true),
+      " : print statistics"
      ) ;
      (
       "-o",

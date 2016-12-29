@@ -4,7 +4,10 @@
 #include "c/atom.h"
 
 #ifdef __cplusplus
+#include <cstdio>
 extern "C" {
+#else
+#include <stdio.h>
 #endif
 
 typedef enum { SAT, UNSAT, UNKNOWN } result;
@@ -22,6 +25,7 @@ struct brancher_s;
 typedef struct brancher_s* brancher;
 
 typedef struct {
+  int solutions;
   int conflicts;
   int restarts;
 } stats;
@@ -60,6 +64,9 @@ atom pred_ge(pred_t, int);
 
 stats get_statistics(solver);
 
+// Proof logging
+void set_log_file(solver, FILE*);
+void set_cons_id(solver, int);
 #ifdef __cplusplus
 }
 #endif

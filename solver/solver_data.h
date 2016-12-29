@@ -10,6 +10,8 @@
 #include "engine/propagator.h"
 #include "engine/conflict.h"
 
+#include "engine/logging.h"
+
 // #include "solver/solver.h"
 #include "solver/branch.h"
 #include "solver/options.h"
@@ -38,15 +40,17 @@ public:
   persistence persist;
   conflict_info confl;
 
+  proof_log log;
+
   vec< vec<watch_callback> > pred_callbacks;
+  // Used for dynamic idempotence
+  // handling
+  vec<void*> pred_origin;
+  void* active_prop;
 
   Queue<pid_t> pred_queue;
   vec<bool> pred_queued;
   
-  // Used for dynamic idempotence
-  // handling
-  // propagator* active_prop;
-  // vec<propagator*> pred_origin;
 
   vec<pid_t> wake_queue;
   vec<bool> wake_queued;

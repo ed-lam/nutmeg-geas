@@ -127,6 +127,8 @@ inline patom_t intvar::operator!=(int64_t v) {
   return ~man->make_eqatom(idx, v);
 }
 
+inline bool in_domain(intvar x, int k) { return x.man->in_domain(x.idx, k); }
+
 template<class T>
 // bool intvar_base::make_sparse(vec<T>& vals) {
 bool make_sparse(intvar x, vec<T>& vals) {

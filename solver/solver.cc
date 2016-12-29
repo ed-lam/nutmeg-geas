@@ -30,7 +30,7 @@ solver::solver(options& _opts)
 
 solver_data::solver_data(const options& _opts)
     : opts(_opts),
-      // active_prop(nullptr),
+      active_prop(nullptr),
       last_branch(default_brancher(this)), 
       pred_heap(act_cmp { infer.pred_act }),
       // Dynamic parameters
@@ -84,8 +84,8 @@ pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   s.pred_queued.push(false);
   s.pred_queued.push(false);
 
-  // s.pred_origin.push(nullptr);
-  // s.pred_origin.push(nullptr);
+  s.pred_origin.push(nullptr);
+  s.pred_origin.push(nullptr);
     
   s.wake_queued.push(false);
   s.wake_queued.push(false);
@@ -104,7 +104,6 @@ pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
 pid_t new_pred(sdata& s, pval_t lb, pval_t ub) {
   assert(decision_level(s) == 0);
   pid_t p = alloc_pred(s, lb, ub);
-  // s.state.init_end = s.state.initializers.size();
   return p;
 }
 
@@ -125,7 +124,6 @@ pid_t new_pred(sdata& s, pred_init init) {
 
   if(decision_level(s) > 0)
     s.state.initializers.push(pinit_data {p>>1, init} ); 
-//  s.state.initializers[p>>1] = init;
 
   return p;
 }
@@ -244,14 +242,18 @@ bool enqueue(sdata& s, patom_t p, reason r) {
     set_confl(s, p, r, s.infer.confl); 
     return false;
   }
-  // s.pred_origin[p.pid] = active_prop;
+  s.pred_origin[p.pid] = s.active_prop;
 
   infer_info::entry e = { p.pid, old_val, r };
+#ifdef PROOF_LOG
+  e.expl.origin = s.log.active_constraint;
+#endif
   s.infer.trail.push(e);
   if(!s.pred_queued[p.pid]) {
     s.pred_queue.insert(p.pid);
     s.pred_queued[p.pid] = true;
   }
+
   return true;
 }
 
@@ -416,8 +418,10 @@ forceinline void touch_pred(solver_data& s, pid_t p) {
 
 forceinline void wakeup_pred(solver_data& s, pid_t p) {
   // assert(!is_bool(s, p)); // Handle Bool wake-up separately
-  for(watch_callback call : s.pred_callbacks[p])
+  s.active_prop = s.pred_origin[p];
+  for(watch_callback call : s.pred_callbacks[p]) {
     call();
+  }
   s.wake_queued[p] = false;
 }
 
@@ -488,14 +492,16 @@ prop_restart:
   for(pid_t pi : s.wake_queue) {
     assert(0 <= pi && pi < num_preds(&s));
     touch_pred(s, pi);
-    wakeup_pred(s, pi);  
+    wakeup_pred(s, pi);
   }
   s.wake_queue.clear();
 
   // Process enqueued propagators
   while(!s.prop_queue.empty()) {
     propagator* p = s.prop_queue._pop();
-    // s.active_prop = p;
+#ifdef PROOF_LOG
+    s.log.active_constraint = p->cons_id;
+#endif
     if(!p->propagate(s.infer.confl)) {
       p->cleanup();
       prop_cleanup(s);
@@ -651,7 +657,7 @@ inline void simplify_at_root(solver_data& s) {
 #endif
   }
 
-#if 1
+#if 0
   // Watches may be invalidated when a clause is
   // deleted because it is satisfied at the root.
   // This is dealt with in cimplify_clause.

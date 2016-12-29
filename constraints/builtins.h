@@ -6,6 +6,8 @@ namespace phage {
 // linear.cc
 bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r = at_True);
+bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
+  patom_t r = at_True);
 
 // element.cc
 bool int_element(solver_data* s, intvar x, intvar i, vec<int>& ys,

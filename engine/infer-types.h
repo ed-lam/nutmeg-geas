@@ -28,10 +28,16 @@ public:
 
 struct clause_extra {
   clause_extra(void)
-    : is_learnt(false), depth(0), act(0) { }
-  bool is_learnt;
-  int depth;
+    : depth(0), is_learnt(0), act(0) { }
+//  bool is_learnt;
+//  int depth;
+  int depth : 31;
+  unsigned is_learnt : 1;
+
   double act;
+#ifdef PROOF_LOG
+  int ident;
+#endif
 };
 
 class clause {
@@ -172,6 +178,9 @@ public:
     /* Deal with thunk. */
     expl_thunk eth;
   };
+#ifdef PROOF_LOG
+  int origin;
+#endif
 };
 
 
