@@ -482,6 +482,7 @@ prop_restart:
       s.wake_queued[pi] = true;
     }
 
+    s.active_prop = nullptr;
     if(!propagate_pred(s, pi)) {
       prop_cleanup(s);
       return false;
@@ -502,6 +503,7 @@ prop_restart:
 #ifdef PROOF_LOG
     s.log.active_constraint = p->cons_id;
 #endif
+    s.active_prop = (void*) p;
     if(!p->propagate(s.infer.confl)) {
       p->cleanup();
       prop_cleanup(s);
