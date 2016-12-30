@@ -7,6 +7,8 @@ let quiet = ref false
 
 let max_solutions = ref 1
 
+let check = ref false
+
 let native = ref false
 
 (* --------------------------------------------- *)
@@ -33,6 +35,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
        "-q",
        Arg.Unit (fun () -> quiet := true),
        " : suppress printing of model"
+     ) ;
+     (
+      "-check",
+      Arg.Unit (fun () -> check := true),
+      " : check solutions"
      ) ;
      (
        "-nof_solutions",

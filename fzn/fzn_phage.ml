@@ -87,7 +87,8 @@ let build_problem solver problem =
   in
   let env = { ivars = ivars; bvars = bvars } in
   (* Process constraints *)
-  Dy.iter (fun ((ident, expr), anns) ->
+  Dy.iteri (fun id ((ident, expr), anns) ->
+           Sol.set_cons_id solver (id+1) ;
            ignore @@ post_constraint solver env ident expr anns)
           problem.Pr.constraints ;
   (* Then, return the bindings *)
@@ -167,6 +168,9 @@ let is_output problem expr e_anns =
   | _ -> false
   
 let print_solution fmt problem env model =
+  if !Opts.check then
+    Check.check_exn problem env.ivars env.bvars model
+  else () ;
   Hashtbl.iter (fun id (expr, anns) ->
                 if is_output problem expr anns then
                   print_binding fmt id (eval_expr env model expr)

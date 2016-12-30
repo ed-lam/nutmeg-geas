@@ -41,6 +41,15 @@ struct branch_val {
           pval_t mid = lb(s, p) + ((ub(s, p) - lb(s, p) + 1)/2);
           return patom_t(p, mid);
         }
+      case Val_Saved:
+        {
+          pval_t saved = s->confl.pred_saved[p].val;
+          if(saved <= lb(s, p))
+            return ~patom_t(p, lb(s, p)+1);
+          if(ub(s, p) <= saved)
+            return patom_t(p, ub(s, p));
+          return patom_t(p, saved);
+        }
       default:
         NOT_YET; 
         return at_Error;
@@ -169,6 +178,8 @@ brancher* select_inorder_brancher(ValChoice val_choice, vec<pid_t>& preds) {
       return new inorder_branch<Val_Max>(preds);
     case Val_Split:
       return new inorder_branch<Val_Split>(preds);
+    case Val_Saved:
+      return new inorder_branch<Val_Saved>(preds);
     default:
       NOT_YET;
       return nullptr;
@@ -184,6 +195,8 @@ brancher* select_basic_brancher(ValChoice val_choice, vec<pid_t>& preds) {
       return new basic_branch<VarC, Val_Max>(preds);
     case Val_Split:
       return new basic_branch<VarC, Val_Split>(preds);
+    case Val_Saved:
+      return new basic_branch<VarC, Val_Saved>(preds);
     default:
       NOT_YET;
       return nullptr;
@@ -232,8 +245,8 @@ public:
         }
 
         // Choose a value to branch on. Currently [| pi = lb(pi) |]
-        // return patom_t(pi, pred_val(s, pi)+1);
-        return ~patom_t(pi, pred_val(s, pi)+1);
+        // return ~patom_t(pi, pred_val(s, pi)+1);
+        return branch_val<Val_Saved>::branch(s, pi);
       }
 
       s->pred_heap.removeMin();

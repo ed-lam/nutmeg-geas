@@ -51,6 +51,8 @@ atom pred_ge([in] pred_t p, [in] int k);
 
 stats get_statistics([in] solver s);
 
+void set_cons_id([in] solver s, int id);
+
 quote(mli, "val ivar_lt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ge : intvar -> int -> Atom.t");
 quote(mli, "val ivar_gt : intvar -> int -> Atom.t");

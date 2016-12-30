@@ -111,11 +111,10 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
   s->state.p_last[p^1] = pval_max - from_int(ub);
   s->state.p_root[p^1] = pval_max - from_int(ub);
 
-/*
   if(ub - lb < 100)
     for(int ii : irange(lb, ub+1))  
       make_eqatom(idx, ii);
-      */
+
   return v;
 }
 

@@ -8,10 +8,16 @@
 namespace phage {
 
 class conflict_info {
+  struct phase {
+    unsigned int last_seen;
+    pval_t val;
+  };
 public:
+  /*
   void new_bool(void) {
     bool_seen.push(false);
   }
+  */
   void new_pred(void) {
     new_halfpred();
     new_halfpred();
@@ -21,19 +27,26 @@ public:
     pred_seen.growTo(pred_eval.size());
     pred_eval.push(0);
     pred_hint.push(nullptr);
+    pred_saved.push({0, 0});
   }
 
+  /*
   // Boolean fragment
   vec<bool> bool_seen;
   vec<unsigned int> bool_removed;
+  */
   
   // Predicate fragment
   p_sparseset pred_seen;
   vec<pval_t> pred_eval;
   vec<watch_node*> pred_hint;
   
+  vec<phase> pred_saved;
+
   // Atoms at the current level
   int clevel;
+
+  unsigned int confl_num;
 };
 
 // Returns the appropriate backtrack level.

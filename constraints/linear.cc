@@ -8,7 +8,7 @@
 
 namespace phage {
 
-class int_linear_le : public propagator {
+class int_linear_le : public propagator, public prop_inst<int_linear_le> {
   enum { Var_None = -1 };
 
   static void wake_x(void* ptr, int xi) {
@@ -28,6 +28,13 @@ class int_linear_le : public propagator {
   };
 
   // Requires backtracking
+  static void ex_naive(int_linear_le* p, int xi, vec<clause_elt>& expl) {
+    for(elt e : p->xs)
+      expl.push(e.x < e.x.lb());
+    for(elt e : p->ys)
+      expl.push(e.x > e.x.ub());
+  }
+
   static void ex_x(void* ptr, int xi, pval_t pval,
                        vec<clause_elt>& expl) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
@@ -253,8 +260,10 @@ class int_linear_le : public propagator {
           if(!e.x.set_ub(x_ub,
               expl_thunk { ex_eager, this, make_eager_expl(2*xi) }))
 #else
-          if(!e.x.set_ub(x_ub,
-              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
+//          if(!e.x.set_ub(x_ub,
+//              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
+            if(!e.x.set_ub(x_ub,
+                ex_thunk(ex_nil<ex_naive>, xi, expl_thunk::Ex_BTPRED)))
 #endif
             return false;
         }
@@ -274,8 +283,10 @@ class int_linear_le : public propagator {
           if(!e.x.set_lb(y_lb,
               expl_thunk { ex_eager, this, make_eager_expl(2*yi + 1) }))
 #else
+//          if(!e.x.set_lb(y_lb,
+//              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
           if(!e.x.set_lb(y_lb,
-              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
+                ex_thunk(ex_nil<ex_naive>, yi, expl_thunk::Ex_BTPRED)))
 #endif
             return false;
         }

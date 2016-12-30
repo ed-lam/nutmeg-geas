@@ -56,6 +56,17 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
 
 class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   // Wakeup and explanation
+  static void ex_naive(elem_var_bnd* p, int yi, vec<clause_elt>& expl) {
+    expl.push(p->x < p->x.lb());
+    expl.push(p->x > p->x.ub());
+    expl.push(p->z < p->z.lb());
+    expl.push(p->z > p->z.ub());
+    for(intvar& y : p->ys) {
+      expl.push(y < y.lb());
+      expl.push(y > y.ub());
+    }
+  }
+
   static void ex_y_lb(elem_var_bnd* p, int yi, int64_t lb, vec<clause_elt>& expl) {
     expl.push(p->x != yi + p->base);
     expl.push(p->z < lb);
@@ -143,7 +154,8 @@ public:
       }
 
       if(vi + base > x.lb()) {
-        if(!x.set_lb(vi + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
+        // if(!x.set_lb(vi + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
+        if(!x.set_lb(vi + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -159,7 +171,8 @@ public:
         }
       }
       if(high + base < x.ub()) {
-        if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
+        // if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
+        if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -275,7 +288,9 @@ public:
         }
       }
 
-      // No support, definitely false
+      // No support, definitely false.
+      // But should have failed earlier
+      ERROR;
       return false;
 
 support_found:
@@ -331,8 +346,8 @@ bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
 }
 
 bool var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys, patom_t r) {
-  new elem_var_simple(s, x, i, ys, 1, r);
-  // new elem_var_bnd(s, x, i, ys, 1, r);
+  // new elem_var_simple(s, x, i, ys, 1, r);
+  new elem_var_bnd(s, x, i, ys, 1, r);
   return true; 
 }
 }

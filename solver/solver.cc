@@ -490,6 +490,9 @@ prop_restart:
   }
   
   // Fire any events for the changed predicates
+#ifdef PROOF_LOG
+  s.log.active_constraint = 0;
+#endif
   for(pid_t pi : s.wake_queue) {
     assert(0 <= pi && pi < num_preds(&s));
     touch_pred(s, pi);
@@ -518,6 +521,7 @@ prop_restart:
       goto prop_restart;
     }
   }
+  s.active_prop = nullptr;
   return true;
 }
 
@@ -548,7 +552,7 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  if(learnt.size() == 2) {
+  /* if(learnt.size() == 2) */ if(0) {
     // Add the two watches
     clause_head h0(learnt[0].atom);
     clause_head h1(learnt[1].atom);
@@ -617,7 +621,8 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
   c->sz = ej - c->begin();
   assert(c->sz >= 2);
 
-  if(c->sz == 2) {
+  // if(c->sz == 2) {
+  /* if(c->sz == 2) */ if(0) {
     // c has become a binary clause.
     // Inline the clause body, and free the clause.
     replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
@@ -639,7 +644,7 @@ inline void simplify_at_root(solver_data& s) {
     s.state.p_last[pi] = s.state.p_vals[pi];
     s.state.p_root[pi] = s.state.p_vals[pi];
     
-#if 0
+#if 1
     // Do garbage collection on the watch_node*-s.
     pval_t head_val = s.infer.pred_watch_heads[pi].val;
     watch_node* head = s.infer.pred_watch_heads[pi].ptr;
@@ -659,7 +664,7 @@ inline void simplify_at_root(solver_data& s) {
 #endif
   }
 
-#if 0
+#if 1
   // Watches may be invalidated when a clause is
   // deleted because it is satisfied at the root.
   // This is dealt with in cimplify_clause.
@@ -868,7 +873,7 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  if(elts.size() == 2) {
+  /* if(elts.size() == 2) */ if(0) {
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
@@ -878,7 +883,8 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
     // Normal clause
     clause* c(clause_new(elts));
     // Any two watches should be fine
-    clause_head h(elts[2].atom, c);
+    // clause_head h(elts[2].atom, c);
+    clause_head h(elts[1].atom, c);
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 
@@ -907,7 +913,7 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  if(elts.size() == 2) {
+  /* if(elts.size() == 2) */ if(0) {
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
@@ -917,7 +923,8 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
     // Normal clause
     clause* c(clause_new(elts));
     // FIXME: Choose appropriate watches
-    clause_head h(elts[2].atom, c);
+    // clause_head h(elts[2].atom, c);
+    clause_head h(elts[1].atom, c);
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 

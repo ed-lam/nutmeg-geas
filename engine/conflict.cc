@@ -88,7 +88,10 @@ static void add(solver_data* s, clause_elt elt) {
   pval_t val = pval_max - elt.atom.val + 1;
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
-    bump_pred_act(s, pid);
+    if(s->confl.pred_saved[pid].last_seen != s->confl.confl_num) {
+      s->confl.pred_saved[pid] = { s->confl.confl_num, val };
+      bump_pred_act(s, pid);
+    }
 
     s->confl.pred_seen.insert(pid);
     s->confl.pred_eval[pid] = val;
@@ -159,9 +162,12 @@ static inline void bt_infer_to_pos(solver_data* s, unsigned int pos) {
   inf.trail.shrink(inf.trail.size() - pos);
 }
 
-static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
+static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
   switch(r.kind) {
     case reason::R_Atom:
+#ifdef PROOF_LOG
+      log::add_atom(*s, r.at);
+#endif
       add(s, r.at);
       break;
     case reason::R_Clause:
@@ -169,14 +175,22 @@ static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, r
         // Skip the first literal (which we're resolving on)
         bump_clause_act(s, *r.cl);
         auto it = r.cl->begin();
-        for(++it; it != r.cl->end(); ++it)
+        for(++it; it != r.cl->end(); ++it) {
+#ifdef PROOF_LOG
+          log::add_atom(*s, (*it).atom);
+#endif
           add(s, *it);
+        }
       }
       break;
     case reason::R_LE:
       {
         // p <= q + offset.
-        add(s, patom_t(r.le.p, ex_val - r.le.offset));
+        patom_t at(~patom_t(r.le.p, ex_val - r.le.offset));
+#ifdef PROOF_LOG
+        log::add_atom(*s, at);
+#endif
+        add(s, at);
       }
       break;
     case reason::R_Thunk:
@@ -192,8 +206,12 @@ static inline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, r
         }
         vec<clause_elt> es;
         r.eth(ex_val, es);
-        for(clause_elt e : es)
+        for(clause_elt e : es) {
+#ifdef PROOF_LOG
+          log::add_atom(*s, e.atom);
+#endif
           add(s, e);
+        }
       }
       break;
     case reason::R_NIL:
@@ -223,13 +241,24 @@ inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
 
 int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   s->confl.clevel = 0;
+  s->confl.confl_num++;
   
 //  std::cout << "confl:" << confl << std::endl;
 
   // Remember: the conflict contains things which are false.
   // The inference trail contains things which have become true.
-  for(clause_elt e : confl)
+#ifdef PROOF_LOG
+  log::start_infer(*s);
+#endif
+  for(clause_elt e : confl) {
+#ifdef PROOF_LOG
+    log::add_atom(*s, e.atom);
+#endif
     add(s, e);
+  }
+#ifdef PROOF_LOG
+  log::finish_infer(*s);
+#endif
 
   // We'll re-use confl to hold the output
   confl.clear();
@@ -252,7 +281,21 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 #ifdef LOG_ALL
     std::cout << " <~ {" << pos << "} " << e.expl << std::endl;
 #endif
+#ifdef PROOF_LOG
+    // Update the hint
+    if(e.expl.origin != s->log.last_hint) {
+      s->log.last_hint = e.expl.origin;
+      fprintf(stderr, "c %d\n", e.expl.origin);
+    }
+    log::start_infer(*s);
+    log::add_atom(*s, patom_t { e.pid, ex_val });
+#endif
+
     add_reason(s, pos, ex_val, e.expl); 
+    
+#ifdef PROOF_LOG
+    log::finish_infer(*s);
+#endif
 
     assert(pos >= 1);
     pos--;
@@ -295,6 +338,10 @@ level_found:
   for(unsigned int p : s->confl.pred_seen)
     confl.push(get_clause_elt(s, p));
   clear(s);
+
+#ifdef PROOF_LOG
+  log::log_learnt(*s, confl);
+#endif
  
   return bt_level;
 }
