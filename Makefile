@@ -15,12 +15,12 @@ LFLAGS    = -lz -Wall -Wno-deprecated
 
 #CXXFLAGS += -DPROOF_LOG
 
-COPTIMIZE = -O3 -ffast-math -funroll-loops # -freorder-blocks-and-partition
+#COPTIMIZE = -O3 -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2
-#COPTIMIZE = -O0
+COPTIMIZE = -O0
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
-#CXXFLAGS += -ggdb
+CXXFLAGS += -ggdb
 #CXXFLAGS += -pg
 
 CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(CONSTRAINTS)/*.cc) $(wildcard $(UTILS)/*.cc)

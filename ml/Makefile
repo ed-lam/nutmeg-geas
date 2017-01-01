@@ -66,6 +66,7 @@ libphage_ml.so: $(OBJS)
 phage_top : $(LIBTARGETS)
 	$(OCAMLMKTOP) $(OCAMLINC) -custom -o $@ \
 	phage.a phage.cma \
+  -ccopt "-ggdb" \
   -ccopt "-L /opt/local/lib/ocaml" \
 	-ccopt "-L . " -cclib "-lcamlidl -lstdc++"
 

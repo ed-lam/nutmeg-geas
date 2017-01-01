@@ -418,7 +418,7 @@ void iabs_decomp(solver_data* s, intvar z, intvar x) {
 }
 
 // Incremental version
-class imax : public propagator {
+class imax : public propagator, public prop_inst<imax> {
   static void wake_z(void* ptr, int k) {
     imax* p(static_cast<imax*>(ptr));
     p->z_change |= k;
@@ -428,54 +428,67 @@ class imax : public propagator {
   static void wake_x(void* ptr, int xi) {
     imax* p(static_cast<imax*>(ptr));
     assert((xi>>1) < p->xs.size());
-    if(xi&1) { // LB
+    if(xi&1) { // UB
+      if(xi>>1 == p->ub_supp) {
+        p->supp_change = E_UB;
+        p->queue_prop();
+      }
+    } else {
       if(!p->lb_change.elem(xi>>1))
         p->lb_change.add(xi>>1);
       p->queue_prop();
-    } else {
-      if(xi>>1 == p->ub_supp)
-        p->supp_change = E_UB;
     }
   }
 
-  static void expl_z_lb(imax* p, int xi, pval_t v,
+  static void expl_z_lb(imax* p, int xi, int64_t v,
                           vec<clause_elt>& expl) {
-    expl.push(p->xs[xi] >= to_int(v));
+    expl.push(p->xs[xi] < v);
   }
 
-  static void expl_z_ub(imax* p, int xi, pval_t v,
+  static void expl_z_ub(imax* p, int xi, int64_t v,
                           vec<clause_elt>& expl) {
     for(intvar x : p->xs) {
-      expl.push(x <= to_int(v));
+      expl.push(x > v);
     }
   }
 
-  static void expl_xi_lb(imax* p, int xi, pval_t v,
+  static void expl_xi_lb(imax* p, int xi, int64_t v,
                           vec<clause_elt>& expl) {
-    expl.push(p->z > to_int(v));
+    expl.push(p->z < v);
     for(int x : irange(xi)) {
-      expl.push(p->xs[x] >= to_int(v));
+      expl.push(p->xs[x] >= v);
     }
     for(int x : irange(xi+1,p->xs.size())) {
-      expl.push(p->xs[x] >= to_int(v));
+      expl.push(p->xs[x] >= v);
     }
   }
 
-  static void expl_xi_ub(imax* p, int xi, pval_t v,
+  static void expl_xi_ub(imax* p, int xi, int64_t v,
                           vec<clause_elt>& expl) {
-    expl.push(p->z <= to_int(v));
+    expl.push(p->z > v);
   }
 
 public:
   imax(solver_data* s, intvar _z, vec<intvar>& _xs)
     : propagator(s), z(_z), xs(_xs),
       z_change(0), supp_change(0) { 
-    z.attach(E_LB, watch_callback(wake_z, this, 0));
-    z.attach(E_UB, watch_callback(wake_z, this, 1));
+    z.attach(E_LB, watch_callback(wake_z, this, 0, true));
+    z.attach(E_UB, watch_callback(wake_z, this, 1, true));
 
+    lb_supp = ub_supp = 0;
+    int lb = xs[lb_supp].lb();
+    int ub = xs[ub_supp].ub();
     for(int ii = 0; ii < xs.size(); ii++) {
-      xs[ii].attach(E_LB, watch_callback(wake_x, this, ii<<1));
-      xs[ii].attach(E_UB, watch_callback(wake_x, this, (ii<<1)|1));
+      if(xs[ii].lb() < lb) {
+        lb_supp = ii;
+        lb = xs[ii].lb();
+      }
+      if(xs[ii].ub() > ub) {
+        ub_supp = ii;
+        ub = xs[ii].ub();
+      }
+      xs[ii].attach(E_LB, watch_callback(wake_x, this, ii<<1, true));
+      xs[ii].attach(E_UB, watch_callback(wake_x, this, (ii<<1)|1, true));
     }
 
     maybe_max.growTo(xs.size());
@@ -504,10 +517,13 @@ public:
     }
 
     if(seen_ub < z.ub()) {
+      /*
       expl_builder e(s->persist.alloc_expl(1 + xs.size()));
       for(intvar x : xs)
         e.push(x > seen_ub);
       if(!z.set_ub(seen_ub, *e))
+        */
+      if(!z.set_ub(seen_ub, ex_thunk(ex_ub<expl_z_ub>, 0)))
         return false;
     }
     if(seen_var != ub_supp)
@@ -559,6 +575,7 @@ first_lb_found:
     }
     // Exactly one support found
     assert(xs[supp].lb() < z_lb);
+    /*
     expl_builder e(s->persist.alloc_expl(1 + xs.size()));
     e.push(z < z_lb);
     for(int ii = 0; ii < xs.size(); ii++) {
@@ -566,6 +583,8 @@ first_lb_found:
           e.push(xs[ii] >= z_lb);
     }
     if(!xs[supp].set_lb(z_lb, *e))
+    */
+    if(!xs[supp].set_lb(z_lb, ex_thunk(ex_lb<expl_xi_lb>, supp)))
       return false;
 
     return true;
@@ -582,7 +601,8 @@ first_lb_found:
       int z_ub = z.ub();
       for(int ii : maybe_max) {
         if(z_ub < xs[ii].ub()) {
-          if(!xs[ii].set_ub(z_ub, z > z_ub))
+          // if(!xs[ii].set_ub(z_ub, z > z_ub))
+          if(!xs[ii].set_ub(z_ub, ex_thunk(ex_ub<expl_xi_ub>, ii)))
             return false; 
         }
       }
@@ -593,7 +613,8 @@ first_lb_found:
     for(int xi : lb_change) {
       if(xs[xi].lb() > z_lb) {
         z_lb = xs[xi].lb();
-        if(!z.set_lb(z_lb, xs[xi] < z_lb))
+        // if(!z.set_lb(z_lb, xs[xi] < z_lb))
+        if(!z.set_lb(z_lb, ex_thunk(ex_lb<expl_z_lb>, xi)))
           return false;
       }
     }
