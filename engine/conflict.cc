@@ -159,7 +159,7 @@ static inline void bt_infer_to_pos(solver_data* s, unsigned int pos) {
   for(infer_info::entry e : rev_range(&inf.trail[pos], inf.trail.end())) {
     st.p_vals[e.pid] = e.old_val; 
   }
-  inf.trail.shrink(inf.trail.size() - pos);
+  inf.trail.shrink_(inf.trail.size() - pos);
 }
 
 static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {

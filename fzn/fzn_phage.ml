@@ -149,7 +149,7 @@ let print_binding fmt id expr =
     match expr with
     | Pr.Ilit v -> Format.pp_print_int fmt v
     | Pr.Blit b -> Format.pp_print_string fmt (if b then "true" else "false")
-    | Pr.Arr es -> Util.print_array aux fmt es
+    | Pr.Arr es -> Util.print_array ~sep:"," ~pre:"[@[" ~post:"@]]" aux fmt es
     | _ -> failwith "Expected only literals in solution"
   in
   Format.fprintf fmt "%s = " id ;

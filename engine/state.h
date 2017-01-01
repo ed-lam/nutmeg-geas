@@ -103,6 +103,8 @@ public:
   unsigned int init_end;
 };
 
+void log_state(pred_state& s);
+
 }
 
 #endif

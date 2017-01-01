@@ -13,8 +13,6 @@ struct prop_t {
   void (*root_simplify)(void* p);
   void (*cleanup)(void* p);
 
-  bool is_idempotent;
-
   void* ptr;
 };
 
@@ -49,15 +47,19 @@ protected:
   solver_data* s;
 };
 
-// Each propagator class should be an instance of this.
-// And needs to define enum { is_idempotent = {true, false} };
 typedef void (*expl_fun)(void*, int , pval_t, vec<clause_elt>&);
 
+// Each propagator class should be an instance of this.
 template<class T>
 class prop_inst {
   static inline T* cast(void* ptr) { return static_cast<T*>(ptr); }
 
 public:
+  enum { Wt_IDEM = 1 };
+  typedef T P;
+
+  static inline int64_t to_int(pval_t v) { return (((pval_t) INT64_MIN) + v); }
+
   static bool propagate(void* ptr) { return cast(ptr)->propagate(); }
   static bool check_sat(void* ptr) { return cast(ptr)->check_sat(); }
   static void root_simplify(void* ptr) { return cast(ptr)->root_simplify(); }
@@ -73,22 +75,40 @@ public:
 
   template<void (*F)(T* ptr, int x, int64_t val, vec<clause_elt>& elt)>
   static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
-    pval_t offset = ((pval_t) INT64_MIN); 
-    F(cast(ptr), x, (int64_t) (offset + pval), elt);
+    F(cast(ptr), x, to_int(pval), elt);
+  }
+
+  template<void (T::*F)(int x, int64_t val, vec<clause_elt>& elt)>
+  static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
+    return cast(ptr)->*F(x, to_int(pval));
   }
 
   template<void (*F)(T* ptr, int x, int64_t val, vec<clause_elt>& elt)>
   static void ex_ub(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
-    pval_t offset = ((pval_t) INT64_MIN); 
-    F(cast(ptr), x, (int64_t) (offset + (pval_max - pval)), elt);
+    F(cast(ptr), x, to_int(pval_max - pval), elt);
+  }
+
+  template<void (T::*F)(int x, int64_t val, vec<clause_elt>& elt)>
+  static void ex_ub(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
+    cast(ptr)->*F(x, to_int(pval_max - pval), elt);
   }
 
   expl_thunk ex_thunk(expl_fun f, int x, char flags = 0) {
     return expl_thunk { f, this, x, flags };
   }
 
+  template<void (T::*F)(int)>
+  static void watch_fun(void *ptr, int id) {
+    (cast(ptr)->*F)(id);
+  }
+
+  template<void (T::*F)(int id)>
+  watch_callback watch(int id, char flags = 0) {
+    return watch_callback(watch_fun<F>, this, id, flags&Wt_IDEM);
+  }
+
   prop_t get(void) {
-    return prop_t { propagate, check_sat, root_simplify, cleanup, T::is_idempotent, this }; 
+    return prop_t { propagate, check_sat, root_simplify, cleanup, this }; 
   }
 };
 

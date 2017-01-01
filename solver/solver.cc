@@ -147,22 +147,24 @@ patom_t new_bool(sdata& s) {
 void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
   confl.clear();
 
-  confl.push(p);
   switch(r.kind) {
     case reason::R_Atom:
+      confl.push(p);
       confl.push(r.at);
       break;
     case reason::R_Clause:
+      confl.push(p);
       for(clause_elt e : r.cl->tail())
         confl.push(e);
        break;
      case reason::R_Thunk:
      {
-      // pval_t fail_val = pval_max - s.state.p_vals[p.pid^1] + 1;
-      pval_t fail_val = p.val;
-      assert(fail_val <= p.val);
-      r.eth(fail_val, confl);
-      break;
+       pval_t fail_val = pval_max - s.state.p_vals[p.pid^1] + 1;
+       // pval_t fail_val = p.val;
+       assert(fail_val <= p.val);
+       confl.push(patom_t {p.pid, fail_val});
+       r.eth(fail_val, confl);
+       break;
      }
      case reason::R_NIL:
       assert(decision_level(s) == 0);
@@ -583,7 +585,7 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  /* if(learnt.size() == 2) */ if(0) {
+  if(learnt.size() == 2) {
     // Add the two watches
     clause_head h0(learnt[0].atom);
     clause_head h1(learnt[1].atom);
@@ -636,8 +638,22 @@ inline void detach_clause(solver_data& s, clause* c) {
 }
 
 inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
+  /*
   clause_elt* ej = c->begin();
   for(clause_elt e : *c) {
+    */
+  // If a watch is true, delete it.
+  if(s.state.is_entailed_l0((*c)[0].atom)
+     || s.state.is_entailed_l0((*c)[1].atom)) {
+    detach_clause(s, c);
+    delete c;
+    return dest;
+  }
+  
+  // Simplify the other elements
+  clause_elt* ej = c->begin()+2;
+  for(int ei = 2; ei < c->size(); ei++) {
+    clause_elt e = (*c)[ei]; 
     if(s.state.is_entailed_l0(e.atom)) {
       // Clause is satisfied at the root; remove it.
       detach_clause(s, c);
@@ -652,8 +668,7 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
   c->sz = ej - c->begin();
   assert(c->sz >= 2);
 
-  // if(c->sz == 2) {
-  /* if(c->sz == 2) */ if(0) {
+  if(c->sz == 2)  {
     // c has become a binary clause.
     // Inline the clause body, and free the clause.
     replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
@@ -698,7 +713,7 @@ inline void simplify_at_root(solver_data& s) {
 #if 1
   // Watches may be invalidated when a clause is
   // deleted because it is satisfied at the root.
-  // This is dealt with in cimplify_clause.
+  // This is dealt with in simplify_clause.
   clause** cj = s.infer.clauses.begin();
   for(clause* c : s.infer.clauses) {
     cj = simplify_clause(s, c, cj); 
@@ -786,6 +801,10 @@ solver::result solver::solve(void) {
         assert(s.state.is_inconsistent(s.infer.confl[ei].atom));
 #endif
       bt_to_level(&s, bt_level);
+
+#ifdef LOG_ALL
+      log_state(s.state);
+#endif
 
 #ifdef CHECK_STATE
       check_pvals(&s);

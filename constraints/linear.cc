@@ -11,10 +11,14 @@ namespace phage {
 class int_linear_le : public propagator, public prop_inst<int_linear_le> {
   enum { Var_None = -1 };
 
+  /*
   static void wake_x(void* ptr, int xi) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr)); 
     p->queue_prop();     
   }
+  */
+  void wake_x(int xi) { queue_prop(); }
+  
   static void wake_y(void* ptr, int yi) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr)); 
     p->queue_prop();     
@@ -138,7 +142,8 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       {
       for(int ii = 0; ii < vs.size(); ii++) {
         if(ks[ii] > 0) {
-          vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size(), true));
+          // vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size(), true));
+          vs[ii].attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
           xs.push(elt(ks[ii], vs[ii]));
         } else if(ks[ii] < 0) {
           vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));

@@ -13,6 +13,8 @@ class conflict_info {
     pval_t val;
   };
 public:
+  conflict_info(void)
+    : clevel(0), confl_num(0) { }
   /*
   void new_bool(void) {
     bool_seen.push(false);
@@ -45,7 +47,6 @@ public:
 
   // Atoms at the current level
   int clevel;
-
   unsigned int confl_num;
 };
 

@@ -68,12 +68,15 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   }
 
   static void ex_y_lb(elem_var_bnd* p, int yi, int64_t lb, vec<clause_elt>& expl) {
-    expl.push(p->x != yi + p->base);
+    // expl.push(p->x != yi + p->base);
+    expl.push(p->x < yi + p->base);
+    expl.push(p->x > yi + p->base);
     expl.push(p->z < lb);
   }
 
   static void ex_y_ub(elem_var_bnd* p, int yi, int64_t ub, vec<clause_elt>& expl) {
-    expl.push(p->x != yi + p->base);
+    expl.push(p->x < yi + p->base);
+    expl.push(p->x > yi + p->base);
     expl.push(p->z > ub);
   }
    
@@ -111,7 +114,7 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     expl.push(z >= z_high);
   }
 public:
-  elem_var_bnd(solver_data* _s, intvar _x, intvar _z, vec<intvar>& _ys, int _base, patom_t _r)
+  elem_var_bnd(solver_data* _s, intvar _z, intvar _x, vec<intvar>& _ys, int _base, patom_t _r)
     : propagator(_s), base(_base), x(_x), z(_z), ys(_ys), r(_r) {
     x.attach(E_LU, watch_callback(wake_default, this, 0, true));
     z.attach(E_LU, watch_callback(wake_default, this, 0, true));
@@ -152,10 +155,11 @@ public:
           break;
         }
       }
+      int low = vi;
 
-      if(vi + base > x.lb()) {
-        // if(!x.set_lb(vi + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
-        if(!x.set_lb(vi + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
+      if(low + base > x.lb()) {
+        // if(!x.set_lb(low + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
+        if(!x.set_lb(low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -174,6 +178,29 @@ public:
         // if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
         if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
           return false;
+      }
+
+      if(z_supp.lb > z.lb()) {
+        if(!z.set_lb(z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+          return false;
+      }
+      if(z_supp.ub < z.ub()) {
+        if(!z.set_ub(z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+          return false;
+      }
+
+      if(low == high) {
+        intvar& y = ys[low];
+        if(z_supp.lb > y.lb()) {
+          // if(!y.set_lb(z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+          if(!y.set_lb(z_supp.lb, ex_thunk(ex_lb<ex_y_lb>, low)))
+            return false;
+        }
+        if(z_supp.ub < y.ub()) {
+          // if(!y.set_ub(z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+          if(!y.set_ub(z_supp.ub, ex_thunk(ex_ub<ex_y_ub>, low)))
+           return false;
+        }
       }
 
       return true;
@@ -211,14 +238,6 @@ class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
     }
   }
 
-  /*
-  static void ex_y_lb(void* ptr, int yi, pval_t pval, vec<clause_elt>& expl) {
-    elem_var_simple* p(static_cast<elem_var_simple*>(ptr));
-    
-    expl.push(p->x != yi + p->base);
-    expl.push(p->z < from_int(pval));
-  }
-  */
   static void ex_y_lb(elem_var_simple* p, int yi, int64_t lb, vec<clause_elt>& expl) {
     expl.push(p->x != yi + p->base);
     expl.push(p->z < lb);
@@ -229,7 +248,11 @@ class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
     expl.push(p->z > ub);
   }
 
-  static void ex_z(void* ptr, int pos, pval_t pval, vec<clause_elt>& expl) {
+  static void ex_z_lb(P* p, int pos, int64_t lb, vec<clause_elt>& expl) {
+    NOT_YET;
+  }
+
+  static void ex_z_ub(P* p, int pos, int64_t lb, vec<clause_elt>& expl) {
     NOT_YET;
   }
 
@@ -307,12 +330,12 @@ support_found:
       }
 
       if(z_supp.lb > z.lb()) {
-        if(!z.set_lb(z_supp.lb, expl_thunk { ex_z, this, 0 }))
+        if(!z.set_lb(z_supp.lb, expl_thunk { ex_lb<ex_z_lb>, this, 0 }))
           return false;
       }
 
       if(z_supp.ub < z.ub()) {
-        if(!z.set_ub(z_supp.ub, expl_thunk { ex_z, this, 1}))
+        if(!z.set_ub(z_supp.ub, expl_thunk { ex_ub<ex_z_ub>, this, 1}))
           return false;
       }
        
@@ -345,9 +368,9 @@ bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
   return int_element(s, r, x, z, ys, 1);
 }
 
-bool var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys, patom_t r) {
+bool var_int_element(solver_data* s, intvar z, intvar x, vec<intvar>& ys, patom_t r) {
   // new elem_var_simple(s, x, i, ys, 1, r);
-  new elem_var_bnd(s, x, i, ys, 1, r);
+  new elem_var_bnd(s, z, x, ys, 1, r);
   return true; 
 }
 }

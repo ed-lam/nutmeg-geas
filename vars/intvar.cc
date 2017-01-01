@@ -102,8 +102,8 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
   // Set bounds
   // intvar v(new intvar_base(s, this, idx, p));
   intvar v(s, this, idx, p);
-  v.set_lb(lb, nullptr);
-  v.set_ub(ub, nullptr);
+  v.set_lb(lb, reason());
+  v.set_ub(ub, reason());
   // Also set the p_last and p_root values
   s->state.p_last[p] = from_int(lb);
   s->state.p_root[p] = from_int(lb);
@@ -111,9 +111,9 @@ intvar intvar_manager::new_var(int64_t lb, int64_t ub) {
   s->state.p_last[p^1] = pval_max - from_int(ub);
   s->state.p_root[p^1] = pval_max - from_int(ub);
 
-  if(ub - lb < 100)
-    for(int ii : irange(lb, ub+1))  
-      make_eqatom(idx, ii);
+//  if(ub - lb < 100)
+//    for(int ii : irange(lb, ub+1))  
+//      make_eqatom(idx, ii);
 
   return v;
 }
