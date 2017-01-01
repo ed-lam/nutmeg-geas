@@ -50,11 +50,17 @@ result solve(solver, int);
 int post_atom(solver, atom);
 int post_clause(solver, atom*, int);
 
+int assume(solver, atom);
+void retract(solver);
+
 model get_model(solver);
 void destroy_model(model);
 
 int int_value(model, intvar);
 int atom_value(model, atom);
+
+int ivar_lb(intvar);
+int ivar_ub(intvar);
 
 atom ivar_le(intvar, int);
 atom ivar_eq(intvar, int);

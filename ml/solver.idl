@@ -36,8 +36,14 @@ boolean post_atom([in] solver s, atom at);
 
 boolean post_clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
 
+boolean assume([in] solver s, atom at);
+void retract([in] solver s);
+
 intvar new_intvar([in] solver s, int lb, int ub);
 atom new_boolvar([in] solver s);
+
+int ivar_lb([in] intvar v);
+int ivar_ub([in] intvar v);
 
 model get_model([in] solver s);
 int int_value([in] model m, [in] intvar v);

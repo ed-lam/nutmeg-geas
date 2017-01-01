@@ -91,6 +91,13 @@ int post_atom(solver s, atom at) {
   return get_solver(s)->post(get_atom(at));
 }
 
+int assume(solver s, atom at) {
+  return get_solver(s)->assume(get_atom(at));
+}
+void retract(solver s) {
+  get_solver(s)->retract();
+}
+
 int post_clause(solver s, atom* cl, int sz) {
   reset(s);
   vec<phage::clause_elt> elts;
@@ -114,6 +121,13 @@ void destroy_model(model m) {
 
 int int_value(model m, intvar v) {
   return get_intvar(v)->model_val(*get_model(m));
+}
+
+int ivar_lb(intvar v) {
+  return get_intvar(v)->lb();
+}
+int ivar_ub(intvar v) {
+  return get_intvar(v)->ub();
 }
 
 int atom_value(model m, atom at) {

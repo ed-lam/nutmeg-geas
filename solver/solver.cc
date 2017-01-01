@@ -33,6 +33,8 @@ solver_data::solver_data(const options& _opts)
       active_prop(nullptr),
       last_branch(default_brancher(this)), 
       pred_heap(act_cmp { infer.pred_act }),
+      // Assumption handling
+      assump_end(0),
       // Dynamic parameters
       learnt_act_inc(opts.learnt_act_inc),
       pred_act_inc(opts.pred_act_inc),
@@ -181,27 +183,46 @@ bool solver::post(patom_t p) {
   return enqueue(*data, p, reason());
 }
 
-bool apply_assumps(solver_data& s) {
-  /*
+static forceinline bool propagate_assumps(solver_data& s) {
   int idx = s.assump_end; 
-  for(; idx < s.assumptions.size(); idx++) {
-    patom_t at(s.assumptions[idx]); 
-    s.assump_level[idx] = decision_level(s);
 
+  for(; idx < s.assumptions.size(); ++idx) {
+    s.assump_level[idx] = decision_level(s);
+    patom_t at(s.assumptions[idx]);
     if(is_entailed(s, at))
       continue;
+
     if(is_inconsistent(s, at))
       return false;
-
     
+    // Otherwise, push a new level and propagate
+    // the assumption.
+    push_level(&s);
+    trail_change(s.persist, s.assump_end, idx+1);
+    if(!enqueue(s, at, reason())) {
+      // Should be unreachable
+      return false;
+    }
+
+    if(!propagate(s))
+      return false;
   }
-  */
+
   return true;
 }
 
 bool solver::assume(patom_t p) {
-  /*
+  if(data->assump_end == data->assumptions.size()) {
+    int lev = (data->assump_end > 0)
+      ?  data->assump_level.last() + 1 : 0;
+    if(decision_level(*data) > lev)
+      bt_to_level(data, lev);
+  }
   data->assumptions.push(p);
+  data->assump_level.push(0);
+
+  return propagate_assumps(*data);
+  /*
   if(data->state.is_entailed(p))
     return true;
 
@@ -215,6 +236,16 @@ bool solver::assume(patom_t p) {
 }
 
 void solver::retract(void) {
+  // Make sure the current assumption is un-queued.
+  assert(data->assumptions.size() > 0);
+  if(data->assump_end == data->assumptions.size()) { 
+    bt_to_level(data, data->assump_level.last());
+  }
+  assert(data->assump_end < data->assumptions.size());
+
+  data->assumptions.pop();
+  data->assump_level.pop();
+
   return; 
 }
 
@@ -816,7 +847,31 @@ solver::result solver::solve(void) {
     if(decision_level(s) == 0)
       simplify_at_root(s);
 
-    patom_t dec = branch(&s);
+    patom_t dec = at_Undef;
+    
+    int idx = s.assump_end;
+    if(idx < s.assumptions.size()) {
+      for(; idx < s.assumptions.size(); ++idx) {
+        s.assump_level[idx] = decision_level(s);
+        patom_t at(s.assumptions[idx]);
+        if(is_entailed(s, at))
+          continue;
+
+        if(is_inconsistent(s, at))
+          return UNSAT; 
+
+        // Found an atom to branch on
+        dec = at;
+        ++idx;
+        break;
+      }
+
+      trail_change(s.persist, s.assump_end, idx);
+    }
+    
+    if(dec == at_Undef)
+      dec = branch(&s);
+
     if(dec == at_Undef) {
       save_model(data);
       s.stats.conflicts += confl_num;
