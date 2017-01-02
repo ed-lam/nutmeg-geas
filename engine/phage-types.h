@@ -32,7 +32,9 @@ static const lbool l_True = lbool::of_int(1);
 // Otherwise, ~[|x >= 0|] is not representable.
 typedef uint64_t pval_t;
 static const pval_t pval_max = UINT64_MAX-1;
+static const pval_t pval_min = 0;
 static const pval_t pval_err = UINT64_MAX;
+forceinline inline pval_t pval_inv(pval_t v) { return pval_max - v; }
 
 typedef uint32_t pid_t;
 

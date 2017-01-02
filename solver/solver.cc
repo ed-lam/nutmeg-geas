@@ -293,11 +293,14 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 // Modifies elt.watch;
 forceinline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
-  if(elt.watch)
+  if(elt.watch) {
+//    assert(elt.watch->curr_val == ~(elt.atom).val);
     return elt.watch->ws;
+  }
 
   patom_t p(~elt.atom);
   watch_node* watch = s.infer.get_watch(p.pid, p.val);
+//  assert(watch->curr_val == ~(elt.atom).val);
   elt.watch = watch;
   return watch->ws;
 }
@@ -686,10 +689,11 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
 inline void simplify_at_root(solver_data& s) {
   // Update predicate values, simplify clauses
   // and clear trails.
-  for(int pi = 0; pi < s.pred_callbacks.size(); pi++) {
+  // for(int pi = 0; pi < s.pred_callbacks.size(); pi++) {
+  for(int pi : s.persist.touched_preds) {
     s.state.p_last[pi] = s.state.p_vals[pi];
     s.state.p_root[pi] = s.state.p_vals[pi];
-    
+      
 #if 1
     // Do garbage collection on the watch_node*-s.
     pval_t head_val = s.infer.pred_watch_heads[pi].val;
@@ -700,7 +704,7 @@ inline void simplify_at_root(solver_data& s) {
       s.infer.watch_maps[pi].rem(head_val);
       watch_node* w = head;
       head_val = head->succ_val;
-      head = head->succ; 
+      head = head->succ;
       delete w;
     }
     s.infer.pred_watch_heads[pi].val = head_val;
@@ -731,8 +735,8 @@ inline void simplify_at_root(solver_data& s) {
     p->root_simplify();
   
   // Now reset all persistence stuff. 
-  s.infer.root_simplify();
-  s.persist.root_simplify();
+   s.infer.root_simplify();
+   s.persist.root_simplify();
 
   return;
 }
@@ -757,7 +761,7 @@ solver::result solver::solve(void) {
   sdata& s(*data);
   int confl_num = 0;
 
-  // int max_conflicts = 5000;
+//  int max_conflicts = 200000;
   int max_conflicts = 0;
 
   int restart_lim = s.opts.restart_limit;
@@ -808,6 +812,11 @@ solver::result solver::solve(void) {
 
 #ifdef CHECK_STATE
       check_pvals(&s);
+
+      if(bt_level == 0) {
+        for(int pi = 0; pi < s.state.p_vals.size(); pi++)
+          assert(s.state.p_vals[pi] == s.state.p_root[pi]);
+      }
 #endif
 
       add_learnt(&s, s.infer.confl);
@@ -836,6 +845,13 @@ solver::result solver::solve(void) {
           next_restart = restart_lim = restart_lim * s.opts.restart_growthrate;
           if(decision_level(s) > 0)
             bt_to_level(&s, 0);
+#ifdef LOG_ALL
+      log_state(s.state);
+#endif
+#ifdef CHECK_STATE
+          for(int pi = 0; pi < s.state.p_vals.size(); pi++)
+            assert(s.state.p_vals[pi] == s.state.p_root[pi]);
+#endif
         }
         if(next_gc == 0) {
 #ifdef LOG_GC

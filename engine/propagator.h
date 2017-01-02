@@ -73,6 +73,11 @@ public:
     F(cast(ptr), x, elt);
   }
 
+  template<void (T::*F)(int x, vec<clause_elt>& elt)>
+  static void ex_nil(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
+    return (cast(ptr)->*F)(x, elt);
+  }
+
   template<void (*F)(T* ptr, int x, int64_t val, vec<clause_elt>& elt)>
   static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     F(cast(ptr), x, to_int(pval), elt);
@@ -80,7 +85,7 @@ public:
 
   template<void (T::*F)(int x, int64_t val, vec<clause_elt>& elt)>
   static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
-    return cast(ptr)->*F(x, to_int(pval));
+    return (cast(ptr)->*F)(x, to_int(pval), elt);
   }
 
   template<void (*F)(T* ptr, int x, int64_t val, vec<clause_elt>& elt)>
@@ -90,7 +95,7 @@ public:
 
   template<void (T::*F)(int x, int64_t val, vec<clause_elt>& elt)>
   static void ex_ub(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
-    cast(ptr)->*F(x, to_int(pval_max - pval), elt);
+    (cast(ptr)->*F)(x, to_int(pval_max - pval), elt);
   }
 
   expl_thunk ex_thunk(expl_fun f, int x, char flags = 0) {

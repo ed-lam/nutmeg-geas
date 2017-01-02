@@ -50,8 +50,7 @@ public:
     for(pid_t p : touched_preds)
       pred_touched[p] = false;
     touched_preds.clear();
-    // bvar_trail.clear();
-    // bvar_trail_lim.clear();
+
     pred_ltrail.clear();
     pred_ltrail_lim.clear();
     data_trail.clear();

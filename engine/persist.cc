@@ -81,6 +81,19 @@ void bt_preds(solver_data* s, unsigned int l) {
   dropTo_(inf.trail_lim, l);
   
   assert(l < p.pred_ltrail_lim.size());
+  // If solving was interrupted, things in the prop
+  // and wake queue may not recognized as touched.
+  while(!s->pred_queue.empty()) {
+    pid_t pi = s->pred_queue._pop();
+    s->pred_queued[pi] = false;
+    st.p_vals[pi] = st.p_last[pi]; 
+  }
+  for(pid_t pi : s->wake_queue) {
+    s->wake_queued[pi] = false;
+    st.p_vals[pi] = st.p_last[pi];
+  }
+  s->wake_queue.clear();
+
   // Reset preds touched at the current level
 #if 1
   for(pid_t pi : p.touched_preds) {

@@ -111,6 +111,7 @@ static void add(solver_data* s, clause_elt elt) {
       s->confl.clevel++;
 
     s->confl.pred_eval[pid] = val;
+    s->confl.pred_hint[pid] = elt.watch;
   }
   assert(s->confl.pred_seen.elem(pid));
 }

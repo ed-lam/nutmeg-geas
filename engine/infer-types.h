@@ -116,6 +116,7 @@ public:
   watch_node(void)
     : succ(nullptr) { }
   // patom_t atom;
+  // pval_t curr_val;
   pval_t succ_val;
   watch_extra extra;
   watch_node* succ;  

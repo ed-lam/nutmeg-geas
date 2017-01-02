@@ -3,7 +3,7 @@
 #include "solver/solver_data.h"
 
 // #define CHECK_STATE
-#define LOG_ALL
+// #define LOG_ALL
 // #define LOG_RESTART
 // #define LOG_GC
 

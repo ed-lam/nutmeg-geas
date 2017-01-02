@@ -78,6 +78,7 @@ libphage_ml.a: ../ml/libphage_ml.a
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
 	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
   -ccopt "-L /opt/local/lib/ocaml" \
+  -ccopt "-pg" \
   ../ml/phage.cmxa \
   $@.mli $^ -package $(REQ_PKG) -linkpkg
 

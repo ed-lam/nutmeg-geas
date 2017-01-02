@@ -9,6 +9,7 @@ struct options {
       pred_act_inc(0.01), pred_act_growthrate(1.05),
       learnt_act_inc(0.01), learnt_act_growthrate(1.05),
       restart_limit(1000), restart_growthrate(1.05)
+      // restart_limit(INT_MAX), restart_growthrate(1.00)
       // restart_limit(10000), restart_growthrate(1.05)
       // restart_limit(2), restart_growthrate(1.5)
   { } 

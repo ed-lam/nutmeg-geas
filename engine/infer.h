@@ -61,6 +61,7 @@ protected:
     // Create the root watch-node
     watch_node* w(new watch_node); 
     // w->atom = patom_t(pid, 0);
+    // w->curr_val = 0;
     w->succ_val = pval_max;
     pred_watches.push(w);
     pred_watch_heads.push(watch_head {0, w});
@@ -83,10 +84,11 @@ public:
     // w->atom = patom_t(p, val);
 
     // This repeats the lookup performed by
-    // find. Modify avoid this.
+    // find. Modify to avoid this.
     it = watch_maps[p].add(val, w);
     --it;
     watch_node* pred = (*it).value;
+    // w->curr_val = val;
     w->succ_val = pred->succ_val;
     w->succ = pred->succ;
     pred->succ_val = val;

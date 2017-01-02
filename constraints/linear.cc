@@ -4,7 +4,7 @@
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 
-#define EXPL_EAGER
+// #define EXPL_EAGER
 
 namespace phage {
 
@@ -16,14 +16,14 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     int_linear_le* p(static_cast<int_linear_le*>(ptr)); 
     p->queue_prop();     
   }
-  */
-  void wake_x(int xi) { queue_prop(); }
-  
   static void wake_y(void* ptr, int yi) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr)); 
     p->queue_prop();     
   }
-
+  */
+  void wake_x(int xi) { queue_prop(); }
+  void wake_y(int xi) { queue_prop(); }
+  
   struct elt {
     elt(int _c, intvar _x)
       : c(_c), x(_x) { }
@@ -32,11 +32,23 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
   };
 
   // Requires backtracking
-  static void ex_naive(int_linear_le* p, int xi, vec<clause_elt>& expl) {
+  void ex_naive(int ei, vec<clause_elt>& expl) {
+    for(int xi = 0; xi < xs.size(); xi++) {
+      if(2*xi == ei)
+        continue;
+      expl.push(xs[xi].x < xs[xi].x.lb());
+    }
+    for(int yi = 0; yi < ys.size(); yi++) {
+      if(2*yi+1 == ei)
+        continue;
+      expl.push(ys[yi].x > ys[yi].x.ub());
+    }
+    /*
     for(elt e : p->xs)
       expl.push(e.x < e.x.lb());
     for(elt e : p->ys)
       expl.push(e.x > e.x.ub());
+      */
   }
 
   static void ex_x(void* ptr, int xi, pval_t pval,
@@ -146,7 +158,8 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           vs[ii].attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
           xs.push(elt(ks[ii], vs[ii]));
         } else if(ks[ii] < 0) {
-          vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));
+          // vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));
+          vs[ii].attach(E_UB, watch<&P::wake_y>(ys.size(), Wt_IDEM));
           ys.push(elt(-ks[ii], vs[ii]));
         }
       }
@@ -243,7 +256,12 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         // Collect enough atoms to explain the sum.
         // FIXME: This is kinda weak. We really want to
         // push as much as we can onto the previous level.
-        make_expl(Var_None, x_lb - y_ub - k - 1, confl);
+        // make_expl(Var_None, x_lb - y_ub - k - 1, confl);
+        for(elt e : xs)
+          confl.push(e.x < e.x.lb());
+        for(elt e : ys)
+          confl.push(e.x > e.x.ub());
+
         // NOT_YET;
         return false; 
       }
@@ -265,10 +283,10 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           if(!e.x.set_ub(x_ub,
               expl_thunk { ex_eager, this, make_eager_expl(2*xi) }))
 #else
-//          if(!e.x.set_ub(x_ub,
-//              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
-            if(!e.x.set_ub(x_ub,
-                ex_thunk(ex_nil<ex_naive>, xi, expl_thunk::Ex_BTPRED)))
+          if(!e.x.set_ub(x_ub,
+              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
+//            if(!e.x.set_ub(x_ub,
+//                ex_thunk(ex_nil<&P::ex_naive>, 2*xi, expl_thunk::Ex_BTPRED)))
 #endif
             return false;
         }
@@ -288,10 +306,10 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           if(!e.x.set_lb(y_lb,
               expl_thunk { ex_eager, this, make_eager_expl(2*yi + 1) }))
 #else
-//          if(!e.x.set_lb(y_lb,
-//              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
           if(!e.x.set_lb(y_lb,
-                ex_thunk(ex_nil<ex_naive>, yi, expl_thunk::Ex_BTPRED)))
+              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
+//          if(!e.x.set_lb(y_lb,
+//                ex_thunk(ex_nil<&P::ex_naive>, 2*yi+1, expl_thunk::Ex_BTPRED)))
 #endif
             return false;
         }
