@@ -55,7 +55,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
                        vec<clause_elt>& expl) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
 #if 1
-    int64_t ival(to_int(pval_max - pval));
+    int64_t ival(to_int(pval_inv(pval)));
     int64_t lim(p->k - p->xs[xi].c*ival);
 
     int64_t sum = 0;
@@ -65,7 +65,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       sum += p->xs[xj].c * p->xs[xj].x.lb();
     for(elt e : p->ys)
       sum -= e.c * e.x.ub();
-    p->make_expl(2*xi, sum - lim, expl);
+    p->make_expl(2*xi, lim - sum, expl);
 #else
     // Naive explanation
     for(elt e : p->xs) {
@@ -95,7 +95,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     for(int yj : irange(yi+1, p->ys.size()))
       sum -= p->ys[yj].c * p->ys[yj].x.ub();
 
-    p->make_expl(2*yi+1, sum - lim, expl);
+    p->make_expl(2*yi+1, lim - sum, expl);
 #else
     for(elt e : p->xs) {
       assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
@@ -171,7 +171,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     
     template<class E>
     void make_expl(int var, int slack, E& ex) {
-#if 1
+#if 0
       for(elt e : xs) {
         assert(s->state.is_inconsistent(e.x < e.x.lb()));
         ex.push(e.x < e.x.lb());
