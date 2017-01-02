@@ -315,6 +315,11 @@ let main () =
       close_out output
     end ;
    *)
+  let sig_handler = Sys.Signal_handle (fun i ->
+    print_stats Format.std_formatter (Sol.get_statistics solver) ;
+    exit 1) in
+  Sys.set_signal Sys.sigterm sig_handler ;
+  Sys.set_signal Sys.sigint sig_handler ;
   let print_model =
     (fun fmt model ->
       if not !Opts.quiet then
