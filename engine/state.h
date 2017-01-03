@@ -59,18 +59,18 @@ public:
   // bool pred_is_bool(pid_t pid) const { return pid <= 1; }
   // bool pred_is_bool(pid_t pid) const { return false; }
 
-  bool is_entailed(patom_t atom) const {
+  forceinline bool is_entailed(patom_t atom) const {
     return atom.val <= p_vals[atom.pid];
   }
-  bool is_inconsistent(patom_t atom) const {
+  forceinline bool is_inconsistent(patom_t atom) const {
     // return pval_max - p_vals[atom.pid^1] < atom.val;
     return is_entailed(~atom);
   }
 
-  bool is_entailed_l0(patom_t atom) const {
+  forceinline bool is_entailed_l0(patom_t atom) const {
     return atom.val <= p_root[atom.pid];
   }
-  bool is_inconsistent_l0(patom_t atom) const {
+  forceinline bool is_inconsistent_l0(patom_t atom) const {
     // return pval_max - p_root[atom.pid^1] < atom.val;
     return is_entailed_l0(~atom);
   }

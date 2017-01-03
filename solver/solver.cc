@@ -1,4 +1,5 @@
 #include <iostream>
+#include <csignal>
 #include "solver/solver.h"
 #include "solver/solver_data.h"
 #include "solver/solver_debug.h"
@@ -6,6 +7,21 @@
 
 
 namespace phage {
+
+/* This flag controls early solver termination */
+volatile sig_atomic_t abort = 0;
+
+/* The signal handler just sets the flag and re-enables itself. */
+void catch_int (int sig) {
+  abort = 1;
+  signal (sig, catch_int);
+}
+void set_handlers(void) {
+  signal(SIGINT, catch_int);
+}
+void clear_handlers(void) {
+  signal(SIGINT, SIG_DFL);
+}
 
 pval_t patom_t::val_max = pval_max;
 
@@ -79,7 +95,7 @@ inline int decision_level(sdata& s) {
   return s.infer.trail_lim.size();
 }
 
-pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
+static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   s.pred_callbacks.push();
   s.pred_callbacks.push();
 
@@ -291,7 +307,7 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 }
 
 // Modifies elt.watch;
-forceinline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
+forceinline static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
   if(elt.watch) {
 //    assert(elt.watch->curr_val == ~(elt.atom).val);
@@ -305,7 +321,7 @@ forceinline vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   return watch->ws;
 }
 
-//inline
+forceinline static 
 bool update_watchlist(solver_data& s,
     clause_elt elt, vec<clause_head>& ws) {
   int jj = 0;
@@ -332,10 +348,10 @@ bool update_watchlist(solver_data& s,
     }
     // Normal case: look for a new watch
     clause& c(*ch.c);
-    assert(c[0].watch);
-    assert(c[1].watch);
+//    assert(c[0].watch);
+//    assert(c[1].watch);
     if(c[1].atom != elt.atom) {
-      assert(c[0].atom == elt.atom);
+//      assert(c[0].atom == elt.atom);
       elt.watch = c[0].watch;
       c[0] = c[1];
     } else {
@@ -349,38 +365,47 @@ bool update_watchlist(solver_data& s,
       c[1] = elt;
       ch.e0 = c[0].atom;
       ws[jj++] = ch;
-      assert(c[0].watch);
-      assert(c[1].watch);
+//      assert(c[0].watch);
+//      assert(c[1].watch);
       goto next_clause;
     }
 
     for(int li = 2; li < c.size(); li++) {
+      /*
       if(s.state.is_entailed(c[li].atom)) {
         // As above
         c[1] = elt;
         ch.e0 = c[li].atom;
         ws[jj++] = ch;
-        assert(c[0].watch);
-        assert(c[1].watch);
+//        assert(c[0].watch);
+//        assert(c[1].watch);
         goto next_clause;
       }
+      */
       if(!s.state.is_inconsistent(c[li].atom)) {
         // Literal is not yet false. New watch is found.
+        if(s.state.is_entailed(c[li].atom)) {
+          c[1] = elt;
+          ch.e0 = c[li].atom;
+          ws[jj++] = ch;
+          goto next_clause;
+        }
+           
         clause_elt new_watch = c[li];
         c[1] = new_watch;
         c[li] = elt;
         // Modifies c[1].watch in place
         find_watchlist(s, c[1]).push(ch);
-        assert(c[0].watch);
-        assert(c[1].watch);
+//        assert(c[0].watch);
+//        assert(c[1].watch);
         goto next_clause;
       }
     }
     // No watches found; either unit or conflicting.
     c[1] = elt;
     ws[jj++] = ch;
-    assert(c[0].watch);
-    assert(c[1].watch);
+//    assert(c[0].watch);
+//    assert(c[1].watch);
     // Save the trail location, so we can tell if it's locked.
     c.extra.depth = s.infer.trail.size();
     if(!enqueue(s, c[0].atom, &c)) {
@@ -397,7 +422,7 @@ next_clause:
   return true;
 }
 
-forceinline
+forceinline static
 bool propagate_ineqs(solver_data& s, pid_t p) {
   pval_t val_p = s.state.p_vals[p];
 
@@ -411,11 +436,12 @@ bool propagate_ineqs(solver_data& s, pid_t p) {
   return true;
 }
 
-forceinline
+forceinline static
 bool propagate_pred(solver_data& s, pid_t p) {
   // Process watches
   watch_node* curr = s.infer.pred_watches[p];
   patom_t atom(p, curr->succ_val);
+
   while(s.state.is_entailed(atom)) {
     curr = curr->succ;
 
@@ -761,6 +787,9 @@ solver::result solver::solve(void) {
   sdata& s(*data);
   int confl_num = 0;
 
+  /* Establish a handler for SIGINT and SIGTERM signals. */
+  set_handlers();
+
 //  int max_conflicts = 200000;
   int max_conflicts = 0;
 
@@ -778,6 +807,13 @@ solver::result solver::solve(void) {
     next_pause = std::min(next_pause, budget);
 
   while(true) {
+    // Signal handler
+    if(abort) {
+      abort = 0;
+      clear_handlers();
+      return UNKNOWN;
+    }
+
     if(!propagate(s)) {
 #ifdef CHECK_STATE
       int pi = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
@@ -791,6 +827,7 @@ solver::result solver::solve(void) {
 #endif
       if(decision_level(s) == 0) {
         s.stats.conflicts += confl_num;
+        clear_handlers();
         return UNSAT;
       }
         
@@ -830,8 +867,10 @@ solver::result solver::solve(void) {
         if(budget) {
           std::cout << budget << ", " << confl_num << std::endl;
           budget -= confl_num;
-          if(!budget)
+          if(!budget) {
+            clear_handlers();
             return UNKNOWN;
+          }
         }
 
         confl_num = 0;
@@ -892,8 +931,10 @@ solver::result solver::solve(void) {
         if(is_entailed(s, at))
           continue;
 
-        if(is_inconsistent(s, at))
+        if(is_inconsistent(s, at)) {
+          clear_handlers();
           return UNSAT; 
+        }
 
         // Found an atom to branch on
         dec = at;
@@ -911,6 +952,7 @@ solver::result solver::solve(void) {
       save_model(data);
       s.stats.conflicts += confl_num;
       s.stats.solutions++;
+      clear_handlers();
       return SAT;
     }
 
@@ -925,6 +967,7 @@ solver::result solver::solve(void) {
   }
 
   // Unreachable
+  clear_handlers();
   return SAT;
 } 
 

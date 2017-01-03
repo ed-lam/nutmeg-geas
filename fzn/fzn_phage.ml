@@ -65,7 +65,11 @@ let post_constraint solver env ident exprs anns =
     let handler = Registry.lookup ident in
     let args = Array.map (resolve_expr env) exprs in
     handler solver args anns
-  with Not_found ->
+  with
+  | Pr.Type_mismatch ->
+    (Format.fprintf Format.err_formatter "Error: type mismatch in '%s'.@." ident ;
+        false)
+  | Not_found ->
     (* raise (Unknown_constraint ident) *)
     (Format.fprintf Format.err_formatter "Warning: Ignoring unknown constraint '%s'.@." ident ;
      Registry.register ident (fun _ _ _ -> true) ;
@@ -119,7 +123,7 @@ let collect_array_ivars env expr =
   let vars = 
     match expr with
     | Pr.Arr es ->
-      Array.fold_left (fun vs e ->
+      List.rev @@ Array.fold_left (fun vs e ->
         match e with
         | Pr.Ivar v -> env.ivars.(v) :: vs
         | _ -> vs) [] es
@@ -315,11 +319,13 @@ let main () =
       close_out output
     end ;
    *)
+  (*
   let sig_handler = Sys.Signal_handle (fun i ->
     print_stats Format.std_formatter (Sol.get_statistics solver) ;
     exit 1) in
   Sys.set_signal Sys.sigterm sig_handler ;
   Sys.set_signal Sys.sigint sig_handler ;
+  *)
   let print_model =
     (fun fmt model ->
       if not !Opts.quiet then
