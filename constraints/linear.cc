@@ -56,7 +56,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
 #if 1
     int64_t ival(to_int(pval_inv(pval)));
-    int64_t lim(p->k - p->xs[xi].c*ival);
+    int64_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
 
     int64_t sum = 0;
     for(int xj : irange(xi))
@@ -65,7 +65,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       sum += p->xs[xj].c * p->xs[xj].x.lb();
     for(elt e : p->ys)
       sum -= e.c * e.x.ub();
-    p->make_expl(2*xi, lim - sum, expl);
+    p->make_expl(2*xi, sum - lim, expl);
 #else
     // Naive explanation
     for(elt e : p->xs) {
@@ -85,7 +85,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
 
 #if 1
     int64_t ival(to_int(pval));
-    int64_t lim(p->k + p->ys[yi].c*ival);
+    int64_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
 
     int64_t sum = 0;
     for(elt e : p->xs)
@@ -95,7 +95,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     for(int yj : irange(yi+1, p->ys.size()))
       sum -= p->ys[yj].c * p->ys[yj].x.ub();
 
-    p->make_expl(2*yi+1, lim - sum, expl);
+    p->make_expl(2*yi+1, sum - lim, expl);
 #else
     for(elt e : p->xs) {
       assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
@@ -171,6 +171,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     
     template<class E>
     void make_expl(int var, int slack, E& ex) {
+      assert(slack >= 0);
 #if 0
       for(elt e : xs) {
         assert(s->state.is_inconsistent(e.x < e.x.lb()));
@@ -256,11 +257,13 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         // Collect enough atoms to explain the sum.
         // FIXME: This is kinda weak. We really want to
         // push as much as we can onto the previous level.
-        // make_expl(Var_None, x_lb - y_ub - k - 1, confl);
+        make_expl(Var_None, x_lb - y_ub - k - 1, confl);
+        /*
         for(elt e : xs)
           confl.push(e.x < e.x.lb());
         for(elt e : ys)
           confl.push(e.x > e.x.ub());
+        */
 
         // NOT_YET;
         return false; 
