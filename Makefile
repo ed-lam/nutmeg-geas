@@ -13,6 +13,7 @@ CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
 LFLAGS    = -lz -Wall -Wno-deprecated
 #LFLAGS   += -pg
 
+#CXXFLAGS += -DPVAL_32
 #CXXFLAGS += -DPROOF_LOG
 
 COPTIMIZE = -O3 -march=x86-64 -ffast-math -funroll-loops # -freorder-blocks-and-partition

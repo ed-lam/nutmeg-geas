@@ -20,8 +20,11 @@ class intvar {
   // static const pval_t offset = ((pval_t) INT32_MIN); 
 
 public:
+#ifdef PVAL_32
+  typedef int32_t val_t;
+#else
   typedef int64_t val_t;
-  // typedef int32_t val_t;
+#endif
 
   static val_t to_int(pval_t v) { return (val_t) (offset + v); }
   static pval_t from_int(val_t v) { return ((pval_t) v) - offset; }

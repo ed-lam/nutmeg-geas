@@ -55,8 +55,11 @@ class prop_inst {
   static inline T* cast(void* ptr) { return static_cast<T*>(ptr); }
 
   // typedef intvar::val_t val_t;
+#ifdef PVAL_32
+  typedef int32_t val_t;
+#else
   typedef int64_t val_t;
-  // typedef int32_t val_t;
+#endif
 
 public:
   enum { Wt_IDEM = 1 };

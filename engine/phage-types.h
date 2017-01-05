@@ -30,14 +30,20 @@ static const lbool l_True = lbool::of_int(1);
 // Atomic predicate values are mapped onto [0, UINT64_MAX-1]
 // However, atoms can range from [0, UINT64_MAX].
 // Otherwise, ~[|x >= 0|] is not representable.
+#ifdef PVAL_32
+typedef uint32_t pval_t;
+typedef int32_t spval_t;
+static const pval_t pval_max = UINT32_MAX-1;
+static const pval_t pval_err = UINT32_MAX;
+static const pval_t pval_min = (-pval_max);
+#else
 typedef uint64_t pval_t;
-typedef int64_t spval_t; // For differences between pvals
+typedef int64_t spval_t;
 static const pval_t pval_max = UINT64_MAX-1;
 static const pval_t pval_err = UINT64_MAX;
-// typedef uint32_t pval_t;
-// static const pval_t pval_max = UINT32_MAX-1;
-// static const pval_t pval_err = UINT32_MAX;
 static const pval_t pval_min = 0;
+#endif
+
 forceinline inline pval_t pval_inv(pval_t v) { return pval_max - v; }
 
 typedef uint32_t pid_t;
