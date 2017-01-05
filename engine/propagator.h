@@ -54,11 +54,15 @@ template<class T>
 class prop_inst {
   static inline T* cast(void* ptr) { return static_cast<T*>(ptr); }
 
+  // typedef intvar::val_t val_t;
+  typedef int64_t val_t;
+  // typedef int32_t val_t;
+
 public:
   enum { Wt_IDEM = 1 };
   typedef T P;
 
-  static inline int64_t to_int(pval_t v) { return (((pval_t) INT64_MIN) + v); }
+  static inline val_t to_int(pval_t v) { return (((pval_t) INT64_MIN) + v); }
 
   static bool propagate(void* ptr) { return cast(ptr)->propagate(); }
   static bool check_sat(void* ptr) { return cast(ptr)->check_sat(); }
@@ -78,22 +82,22 @@ public:
     return (cast(ptr)->*F)(x, elt);
   }
 
-  template<void (*F)(T* ptr, int x, int64_t val, vec<clause_elt>& elt)>
+  template<void (*F)(T* ptr, int x, val_t val, vec<clause_elt>& elt)>
   static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     F(cast(ptr), x, to_int(pval), elt);
   }
 
-  template<void (T::*F)(int x, int64_t val, vec<clause_elt>& elt)>
+  template<void (T::*F)(int x, val_t val, vec<clause_elt>& elt)>
   static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     return (cast(ptr)->*F)(x, to_int(pval), elt);
   }
 
-  template<void (*F)(T* ptr, int x, int64_t val, vec<clause_elt>& elt)>
+  template<void (*F)(T* ptr, int x, val_t val, vec<clause_elt>& elt)>
   static void ex_ub(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     F(cast(ptr), x, to_int(pval_max - pval), elt);
   }
 
-  template<void (T::*F)(int x, int64_t val, vec<clause_elt>& elt)>
+  template<void (T::*F)(int x, val_t val, vec<clause_elt>& elt)>
   static void ex_ub(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     (cast(ptr)->*F)(x, to_int(pval_max - pval), elt);
   }

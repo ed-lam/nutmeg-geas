@@ -84,6 +84,9 @@ patom_t new_bool(solver_data& s, pred_init init);
 inline pval_t pred_val(solver_data* s, pid_t p) { return s->state.p_vals[p]; }
 inline bool pred_fixed(solver_data* s, pid_t p) { return pval_max - pred_val(s, p) == pred_val(s, p^1); }
 
+inline pval_t pred_lb(solver_data* s, pid_t p) { return s->state.p_vals[p]; }
+inline pval_t pred_ub(solver_data* s, pid_t p) { return pval_inv(s->state.p_vals[p^1]); }
+
 bool propagate(solver_data& s);
 bool enqueue(solver_data& s, patom_t p, reason r);
 

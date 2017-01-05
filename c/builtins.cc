@@ -83,9 +83,9 @@ int var_int_element(solver s, atom r, intvar z, intvar x, intvar* elts, int sz) 
                         *get_intvar(z), *get_intvar(x), p_elts, get_atom(r));
 }
 
-int int_le(solver s, intvar x, intvar y, int k) {
+int int_le(solver s, atom r, intvar x, intvar y, int k) {
   return phage::int_le(get_solver(s)->data,
-                    *get_intvar(x), *get_intvar(y), k);
+                    *get_intvar(x), *get_intvar(y), k, get_atom(r));
 }
 
 #ifdef __cplusplus

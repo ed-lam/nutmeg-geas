@@ -1,7 +1,11 @@
 #ifndef PHAGE_SOLVER_OPTIONS_H
 #define PHAGE_SOLVER_OPTIONS_H
 
-struct options {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
   options(void)
     // : learnt_dbmax(10000), learnt_growthrate(1.02),
     : learnt_dbmax(50000), learnt_growthrate(1.02),
@@ -13,7 +17,9 @@ struct options {
       // restart_limit(10000), restart_growthrate(1.05)
       // restart_limit(2), restart_growthrate(1.5)
   { } 
-  
+  */
+
+typedef struct {
   int learnt_dbmax; 
   double learnt_growthrate;
 
@@ -25,8 +31,13 @@ struct options {
 
   int restart_limit;
   double restart_growthrate;
-};
+} options;
 
-static const options default_options = options();
+// static const options default_options = options();
+extern options default_options;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

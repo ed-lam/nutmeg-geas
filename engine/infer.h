@@ -10,7 +10,7 @@ namespace phage {
 
 class infer_info {
 public:
-  struct bin_le { pid_t p; pval_t offset; };
+  struct bin_le { pid_t p; spval_t offset; };
 
   // Predicates 0 and 1 are placeholders, and always
   // exist.
@@ -62,7 +62,8 @@ protected:
     watch_node* w(new watch_node); 
     // w->atom = patom_t(pid, 0);
     // w->curr_val = 0;
-    w->succ_val = pval_max;
+    // w->succ_val = pval_max;
+    w->succ_val = pval_err;
     pred_watches.push(w);
     pred_watch_heads.push(watch_head {0, w});
     pred_act.push(0.0);
@@ -77,7 +78,8 @@ protected:
 public:
   // Find the appropriate watch for an atom.
   watch_node* get_watch(pid_t p, pval_t val) {
-    watch_map::iterator it = watch_maps[p].find(val);
+    uint64_t key = (uint64_t) val;
+    watch_map::iterator it = watch_maps[p].find(key);
     if(it != watch_maps[p].end()) 
       return (*it).value;
     watch_node* w(new watch_node);
@@ -85,7 +87,7 @@ public:
 
     // This repeats the lookup performed by
     // find. Modify to avoid this.
-    it = watch_maps[p].add(val, w);
+    it = watch_maps[p].add(key, w);
     --it;
     watch_node* pred = (*it).value;
     // w->curr_val = val;

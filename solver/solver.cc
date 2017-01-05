@@ -3,8 +3,24 @@
 #include "solver/solver.h"
 #include "solver/solver_data.h"
 #include "solver/solver_debug.h"
+#include "solver/stats.h"
+#include "solver/options.h"
 #include "engine/conflict.h"
 
+// Default options
+options default_options = {
+  50000, // int learnt_dbmax; 
+  1.02, // double learnt_growthrate;
+
+  0.01, // double pred_act_inc;
+  1.05, // double pred_act_growthrate; 
+
+  0.01, // double learnt_act_inc;
+  1.05, // double learnt_act_growthrate;
+
+  1000, // int restart_limit;
+  1.05 // double restart_growthrate;
+};
 
 namespace phage {
 
@@ -67,7 +83,7 @@ solver_data::~solver_data(void) {
   delete last_branch;
 }
 
-intvar solver::new_intvar(int64_t lb, int64_t ub) {
+intvar solver::new_intvar(intvar::val_t lb, intvar::val_t ub) {
   return ivar_man.new_var(lb, ub);
 }
 
@@ -181,6 +197,13 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
        confl.push(patom_t {p.pid, fail_val});
        r.eth(fail_val, confl);
        break;
+     }
+     case reason::R_LE:
+     {
+       confl.push(p);
+        patom_t at(~patom_t(r.le.p, p.val + r.le.offset));
+        confl.push(at);
+        break;
      }
      case reason::R_NIL:
       assert(decision_level(s) == 0);
@@ -307,7 +330,8 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 }
 
 // Modifies elt.watch;
-forceinline static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
+// forceinline
+static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
   if(elt.watch) {
 //    assert(elt.watch->curr_val == ~(elt.atom).val);
@@ -327,7 +351,7 @@ bool update_watchlist(solver_data& s,
   int jj = 0;
   int ii;
   for(ii = 0; ii < ws.size(); ii++) {
-    clause_head ch = ws[ii];
+    clause_head& ch = ws[ii];
     if(s.state.is_entailed(ch.e0)) {
       // If the clause is satisfied, just
       // copy the watch and keep going;
@@ -348,16 +372,14 @@ bool update_watchlist(solver_data& s,
     }
     // Normal case: look for a new watch
     clause& c(*ch.c);
-//    assert(c[0].watch);
-//    assert(c[1].watch);
     if(c[1].atom != elt.atom) {
-//      assert(c[0].atom == elt.atom);
       elt.watch = c[0].watch;
       c[0] = c[1];
     } else {
       elt.watch = c[1].watch;
     }
 
+    /*
     if(s.state.is_entailed(c[0].atom)) {
       // If we've found something true, don't bother
       // updating the watches: just record the satisfying atom
@@ -365,10 +387,9 @@ bool update_watchlist(solver_data& s,
       c[1] = elt;
       ch.e0 = c[0].atom;
       ws[jj++] = ch;
-//      assert(c[0].watch);
-//      assert(c[1].watch);
       goto next_clause;
     }
+    */
 
     for(int li = 2; li < c.size(); li++) {
       /*
@@ -384,17 +405,20 @@ bool update_watchlist(solver_data& s,
       */
       if(!s.state.is_inconsistent(c[li].atom)) {
         // Literal is not yet false. New watch is found.
+        /*
         if(s.state.is_entailed(c[li].atom)) {
           c[1] = elt;
           ch.e0 = c[li].atom;
           ws[jj++] = ch;
           goto next_clause;
         }
+        */
            
         clause_elt new_watch = c[li];
         c[1] = new_watch;
         c[li] = elt;
         // Modifies c[1].watch in place
+        ch.e0 = elt.atom;
         find_watchlist(s, c[1]).push(ch);
 //        assert(c[0].watch);
 //        assert(c[1].watch);
@@ -427,7 +451,7 @@ bool propagate_ineqs(solver_data& s, pid_t p) {
   pval_t val_p = s.state.p_vals[p];
 
   for(infer_info::bin_le ineq : s.infer.pred_ineqs[p]) {
-    pval_t val_q = val_p + ineq.offset;
+    pval_t val_q = val_p - ineq.offset;
     if(s.state.p_vals[ineq.p] >= val_q)
       continue;
     if(!enqueue(s, patom_t { ineq.p, val_q }, reason(p, ineq.offset)))
@@ -605,6 +629,9 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
     learnt[jj++] = e;
   }
   learnt.shrink(learnt.size()-jj);
+
+  s->stats.num_learnts++;
+  s->stats.num_learnt_lits += jj;
   
   // Unit at root level
   if(learnt.size() == 1) {
@@ -614,7 +641,7 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  if(learnt.size() == 2) {
+  /*  */ if(learnt.size() == 2) /* / if(0) */ {
     // Add the two watches
     clause_head h0(learnt[0].atom);
     clause_head h1(learnt[1].atom);
@@ -631,7 +658,8 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
     // Assumption:
     // learnt[0] is the asserting literal;
     // learnt[1] is at the current level
-    clause_head h(learnt[2].atom, c);
+    // clause_head h(learnt[2].atom, c);
+    clause_head h(learnt.last().atom, c);
 
     find_watchlist(*s, (*c)[0]).push(h);
     find_watchlist(*s, (*c)[1]).push(h); 
@@ -697,7 +725,7 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
   c->sz = ej - c->begin();
   assert(c->sz >= 2);
 
-  if(c->sz == 2)  {
+  /* */ if(c->sz == 2)  /* / if (0) */ {
     // c has become a binary clause.
     // Inline the clause body, and free the clause.
     replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
@@ -1006,7 +1034,7 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  /* if(elts.size() == 2) */ if(0) {
+  /* */ if(elts.size() == 2) /* / if(0) */  {
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
@@ -1017,7 +1045,7 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
     clause* c(clause_new(elts));
     // Any two watches should be fine
     // clause_head h(elts[2].atom, c);
-    clause_head h(elts[1].atom, c);
+    clause_head h(elts.last().atom, c);
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 
@@ -1046,7 +1074,7 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  /* if(elts.size() == 2) */ if(0) {
+  /* */ if(elts.size() == 2) /* / if(0) */ {
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
@@ -1057,7 +1085,7 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
     clause* c(clause_new(elts));
     // FIXME: Choose appropriate watches
     // clause_head h(elts[2].atom, c);
-    clause_head h(elts[1].atom, c);
+    clause_head h(elts.last().atom, c);
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 

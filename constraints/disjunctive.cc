@@ -45,8 +45,8 @@ class disj_int : public propagator {
     vec<int> du; // durations
 
     // Temporary storage
-    vec<int64_t> est; // earliest start time
-    vec<int64_t> let; // latest end time
+    vec<intvar::val_t> est; // earliest start time
+    vec<intvar::val_t> let; // latest end time
 };
 
 class disj_var : public propagator {

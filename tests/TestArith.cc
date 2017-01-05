@@ -77,8 +77,8 @@ void test3(void) {
 
   patom_t b = s.new_boolvar();
 
-  int_le(sd, y, x, b);
-  int_le(sd, x, y, ~b);
+  int_le(sd, y, x, 0, b);
+  int_le(sd, x, y, 0, ~b);
   add_clause(sd, ~b, x < 5);
   add_clause(sd, b, x < -5);
 

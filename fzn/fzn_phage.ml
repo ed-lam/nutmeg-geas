@@ -277,7 +277,12 @@ let solve_optimize print_model constrain solver =
  
 let print_stats fmt stats =
   if !Opts.print_stats then
-    Format.fprintf fmt "%d solutions, %d conflicts, %d restarts@." stats.Sol.solutions stats.Sol.conflicts stats.Sol.restarts
+    begin
+      Format.fprintf fmt "%d solutions, %d conflicts, %d restarts@." stats.Sol.solutions stats.Sol.conflicts stats.Sol.restarts ;
+      Format.fprintf fmt "%d learnts, average size %f@."
+        stats.Sol.num_learnts
+        ((float_of_int stats.Sol.num_learnt_lits) /. (float_of_int stats.Sol.num_learnts))
+    end
 
 let main () =
   (* Parse the command-line arguments *)
@@ -296,7 +301,7 @@ let main () =
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
   let problem = Simplify.simplify orig_problem in
-  let solver = Sol.new_solver () in
+  let solver = Sol.new_solver (Sol.default_options ()) in
   (* Do stuff *)
   let env = build_problem solver problem in
   build_branching problem env solver (snd problem.Pr.objective) ;

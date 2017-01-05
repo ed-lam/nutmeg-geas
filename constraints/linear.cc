@@ -55,10 +55,10 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
                        vec<clause_elt>& expl) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
 #if 1
-    int64_t ival(to_int(pval_inv(pval)));
-    int64_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
+    intvar::val_t ival(to_int(pval_inv(pval)));
+    intvar::val_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
 
-    int64_t sum = 0;
+    intvar::val_t sum = 0;
     for(int xj : irange(xi))
       sum += p->xs[xj].c * p->xs[xj].x.lb();
     for(int xj : irange(xi+1, p->xs.size()))
@@ -84,10 +84,10 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
 
 #if 1
-    int64_t ival(to_int(pval));
-    int64_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
+    intvar::val_t ival(to_int(pval));
+    intvar::val_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
 
-    int64_t sum = 0;
+    intvar::val_t sum = 0;
     for(elt e : p->xs)
       sum += e.c * e.x.lb();
     for(int yj : irange(yi))
@@ -297,6 +297,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
 
       for(int yi : irange(0, ys.size())) {
         elt e = ys[yi];
+        // int y_diff = slack/e.c;
         int y_diff = slack/e.c;
         int y_lb = e.x.ub() - y_diff;
         if(e.x.lb() < y_lb) {
@@ -386,14 +387,14 @@ public:
   }
 protected:
   struct entry_t {
-    entry_t(int64_t _st, int64_t _en, pval_t _val)
+    entry_t(intvar::val_t _st, intvar::val_t _en, pval_t _val)
       : st(_st), en(_en), val(_val) { }
 
-    int64_t st, en;
+    intvar::val_t st, en;
     pval_t val;
   };
 
-  int decompose(int idx, int64_t lim) {
+  int decompose(int idx, intvar::val_t lim) {
     assert(idx < vs.size()); 
      
     return 0;       
@@ -403,10 +404,10 @@ protected:
   vec<int>& ks;
   vec<intvar>& vs;
 
-  std::map<int64_t, entry_t> tbl;
+  std::map<intvar::val_t, entry_t> tbl;
   // Upper bounds for feasibility and redundance
-  vec<int64_t> red_ubs;
-  vec<int64_t> feas_ubs;
+  vec<intvar::val_t> red_ubs;
+  vec<intvar::val_t> feas_ubs;
   vec<pid_t> ps_preds;
 };
 

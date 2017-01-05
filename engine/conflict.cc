@@ -54,6 +54,7 @@ void reduce_db(solver_data* s) {
   vec<clause*>& learnts(s->infer.learnts);
   clause** mid = &learnts[s->learnt_dbmax/2];
   std::nth_element(learnts.begin(), mid, learnts.end(), cmp_clause_act());
+  int shrunk_lits = 0;
   
   for(clause* c : range(mid, learnts.end())) {
     // If this clause is locked, we can't detach it
@@ -61,10 +62,14 @@ void reduce_db(solver_data* s) {
       *mid = c; ++mid; 
       continue;
     }
+    shrunk_lits += c->size();
     detach_clause(c);
     delete c;
   }
-  learnts.shrink(learnts.end() - mid);
+  int num_shrunk = learnts.end() - mid;
+  s->stats.num_learnts -= num_shrunk;
+  s->stats.num_learnt_lits -= shrunk_lits;
+  learnts.shrink(num_shrunk);
   
   s->learnt_dbmax *= s->opts.learnt_growthrate;
 }
@@ -187,7 +192,7 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
     case reason::R_LE:
       {
         // p <= q + offset.
-        patom_t at(~patom_t(r.le.p, ex_val - r.le.offset));
+        patom_t at(~patom_t(r.le.p, ex_val + r.le.offset));
 #ifdef PROOF_LOG
         log::add_atom(*s, at);
 #endif

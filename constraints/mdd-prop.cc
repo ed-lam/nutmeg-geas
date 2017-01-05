@@ -16,7 +16,7 @@ class mdd_prop : public propagator {
   }
 
   public: 
-    struct valpair { int var; int64_t val; };
+    struct valpair { int var; intvar::val_t val; };
 
     mdd_prop(solver_data* s, mdd& _m, vec<intvar>& _vs)
       : propagator(s), vs(_vs) {
@@ -24,7 +24,7 @@ class mdd_prop : public propagator {
       int idx = 0;
       for(int ii : num_range(vs.size())) {
         intvar v(vs[ii]);
-        for(int64_t k : v.domain()) {
+        for(intvar::val_t k : v.domain()) {
           attach(s, v != k, watch_callback(wake, this, idx));
           valpairs.push( valpair {ii, k} );
           idx++;

@@ -55,5 +55,6 @@ interval<T> nonpos(const interval<T>& o) {
 }
 
 typedef interval<int64_t> int_itv;
+// typedef interval<int32_t> int_itv;
 
 #endif

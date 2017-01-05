@@ -20,8 +20,9 @@ atom neg(atom at) {
 //    
 //}
 
-solver new_solver(void) {
-  return (solver) (new phage::solver);
+options default_opts(void) { return default_options; }
+solver new_solver(options o) {
+  return (solver) (new phage::solver(o));
 }
 
 void destroy_solver(solver s) {
@@ -32,6 +33,14 @@ intvar new_intvar(solver s, int lb, int ub) {
   phage::solver* ps(get_solver(s));
   phage::intvar* v(new phage::intvar(ps->new_intvar(lb, ub)));
   return (intvar) v;
+}
+
+int make_sparse(intvar px, int* vals, int sz) {
+  phage::intvar* x((phage::intvar*) px);
+  vec<phage::intvar::val_t> vs;
+  for(int* v = vals; v < vals+sz; ++v)
+    vs.push(*v);
+  return phage::make_sparse(*x, vs);
 }
 
 void destroy_intvar(intvar v) {
@@ -151,15 +160,17 @@ atom pred_ge(pred_t p, int k) {
   return unget_atom(phage::patom_t(p, k));
 }
 
-stats get_statistics(solver s) {
+statistics get_statistics(solver s) {
   phage::solver_data* data(get_solver(s)->data);
 
-  stats st = {
+  /*
+  statistics st = {
     data->stats.solutions,
     data->stats.conflicts,
     data->stats.restarts
   };
-  return st;
+  */
+  return data->stats;
 }
 
 void set_cons_id(solver s, int id) {

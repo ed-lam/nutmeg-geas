@@ -111,6 +111,8 @@ let new_bvar m name ann =
   Dy.add m.bvals (name, ann) ;
   id
 
+let dom_of model iv = (Dy.get model.ivals iv).dom
+
 let post model id args anns =
   Dy.add model.constraints ((id, args), anns)
 

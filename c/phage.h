@@ -2,6 +2,8 @@
 #define PHAGE_H
 // Top-level C interface
 #include "c/atom.h"
+#include "solver/stats.h"
+#include "solver/options.h"
 
 #ifdef __cplusplus
 #include <cstdio>
@@ -24,17 +26,36 @@ typedef struct model_s* model;
 struct brancher_s;
 typedef struct brancher_s* brancher;
 
+/*
 typedef struct {
   int solutions;
   int conflicts;
   int restarts;
 } stats;
 
-solver new_solver(void);
+// Urgh. Should just have stats and options as straight structs.
+typedef struct {
+  int learnt_dbmax;
+  double learnt_growthrate;
+  
+  double pred_act_inc;
+  double pred_act_decay;
+
+  double learnt_act_inc;
+  double learnt_act_decay;
+
+  int restart_limit;
+  double restart_growthrate;
+} options;
+*/
+
+options default_opts(void);
+solver new_solver(options opts);
 void destroy_solver(solver);
 
 intvar new_intvar(solver, int lb, int ub);
 void destroy_intvar(intvar);
+int make_sparse(intvar, int* vals, int sz);
 
 atom new_boolvar(solver);
 
@@ -68,7 +89,7 @@ atom ivar_eq(intvar, int);
 pred_t new_pred(solver, int, int);
 atom pred_ge(pred_t, int);
 
-stats get_statistics(solver);
+statistics get_statistics(solver);
 
 // Proof logging
 void set_log_file(solver, FILE*);

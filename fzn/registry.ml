@@ -71,26 +71,52 @@ let int_mul solver args anns =
   let z = Pr.get_ivar args.(2) in
   Builtins.int_mul solver At.at_True z x y
 
+(* Specialization of linear inequalities *)
+let simplify_linterms terms k =
+  let rec aux acc k' ts =
+    match ts with
+    | [] -> (List.rev acc), k' 
+    | (0, _) :: ts' -> aux acc k' ts'
+    | (c, Pr.Ilit x) :: ts' -> aux acc (k' - c*x)  ts'
+    | (c, Pr.Ivar v) :: ts' -> aux ((c, v) :: acc) k' ts'
+    | _ -> failwith "Expected integer-typed operands to linear."
+  in
+  aux [] k (Array.to_list terms)
+
+(* Specialized int_lin_le *)
 let int_lin_le solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
-  let xs = Pr.get_array Pr.get_ivar args.(1) in
-  let terms = Array.init (Array.length xs)
-                         (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
+  let xs = Pr.get_array (fun x -> x) args.(1) in
   let k = Pr.get_int args.(2) in
-  Builtins.linear_le solver At.at_True terms k
+  let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
+  match simplify_linterms terms k with
+  | [], k -> 0 <= k
+    (* GKG: Check for rounding *)
+  | [c, x], k ->
+    if c < 0 then
+      S.post_atom solver (S.ivar_ge x ((-k)/(-c)))
+    else
+      S.post_atom solver (S.ivar_le x (k/c))
+  | [1, x; -1, y], k | [-1, y; 1, x], k ->
+    B.int_le solver At.at_True x y k
+  | ts, k ->
+    B.linear_le
+      solver At.at_True
+      (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
 
 let int_lin_ne solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
-  let xs = Pr.get_array Pr.get_ivar args.(1) in
+  let xs = Pr.get_array (force_ivar solver) args.(1) in
   let terms = Array.init (Array.length xs)
                          (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
   let k = Pr.get_int args.(2) in
   Builtins.linear_ne solver At.at_True terms k
 
 
+(*
 let int_lin_eq solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
-  let xs = Pr.get_array Pr.get_ivar args.(1) in
+  let xs = Pr.get_array (force_ivar solver) args.(1) in
   let terms = Array.init (Array.length xs)
                          (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
   let negterms = Array.init (Array.length xs)
@@ -98,6 +124,30 @@ let int_lin_eq solver args anns =
   let k = Pr.get_int args.(2) in
   (B.linear_le solver At.at_True terms k)
     && (B.linear_le solver At.at_True negterms (-k))
+    *)
+(* Specialized int_lin_eq *)
+let int_lin_eq solver args anns =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array (fun x -> x) args.(1) in
+  let k = Pr.get_int args.(2) in
+  let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
+  match simplify_linterms terms k with
+  | [], k -> 0 = k
+    (* GKG: Check for rounding *)
+  | [c, x], k ->
+    if k mod c = 0 then
+      S.post_atom solver (S.ivar_eq x (k/c))
+    else
+      false
+  | [1, x; -1, y], k | [-1, y; 1, x], k ->
+    B.int_le solver At.at_True x y k
+      && B.int_le solver At.at_True y x (-k)
+  | ts, k ->
+    let t_arr = Array.of_list ts in
+    let pos = Array.map (fun (c, x) -> { B.c = c; B.x = x}) t_arr in
+    let neg = Array.map (fun (c, x) -> { B.c = -c; B.x = x}) t_arr in
+    B.linear_le solver At.at_True pos k
+      && B.linear_le solver At.at_True neg (-k)
 
 let bool2int solver args anns =
   let b = Pr.get_bvar args.(0) in
@@ -124,9 +174,9 @@ let array_bool_or solver args anns =
     (S.post_clause solver (Array.append [|At.neg z|] xs)) xs
 
 let array_int_element solver args anns =
-  let idx = Pr.get_ivar args.(0) in
+  let idx = (force_ivar solver) args.(0) in
   let elts = Pr.get_array Pr.get_int args.(1) in
-  let res = Pr.get_ivar args.(2) in
+  let res = (force_ivar solver) args.(2) in
   B.int_element solver At.at_True res idx elts
 
 let array_var_int_element solver args anns =
@@ -148,9 +198,43 @@ let bool_iff solver x y =
   && S.post_clause solver [|At.neg x ; y|]
 
 let int_eq solver args anns =
-  let x = Pr.get_ivar args.(0) in
-  let y = Pr.get_ivar args.(1) in
-  B.int_le solver x y 0 && B.int_le solver y x 0
+  match args.(0), args.(1) with
+  | Pr.Ivar x, Pr.Ivar y ->
+    B.int_le solver At.at_True x y 0 && B.int_le solver At.at_True y x 0
+  | Pr.Ilit c, Pr.Ivar x | Pr.Ivar x, Pr.Ilit c ->
+    S.post_atom solver (S.ivar_le x c) && S.post_atom solver (S.ivar_ge x c)
+  | Pr.Ilit c1, Pr.Ilit c2 -> c1 = c2
+  | _, _ -> failwith "int_eq expects int operands."
+
+let int_le solver args anns =
+  match args.(0), args.(1) with
+  | Pr.Ivar x, Pr.Ivar y -> B.int_le solver At.at_True x y 0
+  | Pr.Ivar x, Pr.Ilit c -> S.post_atom solver (S.ivar_le x c)
+  | Pr.Ilit c, Pr.Ivar x -> S.post_atom solver (S.ivar_ge x c)
+  | Pr.Ilit c1, Pr.Ilit c2 -> c1 <= c2
+  | _, _ -> failwith "int_le expects int operands."
+
+(*
+let int_le solver args anns =
+  let x = (force_ivar solver) args.(0) in
+  let y = (force_ivar solver) args.(1) in
+  B.int_le solver At.at_True x y 0
+  *)
+
+let int_lt solver args anns =
+  match args.(0), args.(1) with
+  | Pr.Ivar x, Pr.Ivar y -> B.int_le solver At.at_True x y (-1)
+  | Pr.Ivar x, Pr.Ilit c -> S.post_atom solver (S.ivar_lt x c)
+  | Pr.Ilit c, Pr.Ivar x -> S.post_atom solver (S.ivar_gt x c)
+  | Pr.Ilit c1, Pr.Ilit c2 -> c1 < c2
+  | _, _ -> failwith "int_le expects int operands."
+
+(*
+let int_lt solver args anns =
+  let x = (force_ivar solver) args.(0) in
+  let y = (force_ivar solver) args.(1) in
+  B.int_le solver At.at_True x y 1
+  *)
 
 let int_eq_reif solver args anns =
   match Pr.get_bval args.(2) with
@@ -258,6 +342,8 @@ let initialize () =
      "int_lin_ne", int_lin_ne ;
      (* "int_lin_ne", ignore_constraint ; *)
      "int_eq", int_eq ;
+     "int_le", int_le ;
+     "int_lt", int_lt ;
      (* "int_ne", int_ne ; *)
      "int_eq_reif", int_eq_reif ;
      "int_ne_reif", int_ne_reif ;
@@ -270,5 +356,3 @@ let initialize () =
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers
-
-  

@@ -17,12 +17,14 @@ class intvar {
   friend class intvar_manager;
 
   static const pval_t offset = ((pval_t) INT64_MIN); 
+  // static const pval_t offset = ((pval_t) INT32_MIN); 
 
 public:
   typedef int64_t val_t;
+  // typedef int32_t val_t;
 
-  static int64_t to_int(pval_t v) { return (int64_t) (offset + v); }
-  static pval_t from_int(int64_t v) { return ((pval_t) v) - offset; }
+  static val_t to_int(pval_t v) { return (val_t) (offset + v); }
+  static pval_t from_int(val_t v) { return ((pval_t) v) - offset; }
 
   // intvar_base(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
   intvar(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
@@ -40,34 +42,34 @@ public:
     return *this;
   }
 
-  int64_t lb(void) const;
-  int64_t ub(void) const;
+  val_t lb(void) const;
+  val_t ub(void) const;
   bool is_fixed(void) const;
 
-  int64_t lb_prev(void) const;
-  int64_t ub_prev(void) const;
+  val_t lb_prev(void) const;
+  val_t ub_prev(void) const;
 
-  int64_t lb_0(void) const;
-  int64_t ub_0(void) const;
+  val_t lb_0(void) const;
+  val_t ub_0(void) const;
 
-  bool set_lb(int64_t min, reason r);
-  bool set_ub(int64_t max, reason r);
+  bool set_lb(val_t min, reason r);
+  bool set_ub(val_t max, reason r);
 
   void attach(intvar_event e, watch_callback c);
 
   // FIXME: Update to deal with sparse
-  num_range_t<int64_t> domain(void) const {
+  num_range_t<val_t> domain(void) const {
     return num_range(lb(), ub()+1);
   }
 
-  int64_t model_val(const model& m) const;
+  val_t model_val(const model& m) const;
 
-  patom_t operator>=(int64_t v) { return patom_t(pid, from_int(v)); }
-  patom_t operator>(int64_t v) { return patom_t(pid, from_int(v+1)); }
-  patom_t operator<=(int64_t v) { return ~patom_t(pid, from_int(v+1)); }
-  patom_t operator<(int64_t v) { return ~patom_t(pid, from_int(v)); }
-  patom_t operator==(int64_t v);
-  patom_t operator!=(int64_t v);
+  patom_t operator>=(val_t v) { return patom_t(pid, from_int(v)); }
+  patom_t operator>(val_t v) { return patom_t(pid, from_int(v+1)); }
+  patom_t operator<=(val_t v) { return ~patom_t(pid, from_int(v+1)); }
+  patom_t operator<(val_t v) { return ~patom_t(pid, from_int(v)); }
+  patom_t operator==(val_t v);
+  patom_t operator!=(val_t v);
 
   solver_data* s;
   intvar_manager* man;
@@ -77,9 +79,11 @@ public:
 
 class intvar_manager {
 public:
+  typedef intvar::val_t val_t;
+
   enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
 
-  struct eq_elt { int64_t val; patom_t atom; };
+  struct eq_elt { val_t val; patom_t atom; };
 
   class var_data {
   public: 
@@ -97,13 +101,13 @@ public:
 
   intvar_manager(solver_data* _s);
      
-  intvar new_var(int64_t lb, int64_t ub);
+  intvar new_var(val_t lb, val_t ub);
 
   void attach(unsigned int vid, intvar_event e, watch_callback c);
 
-  bool in_domain(unsigned int vid, int64_t val);
-  patom_t make_eqatom(unsigned int vid, int64_t val);
-  bool make_sparse(unsigned int vid, vec<int64_t>& vals);
+  bool in_domain(unsigned int vid, val_t val);
+  patom_t make_eqatom(unsigned int vid, val_t val);
+  bool make_sparse(unsigned int vid, vec<val_t>& vals);
 
   vec<pid_t> var_preds;
 
@@ -118,12 +122,12 @@ public:
 };
 
 // inline patom_t intvar_base::operator==(int64_t v) {
-inline patom_t intvar::operator==(int64_t v) {
+inline patom_t intvar::operator==(val_t v) {
   return man->make_eqatom(idx, v);
 }
 
 // inline patom_t intvar_base::operator!=(int64_t v) {
-inline patom_t intvar::operator!=(int64_t v) {
+inline patom_t intvar::operator!=(val_t v) {
   return ~man->make_eqatom(idx, v);
 }
 
@@ -132,15 +136,15 @@ inline bool in_domain(intvar x, int k) { return x.man->in_domain(x.idx, k); }
 template<class T>
 // bool intvar_base::make_sparse(vec<T>& vals) {
 bool make_sparse(intvar x, vec<T>& vals) {
-  vec<int64_t> vs;
+  vec<intvar::val_t> vs;
   for(const T& v : vals)
-    vs.push((int64_t) v);
+    vs.push((intvar::val_t) v);
   return x.man->make_sparse(x.idx, vs);
 }
 
-inline int64_t to_int(pval_t v) { return intvar::to_int(v); }
+inline intvar::val_t to_int(pval_t v) { return intvar::to_int(v); }
 
-inline pval_t from_int(int64_t v) { return intvar::from_int(v); }
+inline pval_t from_int(intvar::val_t v) { return intvar::from_int(v); }
 
 
 inline int_itv var_unsupp(intvar x) {

@@ -11,11 +11,11 @@ CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
 CXXFLAGS += --std=c++11
 CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
 LFLAGS    = -lz -Wall -Wno-deprecated
-LFLAGS   += -pg
+#LFLAGS   += -pg
 
 #CXXFLAGS += -DPROOF_LOG
 
-COPTIMIZE = -O3 -ffast-math -funroll-loops # -freorder-blocks-and-partition
+COPTIMIZE = -O3 -march=x86-64 -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2
 #COPTIMIZE = -O0
 CXXFLAGS += $(COPTIMIZE)

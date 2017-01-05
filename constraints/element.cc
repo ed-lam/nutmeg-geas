@@ -14,7 +14,10 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
                    vec<int>& ys, int base) {
   // Also set domain of ys.
   if(s->state.is_entailed_l0(r)) {
-    x.set_lb(base, reason()); x.set_ub(base + ys.size()-1, reason());  
+    if(base > x.lb())
+      x.set_lb(base, reason());
+    if(base + ys.size() <= x.ub())
+      x.set_ub(base + ys.size()-1, reason());  
     // z.set_lb(ys_uniq[0], reason()); z.set_ub(ys_uniq.last(), reason());
 
     if(!make_sparse(z, ys))
@@ -40,8 +43,8 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
   vec<int> ys_uniq(ys); uniq(ys_uniq);
 
   for(int yy : ys_uniq) {
-    vec<clause_elt> ps { ~r };
-    ps.push(z != yy);
+    vec<clause_elt> ps { ~r, z != yy };
+//    ps.push(z != yy);
     for(int ii : irange(ys.size())) {
       if(ys[ii] == yy) {
         ps.push(x == ii + base);
@@ -67,14 +70,14 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     }
   }
 
-  static void ex_y_lb(elem_var_bnd* p, int yi, int64_t lb, vec<clause_elt>& expl) {
+  static void ex_y_lb(elem_var_bnd* p, int yi, intvar::val_t lb, vec<clause_elt>& expl) {
     // expl.push(p->x != yi + p->base);
     expl.push(p->x < yi + p->base);
     expl.push(p->x > yi + p->base);
     expl.push(p->z < lb);
   }
 
-  static void ex_y_ub(elem_var_bnd* p, int yi, int64_t ub, vec<clause_elt>& expl) {
+  static void ex_y_ub(elem_var_bnd* p, int yi, intvar::val_t ub, vec<clause_elt>& expl) {
     expl.push(p->x < yi + p->base);
     expl.push(p->x > yi + p->base);
     expl.push(p->z > ub);
@@ -93,13 +96,13 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   }
 
   void push_hints(int low, int high, vec<clause_elt>& expl) {
-    int64_t z_ub = z.ub();
+    intvar::val_t z_ub = z.ub();
 
-    int64_t z_low = z.ub_0()+1;
-    int64_t z_high = z.lb_0()-1;
+    intvar::val_t z_low = z.ub_0()+1;
+    intvar::val_t z_high = z.lb_0()-1;
 
     for(int ii : irange(low, high)) {
-      int64_t hint = cut_hint[ii];
+      intvar::val_t hint = cut_hint[ii];
       if(z_ub < hint) {
         assert(ys[ii].lb() >= hint);
         z_high = std::max(z_high, hint);
@@ -213,7 +216,7 @@ public:
 
     patom_t r;
 
-    vec<int64_t> cut_hint;
+    vec<intvar::val_t> cut_hint;
 };
 
 // Non-incremental interval-based propagation
@@ -228,7 +231,7 @@ class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
   static void ex_x_ne_xi(void* ptr, int xi, pval_t pval, vec<clause_elt>& expl) {
     elem_var_simple* p(static_cast<elem_var_simple*>(ptr));
     
-    int64_t hint = p->cut_hint[xi];
+    intvar::val_t hint = p->cut_hint[xi];
     if(p->z.ub() < hint) {
       expl.push(p->z >= hint);
       expl.push(p->ys[xi] < hint);
@@ -238,21 +241,21 @@ class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
     }
   }
 
-  static void ex_y_lb(elem_var_simple* p, int yi, int64_t lb, vec<clause_elt>& expl) {
+  static void ex_y_lb(elem_var_simple* p, int yi, intvar::val_t lb, vec<clause_elt>& expl) {
     expl.push(p->x != yi + p->base);
     expl.push(p->z < lb);
   }
 
-  static void ex_y_ub(elem_var_simple* p, int yi, int64_t ub, vec<clause_elt>& expl) {
+  static void ex_y_ub(elem_var_simple* p, int yi, intvar::val_t ub, vec<clause_elt>& expl) {
     expl.push(p->x != yi + p->base);
     expl.push(p->z > ub);
   }
 
-  static void ex_z_lb(P* p, int pos, int64_t lb, vec<clause_elt>& expl) {
+  static void ex_z_lb(P* p, int pos, intvar::val_t lb, vec<clause_elt>& expl) {
     NOT_YET;
   }
 
-  static void ex_z_ub(P* p, int pos, int64_t lb, vec<clause_elt>& expl) {
+  static void ex_z_ub(P* p, int pos, intvar::val_t lb, vec<clause_elt>& expl) {
     NOT_YET;
   }
 
@@ -361,7 +364,7 @@ support_found:
     patom_t r;
 
     // Explanation hints
-    vec<int64_t> cut_hint;
+    vec<intvar::val_t> cut_hint;
 };
 
 bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {

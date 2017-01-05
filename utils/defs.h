@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <algorithm>
 
 #include "mtl/Vec.h"
 

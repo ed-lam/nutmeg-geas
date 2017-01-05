@@ -72,6 +72,8 @@ val create : unit -> t
 val new_ivar : t -> ident -> Dom.t -> ann_expr list -> ival_id
 val new_bvar : t -> ident -> ann_expr list -> bval_id
 
+val dom_of : t -> ival_id -> Dom.t
+
 val ann_has_id : ann_expr list -> ident -> bool
 val ann_has_call : ann_expr list -> ident -> bool
 

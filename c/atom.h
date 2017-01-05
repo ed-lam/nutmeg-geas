@@ -8,6 +8,7 @@ extern "C" {
 typedef struct {
   uint32_t pid;
   uint64_t val;
+  // uint32_t val;
 } atom;
 
 typedef uint32_t pred_t;

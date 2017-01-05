@@ -22,7 +22,7 @@ public:
   solver(options& opts);
   ~solver(void);
 
-  intvar new_intvar(int64_t lb, int64_t ub);
+  intvar new_intvar(intvar::val_t lb, intvar::val_t ub);
   patom_t new_boolvar(void);
   // Post a constraint
   // bool post(bexpr& e);

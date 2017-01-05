@@ -1,3 +1,5 @@
+quote(c, "#include \"../solver/stats.h\"");
+quote(c, "#include \"../solver/options.h\"");
 quote(c, "#include \"../c/phage.h\"");
 
 import "atom.idl";
@@ -11,10 +13,27 @@ typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
 typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
 
 typedef struct {
-  int solutions;
   int conflicts;
   int restarts;
-} stats;
+  int solutions;
+
+  int num_learnts;
+  int num_learnt_lits;
+} statistics;
+
+typedef struct {
+  int learnt_dbmax; 
+  double learnt_growthrate;
+
+  double pred_act_inc;
+  double pred_act_growthrate; 
+
+  double learnt_act_inc;
+  double learnt_act_growthrate;
+
+  int restart_limit;
+  double restart_growthrate;
+} options;
 
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
 typedef [abstract,ptr,finalize(free_model)] struct model_s* model;
@@ -23,7 +42,8 @@ typedef [abstract,ptr] struct brancher_s* brancher;
 
 quote(mlmli, "type t  = solver");
 
-solver new_solver(void);
+[mlname(default_options)] options default_opts(void);
+solver new_solver([in] options o);
 // bool propagate([in] solver);
 
 brancher new_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);
@@ -55,7 +75,7 @@ atom ivar_eq([in] intvar v, [in] int k);
 pred_t new_pred([in] solver s, [in] int lb, [in] int ub);
 atom pred_ge([in] pred_t p, [in] int k);
 
-stats get_statistics([in] solver s);
+statistics get_statistics([in] solver s);
 
 void set_cons_id([in] solver s, int id);
 

@@ -53,3 +53,17 @@ let holes d =
      match List.sort compare ks with
      | x :: xs -> aux (x+1) xs []
      | _ -> []
+
+let lb d = match d with
+  | Range (l, _) -> l
+  | Set (k :: ks) -> List.fold_left min k ks
+  | Set [] -> failwith "Empty domain has no lb"
+
+let ub d = match d with
+  | Range (_, u) -> u
+  | Set (k :: ks) -> List.fold_left max k ks
+  | Set [] -> failwith "Empty domain has no ub"
+
+let size d = match d with
+  | Range (l, u) -> if l <= u then u - l + 1 else 0
+  | Set xs -> List.length xs

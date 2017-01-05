@@ -8,6 +8,8 @@
 namespace phage {
   
 class alldiff_b : public propagator {
+  typedef typename intvar::val_t val_t;
+
   static void wake_lb(void* ptr, int xi) {
     alldiff_b* p(static_cast<alldiff_b*>(ptr)); 
     p->queue_prop();
@@ -43,13 +45,13 @@ class alldiff_b : public propagator {
     }
     
     struct bound_cmp {
-      bound_cmp(vec<int64_t>& _bs)
+      bound_cmp(vec<val_t>& _bs)
         : bounds(_bs) { }
 
       bool operator()(int ii, int jj) {
         return bounds[ii] < bounds[jj];  
       }
-      vec<int64_t>& bounds;
+      vec<val_t>& bounds;
     };
 
     bool propagate(vec<clause_elt>& confl) {
@@ -76,8 +78,8 @@ class alldiff_b : public propagator {
     vec<int> lb_ord; // Vars orderd by lb
     vec<int> ub_ord; // Vars ordered by ub
 
-    vec<int64_t> lb;
-    vec<int64_t> ub;
+    vec<val_t> lb;
+    vec<val_t> ub;
 
     boolset lb_change;
     boolset ub_change;
