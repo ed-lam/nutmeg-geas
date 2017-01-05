@@ -35,7 +35,7 @@ typedef uint32_t pval_t;
 typedef int32_t spval_t;
 static const pval_t pval_max = UINT32_MAX-1;
 static const pval_t pval_err = UINT32_MAX;
-static const pval_t pval_min = (-pval_max);
+static const pval_t pval_min = 0;
 #else
 typedef uint64_t pval_t;
 typedef int64_t spval_t;
