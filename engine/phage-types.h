@@ -82,15 +82,17 @@ inline patom_t ge_atom(pid_t p, pval_t v) { return patom_t(p, v); }
 inline patom_t le_atom(pid_t p, pval_t v) { return ~patom_t(p, v+1); }
 
 // Event callbacks
+enum watch_result { Wt_Keep, Wt_Drop };
+
 class watch_callback {
 public:
-  typedef void (*fun)(void*, int);
+  typedef watch_result (*fun)(void*, int);
 
   watch_callback(fun _f, void* _obj, int _data, bool _is_idem = false)
     : f(_f), obj(_obj), data(_data), is_idempotent(_is_idem)
   { }
 
-  void operator()(void) { f(obj, data); }
+  watch_result operator()(void) { return f(obj, data); }
 
   forceinline bool can_skip(void* origin) {
     // return is_idempotent && origin == obj;
@@ -102,6 +104,16 @@ protected:
   int data;
   bool is_idempotent;
 };
+
+inline void run_watches(vec<watch_callback>& watches, void* origin) {
+  int jj = 0;
+  for(int ii = 0; ii < watches.size(); ii++) {
+    watch_callback& cb(watches[ii]);
+    if(cb.can_skip(origin) || cb() == Wt_Keep)
+      watches[jj++] = watches[ii];
+  }
+  watches.shrink_(watches.size() - jj);
+}
 
 // For late initialization of a predicate
 class pred_init {

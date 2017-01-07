@@ -15,14 +15,16 @@ namespace phage {
 // Propagator:
 // non-incremental, with naive eager explanations
 class iprod : public propagator {
-  static void wake_z(void* ptr, int xi) {
+  static watch_result wake_z(void* ptr, int xi) {
     iprod* p(static_cast<iprod*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
-  static void wake_xs(void* ptr, int xi) {
+  static watch_result wake_xs(void* ptr, int xi) {
     iprod* p(static_cast<iprod*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
 public:
@@ -257,9 +259,10 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
 }
 
 class iabs : public propagator {
-  static void wake(void* ptr, int xi) {
+  static watch_result wake(void* ptr, int xi) {
     iabs* p(static_cast<iabs*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
   // Explanation functions  
@@ -419,13 +422,14 @@ void iabs_decomp(solver_data* s, intvar z, intvar x) {
 
 // Incremental version
 class imax : public propagator, public prop_inst<imax> {
-  static void wake_z(void* ptr, int k) {
+  static watch_result wake_z(void* ptr, int k) {
     imax* p(static_cast<imax*>(ptr));
     p->z_change |= k;
     p->queue_prop();
+    return Wt_Keep;
   }
 
-  static void wake_x(void* ptr, int xi) {
+  static watch_result wake_x(void* ptr, int xi) {
     imax* p(static_cast<imax*>(ptr));
     assert((xi>>1) < p->xs.size());
     if(xi&1) { // UB
@@ -438,6 +442,7 @@ class imax : public propagator, public prop_inst<imax> {
         p->lb_change.add(xi>>1);
       p->queue_prop();
     }
+    return Wt_Keep;
   }
 
   static void expl_z_lb(imax* p, int xi, intvar::val_t v,
@@ -670,16 +675,18 @@ protected:
 class ine_bound : public propagator {
   enum Vtag { Var_X = 1, Var_Z = 2 };
 
-  static void wake_fix(void* ptr, int k) {
+  static watch_result wake_fix(void* ptr, int k) {
     ine_bound* p(static_cast<ine_bound*>(ptr));
     p->new_fix |= k;
     p->queue_prop();
+    return Wt_Keep;
   }
 
-  static void wake_bound(void* ptr, int k) {
+  static watch_result wake_bound(void* ptr, int k) {
     ine_bound* p(static_cast<ine_bound*>(ptr));
     if(p->fixed) 
       p->queue_prop();
+    return Wt_Keep;
   }
 
 public:
@@ -817,20 +824,80 @@ bool int_neq(solver_data* s, intvar x, intvar y, patom_t r) {
 }
 
 class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
+  enum { gen_mask = ~(1<<31) };
   enum status { S_Active = 1, S_Red = 2 };
+  enum mode { P_None = 0, P_LB = 1, P_UB = 2, P_LU = 3, P_Deact = 4 };
 
-  void wake_r(int _xi) {
-    if(state & S_Red)
-      return;
+  // Misc helper functions
+  inline bool watch_expired(int xi) {
+    return ((unsigned int) xi)>>1 != fwatch_gen;
+  }
+  inline pval_t choose_cut(void) {
+    return pred_lb(s, x) + (pred_ub(s, y) - pred_lb(s, x))/2;
+  }
+  // inline pval_t lb(int pi) { return pred_lb(s, pi); }
+  // inline pval_t ub(int pi) { return pred_ub(s, pi); }
+  inline spval_t lb(int pi) { return pred_lb(s, pi); }
+  inline spval_t ub(int pi) { return pred_ub(s, pi); }
 
-    trail_change(s->persist, state, (char) S_Active);
-    queue_prop();
+  // Deactivation triggers
+  watch_result wake_fail(int xi) {
+    // If this is an expired watch, drop it.
+    if(watch_expired(xi))
+      return Wt_Drop;
+    // If the propagator is already enabled,
+    // ignore this.
+    if(state&S_Active)
+      return Wt_Keep;
+
+    // Enqueue the propagator, to set ~r
+    if(lb(x) > ub(y) + k) {
+      mode = P_Deact;
+      queue_prop();
+      return Wt_Keep;
+    }
+    
+    // Otherwise, find replacement watches
+    // GKG: What's a good strategy?
+    fwatch_gen = (fwatch_gen+1)&gen_mask;
+    pval_t cut = choose_cut();
+    attach(s, ge_atom(x, cut+1), watch<&P::wake_fail>(fwatch_gen<<1, Wt_IDEM));
+    attach(s, le_atom(y, cut-1), watch<&P::wake_fail>((fwatch_gen<<1)|1, Wt_IDEM));
+    return Wt_Keep;
   }
 
-  void wake_xs(int xi) {
-    if(state&S_Red)
-      return;
+  watch_result wake_r(int _xi) {
+    if(state & S_Red)
+      return Wt_Keep;
+    
+    // If the constraint is activated, add watches on lb(x) and ub(y).
+    if(!attached[0]) {
+      s->pred_callbacks[x].push(watch<&P::wake_xs>(0, Wt_IDEM));
+      attached[0] = true;
+    }
+    if(!attached[1]) {
+      s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
+      attached[1] = true;
+    }
+
+    trail_change(s->persist, state, (char) S_Active);
+    mode = P_LU;
     queue_prop();
+    return Wt_Keep;
+  }
+
+  watch_result wake_xs(int xi) {
+    if(state&S_Red)
+      return Wt_Keep;
+    // If we've backtracked beyond the activation,
+    // drop the watcher.
+    if(!(state&S_Active)) {
+      attached[xi] = false;
+      return Wt_Drop;
+    }
+    mode |= xi ? P_UB : P_LB; 
+    queue_prop();
+    return Wt_Keep;
   }
 
   static void ex_r(void* ptr, int sep, pval_t _val,
@@ -844,43 +911,62 @@ class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
     pred_le_hr* p(static_cast<pred_le_hr*>(ptr));
     expl.push(~(p->r));
     if(var) {
-      expl.push(ge_atom(p->x, val + p->k + 1));
+      expl.push(le_atom(p->x, val + p->k - 1));
     } else {
-      expl.push(le_atom(p->y, pval_inv(val) - p->k - 1));
+      expl.push(ge_atom(p->y, pval_inv(val) - p->k + 1));
     }
   }
 public:
   pred_le_hr(solver_data* s, pid_t _x, pid_t _y, int _k, patom_t _r)
-    : propagator(s), r(_r), x(_x), y(_y), k(_k) {
+    : propagator(s), r(_r), x(_x), y(_y), k(_k), fwatch_gen(0),
+       mode(P_None), state(0) {
+    attached[0] = false; attached[1] = false;
+    /*
     s->pred_callbacks[x].push(watch<&P::wake_xs>(0, Wt_IDEM));
     s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
+    */
+    // Pick an initial cut
 //    x.attach(E_LB, watch_callback(wake_xs, this, 0, 1));
 //    y.attach(E_UB, watch_callback(wake_xs, this, 1, 1));
+    pval_t cut = choose_cut();
+    attach(s, ge_atom(x, cut), watch<&P::wake_fail>(fwatch_gen<<1, Wt_IDEM));
+    attach(s, le_atom(y, cut), watch<&P::wake_fail>((fwatch_gen<<1)|1, Wt_IDEM));
+
     attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
   }
   
+  /*
   forceinline pval_t lb(pid_t p) { return s->state.p_vals[p]; }
   forceinline pval_t ub(pid_t p) { return pval_inv(s->state.p_vals[p^1]); }
+  */
   
   bool propagate(vec<clause_elt>& confl) {
     // Non-incremental propagator
 #ifdef LOG_ALL
     std::cerr << "[[Running ile]]" << std::endl;
 #endif
-    if(state & S_Active) {
+    if(mode&P_Deact) {
+      // Deactivation
+      // sep = pred_lb(s, x);
+      if(!enqueue(*s, ~r, ex_thunk(ex_r, 0))) {
+        return false;
+      }
+      return true;
+    }
+    if(!state&S_Active)
+      return true;
+
+    if(mode&P_LB) {
+      // FIXME: Overflow problems abound
       if(lb(x) > lb(y) + k) {
         if(!enqueue(*s, ge_atom(y, lb(x) - k), expl_thunk { ex_var, this, 1 }))
           return false;
       }
+    }
+    if(mode&P_UB) {
       if(ub(y) + k < ub(x)) {
         if(!enqueue(*s, le_atom(x, ub(y)+k), expl_thunk { ex_var, this, 0}))
           return false;
-      }
-    } else {
-      if(lb(x) > ub(y) + k) {
-        if(!enqueue(*s, ~r, expl_thunk { ex_r, this, (int) lb(x) }))
-          return false;
-        trail_change(s->persist, state, (char) S_Red);
       }
     }
     return true;
@@ -893,11 +979,13 @@ public:
     }
 
     if(s->state.is_entailed(r)) {
+      // FIXME: Instead, disable the propagator
+      // and swap in a pred_le builtin.
       state = S_Active; 
     }
   }
 
-  void cleanup(void) { is_queued = false; }
+  void cleanup(void) { mode = P_None; is_queued = false; }
 
 protected:
   // Parameters
@@ -906,7 +994,13 @@ protected:
   pid_t y;
   int k;
 
+  // Transient bookkeeping
+  unsigned int fwatch_gen; // For watch expiration
+  pval_t sep; // For explanation
+  bool attached[2];
+
   // Persistent state
+  char mode;
   char state;
 };
 

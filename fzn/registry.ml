@@ -84,10 +84,30 @@ let simplify_linterms terms k =
   aux [] k (Array.to_list terms)
 
 (* Specialized int_lin_le *)
+let post_lin_le solver cs xs k =
+   let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
+  match simplify_linterms terms k with
+  | [], k -> 0 <= k
+    (* GKG: Check for rounding *)
+  | [c, x], k ->
+    if c < 0 then
+      S.post_atom solver (S.ivar_ge x ((-k)/(-c)))
+    else
+      S.post_atom solver (S.ivar_le x (k/c))
+  | [1, x; -1, y], k | [-1, y; 1, x], k ->
+    B.int_le solver At.at_True x y k
+  | ts, k ->
+    B.linear_le
+      solver At.at_True
+      (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+ 
 let int_lin_le solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
   let xs = Pr.get_array (fun x -> x) args.(1) in
   let k = Pr.get_int args.(2) in
+  post_lin_le solver cs xs k
+
+  (*
   let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
   match simplify_linterms terms k with
   | [], k -> 0 <= k
@@ -103,6 +123,56 @@ let int_lin_le solver args anns =
     B.linear_le
       solver At.at_True
       (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+      *)
+
+(* Specialized int_lin_le *)
+let post_lin_le_reif s cs xs k r =
+  match r with
+  | Pr.Blit true -> post_lin_le s cs xs k
+  | Pr.Blit false -> post_lin_le s (Array.map ((-) 0) cs) xs (1-k)
+  | Pr.Bvar r ->
+  begin
+    let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
+    match simplify_linterms terms k with
+    | [], k -> S.post_atom s (if 0 <= k then r else At.neg r)
+    | [c, x], k ->
+      let bnd = if c < 0 then ((-k)/(-c)) else k/c in
+      S.post_clause s [|At.neg r; S.ivar_ge x bnd|]
+      && S.post_clause s [|r; S.ivar_lt x bnd|]
+    | [1, x; -1, y], k | [-1, y; 1, x], k ->
+      B.int_le s r x y k
+      && B.int_le s (At.neg r) y x (-k-1)
+    | ts, k ->
+      B.linear_le
+        s r (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+        && B.linear_le
+             s (At.neg r) (Array.map (fun (c, x) -> {B.c = -c; B.x = x}) (Array.of_list ts)) (-k-1)
+  end
+  | _ -> failwith "Expected bool-sorted value in int_lin_le_reif."
+
+let int_lin_le_reif solver args anns =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array (fun x -> x) args.(1) in
+  let k = Pr.get_int args.(2) in
+  post_lin_le_reif solver cs xs k args.(3)
+  (*
+  let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
+  match simplify_linterms terms k with
+  | [], k -> 0 <= k
+    (* GKG: Check for rounding *)
+  | [c, x], k ->
+    if c < 0 then
+      S.post_atom solver (S.ivar_ge x ((-k)/(-c)))
+    else
+      S.post_atom solver (S.ivar_le x (k/c))
+  | [1, x; -1, y], k | [-1, y; 1, x], k ->
+    B.int_le solver At.at_True x y k
+  | ts, k ->
+    B.linear_le
+      solver At.at_True
+      (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+      *)
+
 
 let int_lin_ne solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
@@ -338,6 +408,7 @@ let initialize () =
      (* "int_min", int_min ; *)
      "int_times", int_mul ;
      "int_lin_le", int_lin_le ;
+     "int_lin_le_reif", int_lin_le_reif ;
      "int_lin_eq", int_lin_eq ;
      "int_lin_ne", int_lin_ne ;
      (* "int_lin_ne", ignore_constraint ; *)
@@ -345,6 +416,7 @@ let initialize () =
      "int_le", int_le ;
      "int_lt", int_lt ;
      (* "int_ne", int_ne ; *)
+     (* "int_le_reif", int_le_reif ; *)
      "int_eq_reif", int_eq_reif ;
      "int_ne_reif", int_ne_reif ;
      "bool2int", bool2int ;

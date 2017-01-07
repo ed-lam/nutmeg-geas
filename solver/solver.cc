@@ -150,7 +150,7 @@ void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
 pid_t new_pred(sdata& s, pred_init init) {
   pred_init::prange_t r0(init(s.state.p_root)); 
 
-  pid_t p = alloc_pred(s, r0[0], r0[1]);
+  pid_t p = alloc_pred(s, r0[0], pval_inv(r0[1]));
   // Set up the prev and current values
   // Root values are set up during allocation
   initialize(p, init, s.state.p_last);
@@ -472,8 +472,11 @@ bool propagate_pred(solver_data& s, pid_t p) {
     if(!update_watchlist(s, ~atom, curr->ws)) {
       return false;
     }
+    /*
     for(watch_callback call : curr->callbacks)
       call();
+      */
+    run_watches(curr->callbacks, s.pred_origin[p]);
     atom.val = curr->succ_val;
   }
 
@@ -833,6 +836,10 @@ solver::result solver::solve(void) {
   int next_pause = std::min(next_restart, next_gc);
   if(budget)
     next_pause = std::min(next_pause, budget);
+
+#ifdef LOG_ALL
+      log_state(s.state);
+#endif
 
   while(true) {
     // Signal handler

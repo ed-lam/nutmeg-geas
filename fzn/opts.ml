@@ -45,5 +45,10 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
        "-nof_solutions",
        Arg.Int (fun k -> max_solutions := k),
        " : maximum number of solutions to report"
-     )
+     ) ;
+     (
+      "-a",
+      Arg.Unit (fun () -> max_solutions := 0),
+      " : find all solutions"
+     ) ;
     ]

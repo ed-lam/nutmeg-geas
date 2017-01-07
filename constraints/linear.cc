@@ -21,8 +21,8 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     p->queue_prop();     
   }
   */
-  void wake_x(int xi) { queue_prop(); }
-  void wake_y(int xi) { queue_prop(); }
+  watch_result wake_x(int xi) { queue_prop(); return Wt_Keep; }
+  watch_result wake_y(int xi) { queue_prop(); return Wt_Keep; }
   
   struct elt {
     elt(int _c, intvar _x)
@@ -412,9 +412,10 @@ protected:
 };
 
 class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
-  static void wake(void* ptr, int xi) {
+  static watch_result wake(void* ptr, int xi) {
     int_linear_ne* p(static_cast<int_linear_ne*>(ptr)); 
     p->queue_prop();     
+    return Wt_Keep;
   }
 
   static void expl(void* ptr, int xi, pval_t pval,

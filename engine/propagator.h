@@ -72,7 +72,10 @@ public:
   static void root_simplify(void* ptr) { return cast(ptr)->root_simplify(); }
   static void cleanup(void* ptr) { return cast(ptr)->cleanup(); }
 
-  static void wake_default(void* ptr, int dummy) { return cast(ptr)->queue_prop(); }
+  static watch_result wake_default(void* ptr, int dummy) {
+    cast(ptr)->queue_prop();
+    return Wt_Keep;
+  }
   
   // FIXME: Provide a central definition to_int
   template<void (*F)(T* ptr, int x, vec<clause_elt>& elt)>
@@ -109,12 +112,12 @@ public:
     return expl_thunk { f, this, x, flags };
   }
 
-  template<void (T::*F)(int)>
-  static void watch_fun(void *ptr, int id) {
-    (cast(ptr)->*F)(id);
+  template<watch_result (T::*F)(int)>
+  static watch_result watch_fun(void *ptr, int id) {
+    return (cast(ptr)->*F)(id);
   }
 
-  template<void (T::*F)(int id)>
+  template<watch_result (T::*F)(int id)>
   watch_callback watch(int id, char flags = 0) {
     return watch_callback(watch_fun<F>, this, id, flags&Wt_IDEM);
   }

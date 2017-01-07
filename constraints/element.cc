@@ -222,9 +222,10 @@ public:
 // Non-incremental interval-based propagation
 class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
   // Wakeup and explanation
-  static void wake(void* ptr, int xi) {
+  static watch_result wake(void* ptr, int xi) {
     elem_var_simple* p(static_cast<elem_var_simple*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
   // dom(z) inter dom(ys[i]) -> x != i.

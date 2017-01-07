@@ -10,15 +10,17 @@ namespace phage {
 class alldiff_b : public propagator {
   typedef typename intvar::val_t val_t;
 
-  static void wake_lb(void* ptr, int xi) {
+  static watch_result wake_lb(void* ptr, int xi) {
     alldiff_b* p(static_cast<alldiff_b*>(ptr)); 
     p->queue_prop();
     p->lb_change.add(xi);
+    return Wt_Keep;
   }
-  static void wake_ub(void* ptr, int xi) {
+  static watch_result wake_ub(void* ptr, int xi) {
     alldiff_b* p(static_cast<alldiff_b*>(ptr)); 
     p->queue_prop();
     p->ub_change.add(xi);
+    return Wt_Keep;
   }
 
   public: 

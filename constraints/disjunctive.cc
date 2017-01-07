@@ -3,9 +3,10 @@
 namespace phage {
 
 class disj_int : public propagator {
-  static void wake(void* ptr, int xi) {
+  static watch_result wake(void* ptr, int xi) {
     disj_int* p(static_cast<disj_int*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
   public: 
@@ -50,14 +51,16 @@ class disj_int : public propagator {
 };
 
 class disj_var : public propagator {
-  static void wake_st(void* ptr, int xi) {
+  static watch_result wake_st(void* ptr, int xi) {
     disj_int* p(static_cast<disj_int*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
-  static void wake_du(void* ptr, int xi) {
+  static watch_result wake_du(void* ptr, int xi) {
     disj_int* p(static_cast<disj_int*>(ptr)); 
     p->queue_prop();
+    return Wt_Keep;
   }
 
   public: 

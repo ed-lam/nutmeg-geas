@@ -9,10 +9,11 @@ namespace phage {
 class mdd_prop : public propagator {
   class mdd;
 
-  static void wake(void* ptr, int xi) {
+  static watch_result wake(void* ptr, int xi) {
     mdd_prop* p(static_cast<mdd_prop*>(ptr));
     p->changes.add(xi);
     p->queue_prop();
+    return Wt_Keep;
   }
 
   public: 

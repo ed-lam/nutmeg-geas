@@ -58,28 +58,38 @@ void intvar_base::attach(intvar_event e, watch_callback c) {
   man->attach(idx, e, c);
 }
 
-static void wakeup(void* ptr, int idx) {
+static watch_result wakeup(void* ptr, int idx) {
   // This is a bit ugly
   intvar_manager* man = static_cast<intvar_manager*>(ptr);
   void* origin = man->s->active_prop;
   // Do some stuff
   int vi = idx>>1;
   if(pred_fixed(man->s, man->var_preds[vi])) {
+    /*
     for(auto c : man->fix_callbacks[vi]) {
       if(!c.can_skip(origin))
         c();
     }
+    */
+    run_watches(man->fix_callbacks[vi], origin);
   }
   if(idx&1) {
+    /*
     for(auto c : man->ub_callbacks[vi])
       if(!c.can_skip(origin))
         c();
+        */
+    run_watches(man->ub_callbacks[vi], origin);
   } else {
+    /*
     for(auto c : man->lb_callbacks[vi])
       if(!c.can_skip(origin))
         c();
+        */
+    run_watches(man->lb_callbacks[vi], origin);
   }
 //  printf("Ping: %d\n", idx);
+  return Wt_Keep;
 }
 
 intvar_manager::intvar_manager(solver_data* _s)
