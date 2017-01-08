@@ -812,6 +812,18 @@ model solver::get_model(void) {
   return data->incumbent;
 }
 
+void bump_touched(solver_data& s,
+  double mult, double alpha, int confl_num, int touched_start) {
+  for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
+    pid_t p = s.persist.touched_preds[ti];
+    double reward = mult * (confl_num - s.confl.pred_saved[p].last_seen + 1);
+    double& act = s.infer.pred_act[p];
+    act = (1 - alpha)*act + alpha*reward;
+    if(s.pred_heap.inHeap(p))
+      s.pred_heap.decrease(p);
+  }
+}
+
 // Solving
 solver::result solver::solve(void) {
   // Top-level failure
@@ -823,6 +835,13 @@ solver::result solver::solve(void) {
 
 //  int max_conflicts = 200000;
   int max_conflicts = 0;
+
+  // Activity stuff
+  // FIXME: add persistence to confl_num, so we don't need
+  // to reset this.
+  double alpha = 0.4;
+  for(double& act : s.infer.pred_act)
+    act = 0;
 
   int restart_lim = s.opts.restart_limit;
   // FIXME: On successive runs, this may be smaller than
@@ -849,7 +868,12 @@ solver::result solver::solve(void) {
       return UNKNOWN;
     }
 
+    int touched_start = s.persist.touched_preds.size();
     if(!propagate(s)) {
+      bump_touched(s, 1.0, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
+      if(alpha > 0.06)
+        alpha = alpha - 1e-6;
+
 #ifdef CHECK_STATE
       int pi = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
       for(; pi < s.infer.trail.size(); pi++)
@@ -947,6 +971,9 @@ solver::result solver::solve(void) {
       }
       continue;
     }
+
+    bump_touched(s, 0.9, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
+
 #ifdef CHECK_STATE
     int pi = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
     for(; pi < s.infer.trail.size(); pi++)

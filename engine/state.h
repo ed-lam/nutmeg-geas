@@ -39,7 +39,7 @@ public:
 
   // As with infer, preds are added in pairs.
   pid_t new_pred(pval_t lb, pval_t ub) {
-    pval_t uval = pval_max - ub;
+    pval_t uval = pval_inv(ub);
 
     pid_t p = p_vals.size();
     p_vals.push(lb);

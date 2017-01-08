@@ -12,9 +12,11 @@ static inline void bump_clause_act(solver_data* s, clause& cl) {
 
 static inline void bump_pred_act(solver_data* s, pid_t p) {
   // FIXME: Update order in heap, also.
+  /*
   s->infer.pred_act[p] += s->pred_act_inc;
   if(s->pred_heap.inHeap(p))
     s->pred_heap.decrease(p);
+  */
 }
 
 struct cmp_clause_act {
