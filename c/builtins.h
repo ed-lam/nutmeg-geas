@@ -13,12 +13,20 @@ extern "C" {
 typedef struct {
   int c;
   intvar x; 
-} linterm;
+} int_linterm;
 
 // These are half-reified.
 // For strict versions, call with r = at_True
-int linear_le(solver s, atom r, linterm* ts, int sz, int k);
-int linear_ne(solver s, atom r, linterm* ts, int sz, int k);
+int linear_le(solver s, atom r, int_linterm* ts, int sz, int k);
+int linear_ne(solver s, atom r, int_linterm* ts, int sz, int k);
+
+typedef struct {
+  int c;
+  atom x;
+} at_linterm;
+
+int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k);
+int bool_linear_ne(solver s, atom r, at_linterm* ts, int sz, int k);
 
 // r -> (x <= y + k)
 int int_le(solver s, atom r, intvar x, intvar y, int k);

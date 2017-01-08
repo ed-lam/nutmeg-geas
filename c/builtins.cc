@@ -25,7 +25,7 @@ int clause(solver s, atom* cl, int sz) {
 
 // These are half-reified.
 // For strict versions, call with r = at_True
-int linear_le(solver s, atom r, linterm* ts, int sz, int k) {
+int linear_le(solver s, atom r, int_linterm* ts, int sz, int k) {
   vec<int> ks;
   vec<phage::intvar> xs;
   for(int ii = 0; ii < sz; ii++) {
@@ -35,7 +35,7 @@ int linear_le(solver s, atom r, linterm* ts, int sz, int k) {
   return phage::linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
 }
 
-int linear_ne(solver s, atom r, linterm* ts, int sz, int k) {
+int linear_ne(solver s, atom r, int_linterm* ts, int sz, int k) {
   vec<int> ks;
   vec<phage::intvar> xs;
   for(int ii = 0; ii < sz; ii++) {
@@ -44,6 +44,27 @@ int linear_ne(solver s, atom r, linterm* ts, int sz, int k) {
   }
   return phage::linear_ne(get_solver(s)->data, ks, xs,  k, get_atom(r));
 }
+
+int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k) {
+  vec<int> ks;
+  vec<phage::patom_t> xs;
+  for(int ii = 0; ii < sz; ii++) {
+    ks.push(ts[ii].c);
+    xs.push(get_atom(ts[ii].x));
+  }
+  return phage::bool_linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
+}
+
+int bool_linear_ne(solver s, atom r, at_linterm* ts, int sz, int k) {
+  vec<int> ks;
+  vec<phage::patom_t> xs;
+  for(int ii = 0; ii < sz; ii++) {
+    ks.push(ts[ii].c);
+    xs.push(get_atom(ts[ii].x));
+  }
+  return phage::bool_linear_ne(get_solver(s)->data, ks, xs,  k, get_atom(r));
+}
+
 
 int int_mul(solver s, atom r, intvar z, intvar x, intvar y) {
   return phage::int_mul(get_solver(s)->data,

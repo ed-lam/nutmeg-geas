@@ -83,6 +83,18 @@ let simplify_linterms terms k =
   in
   aux [] k (Array.to_list terms)
 
+let simplify_bool_linterms terms k =
+  let rec aux acc k' ts =
+    match ts with
+    | [] -> (List.rev acc), k' 
+    | (0, _) :: ts' -> aux acc k' ts'
+    | (c, Pr.Blit false) :: ts' -> aux acc k'  ts'
+    | (c, Pr.Blit true) :: ts' -> aux acc (k' - c)  ts'
+    | (c, Pr.Bvar v) :: ts' -> aux ((c, v) :: acc) k' ts'
+    | _ -> failwith "Expected bool-typed operands to bool-linear."
+  in
+  aux [] k (Array.to_list terms)
+
 (* Specialized int_lin_le *)
 let post_lin_le solver cs xs k =
    let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
@@ -99,8 +111,34 @@ let post_lin_le solver cs xs k =
   | ts, k ->
     B.linear_le
       solver At.at_True
-      (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
- 
+      (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
+
+(* Specialized int_lin_le *)
+let post_bool_lin_le solver cs xs k =
+   let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
+  match simplify_bool_linterms terms k with
+  (*
+  | [], k -> 0 <= k
+    (* GKG: Check for rounding *)
+  | [c, x], k ->
+    if c < 0 then
+      S.post_atom solver (S.ivar_ge x ((-k)/(-c)))
+    else
+      S.post_atom solver (S.ivar_le x (k/c))
+  | [1, x; -1, y], k | [-1, y; 1, x], k ->
+    B.int_le solver At.at_True x y k
+    *)
+  | ts, k ->
+    B.bool_linear_le
+      solver At.at_True
+      (Array.map (fun (c, x) -> {B.ac = c ; B.ax = x}) (Array.of_list ts)) k
+
+let bool_lin_le solver args anns =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array (fun x -> x) args.(1) in
+  let k = Pr.get_int args.(2) in
+  post_bool_lin_le solver cs xs k
+
 let int_lin_le solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
   let xs = Pr.get_array (fun x -> x) args.(1) in
@@ -122,7 +160,7 @@ let int_lin_le solver args anns =
   | ts, k ->
     B.linear_le
       solver At.at_True
-      (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+      (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
       *)
 
 (* Specialized int_lin_le *)
@@ -144,9 +182,9 @@ let post_lin_le_reif s cs xs k r =
       && B.int_le s (At.neg r) y x (-k-1)
     | ts, k ->
       B.linear_le
-        s r (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+        s r (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
         && B.linear_le
-             s (At.neg r) (Array.map (fun (c, x) -> {B.c = -c; B.x = x}) (Array.of_list ts)) (-k-1)
+             s (At.neg r) (Array.map (fun (c, x) -> {B.ic = -c; B.ix = x}) (Array.of_list ts)) (-k-1)
   end
   | _ -> failwith "Expected bool-sorted value in int_lin_le_reif."
 
@@ -170,7 +208,7 @@ let int_lin_le_reif solver args anns =
   | ts, k ->
     B.linear_le
       solver At.at_True
-      (Array.map (fun (c, x) -> {B.c = c ; B.x = x}) (Array.of_list ts)) k
+      (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
       *)
 
 
@@ -178,7 +216,7 @@ let int_lin_ne solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
   let xs = Pr.get_array (force_ivar solver) args.(1) in
   let terms = Array.init (Array.length xs)
-                         (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
+                         (fun i -> { B.ic = cs.(i) ; B.ix = xs.(i) }) in
   let k = Pr.get_int args.(2) in
   Builtins.linear_ne solver At.at_True terms k
 
@@ -188,9 +226,9 @@ let int_lin_eq solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
   let xs = Pr.get_array (force_ivar solver) args.(1) in
   let terms = Array.init (Array.length xs)
-                         (fun i -> { B.c = cs.(i) ; B.x = xs.(i) }) in
+                         (fun i -> { B.ic = cs.(i) ; B.ix = xs.(i) }) in
   let negterms = Array.init (Array.length xs)
-                            (fun i -> { B.c = -cs.(i) ; B.x = xs.(i) }) in
+                            (fun i -> { B.ic = -cs.(i) ; B.ix = xs.(i) }) in
   let k = Pr.get_int args.(2) in
   (B.linear_le solver At.at_True terms k)
     && (B.linear_le solver At.at_True negterms (-k))
@@ -214,8 +252,8 @@ let int_lin_eq solver args anns =
       && B.int_le solver At.at_True y x (-k)
   | ts, k ->
     let t_arr = Array.of_list ts in
-    let pos = Array.map (fun (c, x) -> { B.c = c; B.x = x}) t_arr in
-    let neg = Array.map (fun (c, x) -> { B.c = -c; B.x = x}) t_arr in
+    let pos = Array.map (fun (c, x) -> { B.ic = c; B.ix = x}) t_arr in
+    let neg = Array.map (fun (c, x) -> { B.ic = -c; B.ix = x}) t_arr in
     B.linear_le solver At.at_True pos k
       && B.linear_le solver At.at_True neg (-k)
 
@@ -425,6 +463,7 @@ let initialize () =
      (* "bool_sum_le", bool_sum_le ; *)
      "array_int_element", array_int_element ; 
      "array_var_int_element", array_var_int_element ;
+     "bool_lin_le", bool_lin_le ;
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers

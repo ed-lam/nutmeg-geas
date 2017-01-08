@@ -66,6 +66,25 @@ let int_linear_rel rel args =
   let vs = Array.init (Array.length xs) (fun i -> cs.(i) * xs.(i)) in
   rel (Array.fold_left (+) 0 vs) k
 
+let bool_linear_rel rel args =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array Pr.get_bool args.(1) in
+  let k = Pr.get_int args.(2) in
+  let vs = Array.init (Array.length xs)
+    (fun i -> if xs.(i) then cs.(i) else 0) in
+  rel (Array.fold_left (+) 0 vs) k
+
+let bool2int args =
+  let b = Pr.get_bool args.(0) in
+  let x = Pr.get_int args.(1) in
+  x = if b then 1 else 0
+
+let bool_clause args =
+  let pos = Pr.get_array Pr.get_bool args.(0) in
+  let neg = Pr.get_array Pr.get_bool args.(1) in
+  Array.fold_left (||) false
+    (Array.append pos (Array.map (fun x -> not x) neg))
+
 (* Initialize the checkers *)
 let check_funs =
 (*
@@ -85,9 +104,12 @@ let check_funs =
      "array_bool_and", array_bool_and ;
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *) *)
-     [ "int_lin_le", int_linear_rel (<=) ;
+     [ "bool2int", bool2int ;
+       "bool_clause", bool_clause ;
+       "int_lin_le", int_linear_rel (<=) ;
        "int_lin_ne", int_linear_rel (<>);
        "int_lin_eq", int_linear_rel (=) ;
+       "bool_lin_le", bool_linear_rel (<=) ;
        "array_int_element", array_int_element ; 
        "array_var_int_element", array_int_element ; 
      ]

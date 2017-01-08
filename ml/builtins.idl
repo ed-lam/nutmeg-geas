@@ -7,14 +7,22 @@ import "solver.idl";
 // boolean clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
 
 typedef struct {
-  int c;
-  intvar x; 
-} linterm;
+  [mlname(ic)] int c;
+  [mlname(ix)] intvar x; 
+} int_linterm;
+
+typedef struct {
+  [mlname(ac)] int c;
+  [mlname(ax)] atom x; 
+} at_linterm;
 
 // These are half-reified.
 // For strict versions, call with r = at_True
-boolean linear_le([in] solver s, atom r, [in,size_is(sz)] linterm ts[], int sz, int k);
-boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] linterm ts[], int sz, int k);
+boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
+boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
+
+boolean bool_linear_le([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);
+boolean bool_linear_ne([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);
 
 boolean int_mul([in] solver s, atom r, intvar z, intvar x, intvar y);
 boolean int_abs([in] solver s, atom r, intvar z, intvar x);

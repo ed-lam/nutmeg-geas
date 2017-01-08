@@ -900,10 +900,10 @@ class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
     return Wt_Keep;
   }
 
-  static void ex_r(void* ptr, int sep, pval_t _val,
+  static void ex_r(void* ptr, int _p, pval_t _val,
     vec<clause_elt>& expl) {
     pred_le_hr* p(static_cast<pred_le_hr*>(ptr));
-    vec_push(expl, le_atom(p->x, sep-1), ge_atom(p->y, sep - p->k));
+    vec_push(expl, le_atom(p->x, p->sep-1), ge_atom(p->y, p->sep - p->k));
   }
 
   static void ex_var(void* ptr, int var,
@@ -947,14 +947,17 @@ public:
 #endif
     if(mode&P_Deact) {
       // Deactivation
-      // sep = pred_lb(s, x);
+      sep = pred_lb(s, x);
       if(!enqueue(*s, ~r, ex_thunk(ex_r, 0))) {
         return false;
       }
       return true;
     }
-    if(!state&S_Active)
+
+    if(!(state&S_Active))
       return true;
+
+    assert(s->state.is_entailed(r));
 
     if(mode&P_LB) {
       // FIXME: Overflow problems abound
