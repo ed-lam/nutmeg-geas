@@ -412,27 +412,75 @@ protected:
 };
 
 class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
+  enum { Var_None = 0 };
+  enum { P_Deact = 1, P_Prop = 2};
+  enum { S_Active = 1, S_Red = 2 };
+
+  /*
   static watch_result wake(void* ptr, int xi) {
     int_linear_ne* p(static_cast<int_linear_ne*>(ptr)); 
-    p->queue_prop();     
+    p->queue_prop();
+    return Wt_Keep;
+  }
+  */
+  // See if we can find some other unfixed variable
+  watch_result wake_bound(int vi) {
+    if(!vs[perm[1]].x.is_fixed())
+      return Wt_Drop;
+    queue_prop();
     return Wt_Keep;
   }
 
-  static void expl(void* ptr, int xi, pval_t pval,
-                       vec<clause_elt>& expl) {
-    int_linear_ne* p(static_cast<int_linear_ne*>(ptr));
+  watch_result wake_fix(int vi) {
+    /*
+    if(state&S_Red)
+      return Wt_Keep;
+      */
+
+    // Just like two-literal watching, find a replacement watch
+    if(perm[1] != vi) {
+      perm[0] = perm[1];
+    }
+
+    for(int pi = 2; pi < perm.size(); ++pi) {
+      int wi = perm[pi];
+      if(!vs[wi].x.is_fixed()) {
+        perm[1] = wi;
+        perm[pi] = vi;
+        vs[wi].x.attach(E_FIX, watch<&P::wake_fix>(wi, Wt_IDEM));
+        return Wt_Drop;
+      }
+    }
+    // None found
+    if(!vs[perm[0]].x.is_fixed()) {
+      int x0 = perm[0];
+      vs[x0].x.attach(E_LU, watch<&P::wake_bound>(x0, Wt_IDEM)); 
+    }
+    queue_prop();  
+    return Wt_Keep;
+  }
+
+  watch_result wake_r(int vi) {
+    if(vs[perm[1]].x.is_fixed())
+      queue_prop();
+    return Wt_Keep;   
+  }
+
+  void expl(int xi, vec<clause_elt>& expl) {
+    if(xi != Var_None)
+      expl.push(~r);
     for(int ii = 0; ii < xi; ii++) {
       // expl.push(p->vs[ii].x != p->vs[ii].x.lb());
-      assert(p->vs[ii].x.is_fixed());
-      expl.push(p->vs[ii].x < p->vs[ii].x.lb());
-      expl.push(p->vs[ii].x > p->vs[ii].x.ub());
+      assert(vs[ii].x.is_fixed());
+      expl.push(vs[ii].x < vs[ii].x.lb());
+      expl.push(vs[ii].x > vs[ii].x.ub());
     }
-    int sz = p->vs.size();
+    int sz = vs.size();
     for(int ii = xi+1; ii < sz; ++ii) {
-      // expl.push(p->vs[ii].x != p->vs[ii].x.lb());
-      assert(p->vs[ii].x.is_fixed());
-      expl.push(p->vs[ii].x < p->vs[ii].x.lb());
-      expl.push(p->vs[ii].x > p->vs[ii].x.ub());
+      // expl.push(vs[ii].x != vs[ii].x.lb());
+      assert(vs[ii].x.is_fixed());
+      expl.push(vs[ii].x < vs[ii].x.lb());
+      expl.push(vs[ii].x > vs[ii].x.ub());
     }
   }
 
@@ -444,17 +492,19 @@ public:
     intvar x;
   };
   
-  int_linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& xs, int _k)
-    : propagator(s), k(_k) {
+  int_linear_ne(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& xs, int _k)
+    : propagator(s), r(_r), k(_k) {
+    assert(xs.size() >= 2);
     for(int ii = 0; ii < xs.size(); ii++) {
-      xs[ii].attach(E_FIX, watch_callback(wake, this, vs.size(), true));
       vs.push(elt { ks[ii], xs[ii] });
+      perm.push(ii);
     }
+    xs[0].attach(E_FIX, watch<&P::wake_fix>(0, Wt_IDEM));
+    xs[1].attach(E_FIX, watch<&P::wake_fix>(1, Wt_IDEM));
   }
 
   bool propagate(vec<clause_elt>& confl) {
     // Find the first un-fixed variable   
- //   return true;
     elt* e = vs.begin();
     elt* end = vs.end();
 
@@ -496,10 +546,10 @@ found_unfixed:
 //    }
     if(r % fst->c == 0) {
       if(fst->x.lb() == gap) {
-        if(!fst->x.set_lb(gap+1, expl_thunk { expl, this, (int) (fst - vs.begin()) }))
+        if(!fst->x.set_lb(gap+1, ex_thunk(ex_nil<&P::expl>, (int) (fst - vs.begin()))))
           return false;
       } else if(fst->x.ub() == gap) {
-        if(!fst->x.set_ub(gap-1, expl_thunk { expl, this, (int) (fst - vs.begin()) }))
+        if(!fst->x.set_ub(gap-1, ex_thunk(ex_nil<&P::expl>, (int) (fst - vs.begin()))))
           return false;
       }
     }
@@ -508,9 +558,12 @@ found_unfixed:
 
   // virtual bool check_sat(void) { return true; }
   // void root_simplify(void) { }
+  patom_t r;
 
   vec<elt> vs;
   int k;
+
+  vec<int> perm;
 };
 
 void linear_le_dec(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k) {
@@ -532,7 +585,7 @@ bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   if(!s->state.is_entailed_l0(r)) {
     WARN("Half-reification not yet implemented for linear_le.");
   }
-  new int_linear_ne(s, ks, vs, k);
+  new int_linear_ne(s, r, ks, vs, k);
   return true;
 }
 
