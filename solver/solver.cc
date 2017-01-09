@@ -19,7 +19,9 @@ options default_options = {
   1.05, // double learnt_act_growthrate;
 
   1000, // int restart_limit;
-  1.05 // double restart_growthrate;
+  1.05, // double restart_growthrate;
+
+  1     // one_watch
 };
 
 namespace phage {
@@ -358,6 +360,7 @@ bool update_watchlist(solver_data& s,
       ws[jj++] = ch;
       continue;
     }
+
     if(!ch.c) {
       // Binary clause.
       if(!enqueue(s, ch.e0, elt.atom)) {
@@ -392,23 +395,13 @@ bool update_watchlist(solver_data& s,
     */
 
     for(int li = 2; li < c.size(); li++) {
-      /*
-      if(s.state.is_entailed(c[li].atom)) {
-        // As above
-        c[1] = elt;
-        ch.e0 = c[li].atom;
-        ws[jj++] = ch;
-//        assert(c[0].watch);
-//        assert(c[1].watch);
-        goto next_clause;
-      }
-      */
       if(!s.state.is_inconsistent(c[li].atom)) {
         // Literal is not yet false. New watch is found.
         /*
         if(s.state.is_entailed(c[li].atom)) {
           c[1] = elt;
           ch.e0 = c[li].atom;
+
           ws[jj++] = ch;
           goto next_clause;
         }
@@ -615,7 +608,7 @@ prop_restart:
 }
 
 //inline
-void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
+void add_learnt(solver_data* s, vec<clause_elt>& learnt, bool one_watch) {
   // Allocate the clause
   // WARN("Collection of learnt clauses not yet implemented.");
 #ifdef CHECK_STATE
@@ -656,6 +649,7 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
     // Normal clause
     clause* c(clause_new(learnt));
     c->extra.is_learnt = true;
+    c->extra.one_watch = one_watch;
     c->extra.depth = s->infer.trail.size();
 
     // Assumption:
@@ -664,7 +658,8 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt) {
     // clause_head h(learnt[2].atom, c);
     clause_head h(learnt.last().atom, c);
 
-    find_watchlist(*s, (*c)[0]).push(h);
+    if(!one_watch)
+      find_watchlist(*s, (*c)[0]).push(h);
     find_watchlist(*s, (*c)[1]).push(h); 
     enqueue(*s, learnt[0].atom, c);
     s->infer.learnts.push(c);
@@ -693,7 +688,8 @@ inline void replace_watch(vec<clause_head>& ws, clause* c, clause_head h) {
 
 inline void detach_clause(solver_data& s, clause* c) {
   // We care about the watches for 
-  detach_watch(find_watchlist(s, (*c)[0]), c);
+  if(!c->extra.one_watch)
+    detach_watch(find_watchlist(s, (*c)[0]), c);
   detach_watch(find_watchlist(s, (*c)[1]), c);
 }
 
@@ -915,7 +911,8 @@ solver::result solver::solve(void) {
       }
 #endif
 
-      add_learnt(&s, s.infer.confl);
+      // add_learnt(&s, s.infer.confl);
+      add_learnt(&s, s.infer.confl, s.opts.one_watch);
       s.infer.confl.clear();
 
       if(confl_num == next_pause) {

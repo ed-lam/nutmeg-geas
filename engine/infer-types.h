@@ -28,10 +28,11 @@ public:
 
 struct clause_extra {
   clause_extra(void)
-    : depth(0), is_learnt(0), act(0) { }
+    : depth(0), one_watch(0), is_learnt(0), act(0) { }
 //  bool is_learnt;
 //  int depth;
-  int depth : 31;
+  int depth : 30;
+  unsigned one_watch : 1;
   unsigned is_learnt : 1;
 
   double act;

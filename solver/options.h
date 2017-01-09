@@ -31,6 +31,8 @@ typedef struct {
 
   int restart_limit;
   double restart_growthrate;
+
+  int one_watch;
 } options;
 
 // static const options default_options = options();

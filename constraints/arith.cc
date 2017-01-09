@@ -843,8 +843,9 @@ class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
   // Deactivation triggers
   watch_result wake_fail(int xi) {
     // If this is an expired watch, drop it.
-    if(watch_expired(xi))
+    if(watch_expired(xi)) {
       return Wt_Drop;
+    }
     // If the propagator is already enabled,
     // ignore this.
     if(state&S_Active)
@@ -863,7 +864,7 @@ class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
     pval_t cut = choose_cut();
     attach(s, ge_atom(x, cut+1), watch<&P::wake_fail>(fwatch_gen<<1, Wt_IDEM));
     attach(s, le_atom(y, cut-1), watch<&P::wake_fail>((fwatch_gen<<1)|1, Wt_IDEM));
-    return Wt_Keep;
+    return Wt_Drop;
   }
 
   watch_result wake_r(int _xi) {
@@ -920,7 +921,6 @@ public:
   pred_le_hr(solver_data* s, pid_t _x, pid_t _y, int _k, patom_t _r)
     : propagator(s), r(_r), x(_x), y(_y), k(_k), fwatch_gen(0),
        mode(P_None), state(0) {
-    attached[0] = false; attached[1] = false;
     /*
     s->pred_callbacks[x].push(watch<&P::wake_xs>(0, Wt_IDEM));
     s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
@@ -928,6 +928,7 @@ public:
     // Pick an initial cut
 //    x.attach(E_LB, watch_callback(wake_xs, this, 0, 1));
 //    y.attach(E_UB, watch_callback(wake_xs, this, 1, 1));
+    attached[0] = false; attached[1] = false;
     pval_t cut = choose_cut();
     attach(s, ge_atom(x, cut), watch<&P::wake_fail>(fwatch_gen<<1, Wt_IDEM));
     attach(s, le_atom(y, cut), watch<&P::wake_fail>((fwatch_gen<<1)|1, Wt_IDEM));
@@ -945,6 +946,7 @@ public:
 #ifdef LOG_ALL
     std::cerr << "[[Running ile]]" << std::endl;
 #endif
+
     if(mode&P_Deact) {
       // Deactivation
       sep = pred_lb(s, x);
@@ -1005,6 +1007,7 @@ protected:
   // Persistent state
   char mode;
   char state;
+
 };
 
 /*

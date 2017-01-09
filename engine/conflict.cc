@@ -36,9 +36,11 @@ inline void remove_watch(watch_node* watch, clause* cl) {
 
 inline void detach_clause(clause* cl) {
   // At least the current watches should be cached
-  assert((*cl)[0].watch);
+  if(!cl->extra.one_watch) {
+    assert((*cl)[0].watch);
+    remove_watch((*cl)[0].watch, cl);
+  }
   assert((*cl)[1].watch);
-  remove_watch((*cl)[0].watch, cl);
   remove_watch((*cl)[1].watch, cl);
 }
 

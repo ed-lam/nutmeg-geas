@@ -33,6 +33,8 @@ typedef struct {
 
   int restart_limit;
   double restart_growthrate;
+
+  boolean one_watch;
 } options;
 
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;

@@ -63,8 +63,8 @@ public:
     return atom.val <= p_vals[atom.pid];
   }
   forceinline bool is_inconsistent(patom_t atom) const {
-    // return pval_max - p_vals[atom.pid^1] < atom.val;
-    return is_entailed(~atom);
+    return pval_max - p_vals[atom.pid^1] < atom.val;
+    // return is_entailed(~atom);
   }
 
   forceinline bool is_entailed_l0(patom_t atom) const {
