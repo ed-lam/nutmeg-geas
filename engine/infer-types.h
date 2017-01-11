@@ -117,7 +117,9 @@ public:
   watch_node(void)
     : succ(nullptr) { }
   // patom_t atom;
-  // pval_t curr_val;
+#ifdef DEBUG_WMAP
+  pval_t curr_val;
+#endif
   pval_t succ_val;
   watch_extra extra;
   watch_node* succ;  

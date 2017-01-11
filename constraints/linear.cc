@@ -54,7 +54,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
   static void ex_x(void* ptr, int xi, pval_t pval,
                        vec<clause_elt>& expl) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
-#if 1
+#ifndef EXPL_NAIVE
     intvar::val_t ival(to_int(pval_inv(pval)));
     intvar::val_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
 
@@ -83,7 +83,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
                        vec<clause_elt>& expl) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
 
-#if 1
+#ifndef EXPL_NAIVE
     intvar::val_t ival(to_int(pval));
     intvar::val_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
 
@@ -141,12 +141,11 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     
     return pi;
   }
-
 #endif
 
   public: 
 
-    int_linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int _k)
+    int_linear_le(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& vs, int _k)
       : propagator(s), k(_k)
 #ifdef EXPL_EAGER
         , expls_sz(0)
@@ -200,7 +199,8 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         }
         int x_lb_p = e.x.lb_prev();
         int diff_p = e.c * (x_lb - x_lb_p);
-        if(diff_p < slack) {
+        if(diff_p <= slack) {
+          slack -= diff_p;
           ex.push(e.x < x_lb_p); 
           continue;
         }
@@ -219,7 +219,8 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         }
         int y_ub_p = e.x.ub_prev();
         int diff_p = e.c * (y_ub_p - y_ub);
-        if(diff_p < slack) {
+        if(diff_p <= slack) {
+          slack -= diff_p;
           ex.push(e.x > y_ub_p);
           continue;
         }
@@ -227,24 +228,27 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       }
 
       // Then, add things at the current level
+      assert(slack >= 0);
       for(int xi : xs_pending) {
         elt e = xs[xi];
         int diff = slack/e.c;
         ex.push(e.x < e.x.lb() - diff);
-        slack -= diff;
+        slack -= e.c * diff;
+        assert(slack >= 0);
       }
       for(int yi : ys_pending) {
         elt e = ys[yi];
         int diff = slack/e.c;
         ex.push(e.x > e.x.ub() + diff);
-        slack -= diff;
+        slack -= e.c * diff;
+        assert(slack >= 0);
       }
 #endif
     }
 
     bool propagate(vec<clause_elt>& confl) {
-#ifdef LOG_ALL
-      std::cout << "[[Running linear]]" << std::endl;
+#ifdef LOG_PROP
+      std::cout << "[[Running linear_le]]" << std::endl;
 #endif
       int x_lb = 0;
       for(elt e : xs)
@@ -258,12 +262,12 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         // FIXME: This is kinda weak. We really want to
         // push as much as we can onto the previous level.
         make_expl(Var_None, x_lb - y_ub - k - 1, confl);
-        /*
+        /* /
         for(elt e : xs)
           confl.push(e.x < e.x.lb());
         for(elt e : ys)
           confl.push(e.x > e.x.ub());
-        */
+        / */
 
         // NOT_YET;
         return false; 
@@ -505,6 +509,9 @@ public:
 
   bool propagate(vec<clause_elt>& confl) {
     // Find the first un-fixed variable   
+#ifdef LOG_PROP
+    std::cout << "[[Running linear_ne]]" << std::endl;
+#endif
     elt* e = vs.begin();
     elt* end = vs.end();
 
@@ -576,14 +583,14 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   if(!s->state.is_entailed_l0(r)) {
     WARN("Half-reification not yet implemented for linear_le.");
   }
-  new int_linear_le(s, ks, vs, k);
+  new int_linear_le(s, r, ks, vs, k);
   return true;
 }
 
 bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r) {
   if(!s->state.is_entailed_l0(r)) {
-    WARN("Half-reification not yet implemented for linear_le.");
+    WARN("Half-reification not yet implemented for linear_ne.");
   }
   new int_linear_ne(s, r, ks, vs, k);
   return true;

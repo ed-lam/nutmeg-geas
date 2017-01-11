@@ -17,6 +17,12 @@ static inline void bump_pred_act(solver_data* s, pid_t p) {
   if(s->pred_heap.inHeap(p))
     s->pred_heap.decrease(p);
   */
+  /*
+  unsigned int x = p>>1;
+  s->infer.pred_act[x] += s->pred_act_inc;
+  if(s->pred_heap.inHeap(x))
+    s->pred_heap.decrease(x);
+  */
 }
 
 struct cmp_clause_act {
@@ -97,8 +103,15 @@ static void add(solver_data* s, clause_elt elt) {
   pval_t val = pval_max - elt.atom.val + 1;
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
+    /*
     if(s->confl.pred_saved[pid].last_seen != s->confl.confl_num) {
       s->confl.pred_saved[pid] = { s->confl.confl_num, val };
+      bump_pred_act(s, pid);
+    }
+    */
+    if(s->confl.pred_saved[pid>>1].last_seen != s->confl.confl_num) {
+      s->confl.pred_saved[pid>>1] = { s->confl.confl_num,
+        pid&1 ? pval_inv(val) : val };
       bump_pred_act(s, pid);
     }
 
@@ -271,9 +284,9 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 #endif
 
   // We'll re-use confl to hold the output
+  assert(s->confl.clevel > 0);
   confl.clear();
  
-  assert(s->confl.clevel > 0);
 
   // Allocate conflict for everything
   // NOTE: This should be safe, since if we're conflicting

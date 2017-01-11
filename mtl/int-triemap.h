@@ -286,7 +286,7 @@ protected:
     // return (1<<(31-__builtin_clz(x)));
     static_assert(sizeof(uint64_t) == sizeof(unsigned long long),
       "uint64_trie: compiler intrinsic for wrong bit-width");
-    return (1<<(63-__builtin_clzll(x)));
+    return ((uint64_t) 1)<<(63-__builtin_clzll(x));
   }
 
   // Find the leaf where [elt] would reside

@@ -75,6 +75,11 @@ public:
     return is_entailed_l0(~atom);
   }
 
+  forceinline bool is_inconsistent_prev(patom_t atom) const {
+    // return pval_max - p_root[atom.pid^1] < atom.val;
+    return pval_max - p_last[atom.pid^1] < atom.val;
+  }
+
 /*
   pvar_ref get_ref(pid_t pi) {
     assert(!(pi&1)); // pi must be the base.

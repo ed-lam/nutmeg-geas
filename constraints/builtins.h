@@ -38,6 +38,7 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r = at_True);
 // r -> (x <= y)
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r = at_True);
 bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r = at_True);
+bool int_ne(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 
 // alldifferent.cc
 void all_different(solver_data* s, vec<intvar>& xs, patom_t r = at_True);

@@ -59,6 +59,16 @@ let array_int_element args =
   1 <= x && x <= Array.length elts &&
   z = elts.(x-1)
 
+let maximum args =
+  let xs = Pr.get_array Pr.get_int args.(0) in
+  let z = Pr.get_int args.(1) in 
+  z = Array.fold_left max xs.(0) xs
+
+let minimum args =
+  let xs = Pr.get_array Pr.get_int args.(0) in
+  let z = Pr.get_int args.(1) in 
+  z = Array.fold_left min xs.(0) xs
+
 let int_linear_rel rel args =
   let cs = Pr.get_array Pr.get_int args.(0) in
   let xs = Pr.get_array Pr.get_int args.(1) in
@@ -74,6 +84,20 @@ let bool_linear_rel rel args =
     (fun i -> if xs.(i) then cs.(i) else 0) in
   rel (Array.fold_left (+) 0 vs) k
 
+let int_rel rel args =
+  let x = Pr.get_int args.(0) in
+  let y = Pr.get_int args.(1) in
+  rel x y
+
+let int_fun2 f rel args =
+  let x = Pr.get_int args.(0) in
+  let y = Pr.get_int args.(1) in
+  let z = Pr.get_int args.(2) in
+  rel (f x y) z
+
+let reif c args =
+  (Pr.get_bool (Util.array_last args)) = c args
+
 let bool2int args =
   let b = Pr.get_bool args.(0) in
   let x = Pr.get_int args.(1) in
@@ -84,6 +108,9 @@ let bool_clause args =
   let neg = Pr.get_array Pr.get_bool args.(1) in
   Array.fold_left (||) false
     (Array.append pos (Array.map (fun x -> not x) neg))
+
+let bool_rel rel args =
+  rel (Pr.get_bool args.(0)) (Pr.get_bool args.(1))
 
 (* Initialize the checkers *)
 let check_funs =
@@ -106,9 +133,27 @@ let check_funs =
      (* "bool_sum_le", bool_sum_le ; *) *)
      [ "bool2int", bool2int ;
        "bool_clause", bool_clause ;
+       "int_abs", int_rel (fun x z -> z = abs x) ;
+       "int_max", int_fun2 max (=) ;
+       "int_min", int_fun2 min (=) ;
+       "int_times", int_fun2 ( * ) (=) ;
+       "int_plus", int_fun2 (+) (=) ;
+       "maximum", maximum ;
+       "minimum", minimum ;
+       "int_eq", int_rel (=) ;
+       "int_ne", int_rel (<>) ;
+       "int_ne_reif", reif (int_rel (<>)) ;
+       "int_eq_reif", reif (int_rel (=)) ;
+       "int_le", int_rel (<=) ;
+       "int_le_reif", reif (int_rel (<=)) ;
+       "int_lin_le_reif", reif (int_linear_rel (<=)) ;
        "int_lin_le", int_linear_rel (<=) ;
+       "int_lin_le_reif", reif (int_linear_rel (<=)) ;
        "int_lin_ne", int_linear_rel (<>);
+       "int_lin_ne_reif", reif (int_linear_rel (<>));
        "int_lin_eq", int_linear_rel (=) ;
+       "int_lin_eq_reif", reif (int_linear_rel (=)) ;
+       "bool_eq", bool_rel (=) ;
        "bool_lin_le", bool_linear_rel (<=) ;
        "array_int_element", array_int_element ; 
        "array_var_int_element", array_int_element ; 

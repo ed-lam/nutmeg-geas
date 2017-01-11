@@ -80,6 +80,10 @@ brancher seq_brancher(brancher* bs, int sz) {
   return ((brancher) phage::seq_brancher(branchers));
 }
 
+brancher limit_brancher(brancher b) {
+  return (brancher) phage::limit_brancher((phage::brancher*) b);
+}
+
 void add_brancher(solver s, brancher b) {
   get_solver(s)->data->branchers.push((phage::brancher*) b);
 }

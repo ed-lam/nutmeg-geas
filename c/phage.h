@@ -64,6 +64,7 @@ typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
 
 brancher new_brancher(var_choice, val_choice, intvar*, int);
 brancher seq_brancher(brancher*, int);
+brancher limit_brancher(brancher);
 void add_brancher(solver, brancher);
 
 result solve(solver, int);

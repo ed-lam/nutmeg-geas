@@ -95,8 +95,8 @@ public:
   watch_result operator()(void) { return f(obj, data); }
 
   forceinline bool can_skip(void* origin) {
-    // return is_idempotent && origin == obj;
-    return false;
+    return is_idempotent && origin == obj;
+    // return false;
   }
 protected:
   fun f;

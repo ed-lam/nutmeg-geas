@@ -23,13 +23,14 @@ public:
   void new_pred(void) {
     new_halfpred();
     new_halfpred();
+    pred_saved.push({0, 0});
   }
 
   void new_halfpred(void) {
     pred_seen.growTo(pred_eval.size());
     pred_eval.push(0);
     pred_hint.push(nullptr);
-    pred_saved.push({0, 0});
+    // pred_saved.push({0, 0});
   }
 
   /*

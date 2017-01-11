@@ -6,6 +6,7 @@ let print_stats = ref false
 let quiet = ref false
 
 let max_solutions = ref 1
+let free = ref false
 
 let check = ref false
 
@@ -40,6 +41,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "-check",
       Arg.Unit (fun () -> check := true),
       " : check solutions"
+     ) ;
+     (
+      "-f",
+      Arg.Unit (fun () -> free := true),
+      " : free search"
      ) ;
      (
        "-nof_solutions",

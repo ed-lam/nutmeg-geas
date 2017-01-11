@@ -15,6 +15,9 @@ LFLAGS    = -lz -Wall -Wno-deprecated
 
 #CXXFLAGS += -DPVAL_32
 #CXXFLAGS += -DPROOF_LOG
+#CXXFLAGS += -DLOG_ALL
+#CXXFLAGS += -DLOG_RESTART -DLOG_GC -DDEBUG_WMAP -DCHECK_STATE
+#CXXFLAGS += -DLOG_PROP
 
 COPTIMIZE = -O3 -march=x86-64 -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2

@@ -21,7 +21,9 @@ options default_options = {
   1000, // int restart_limit;
   1.05, // double restart_growthrate;
 
-  1     // one_watch
+  1,     // one_watch
+
+  200, // eager_threshold
 };
 
 namespace phage {
@@ -131,8 +133,9 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   s.confl.new_pred();
   pid_t pi = s.infer.new_pred();
 
-  s.pred_heap.insert(pi);
-  s.pred_heap.insert(pi+1);
+  // s.pred_heap.insert(pi);
+  // s.pred_heap.insert(pi+1);
+  s.pred_heap.insert(pi>>1);
   
   return pi;  
 }
@@ -213,6 +216,13 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
      default:
        NOT_YET;
   }
+
+  // Check that there's something at the current level.
+  for(clause_elt& e : confl) {
+    if(!s.state.is_inconsistent_prev(e.atom))
+      return;
+  }
+  ERROR;
 }
 
 inline bool is_entailed(sdata& s, patom_t p) { return s.state.is_entailed(p); }
@@ -336,13 +346,17 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
   if(elt.watch) {
-//    assert(elt.watch->curr_val == ~(elt.atom).val);
+#ifdef DEBUG_WMAP
+    assert(elt.watch->curr_val == ~(elt.atom).val);
+#endif
     return elt.watch->ws;
   }
 
   patom_t p(~elt.atom);
   watch_node* watch = s.infer.get_watch(p.pid, p.val);
-//  assert(watch->curr_val == ~(elt.atom).val);
+#ifdef DEBUG_WMAP
+  assert(watch->curr_val == ~(elt.atom).val);
+#endif
   elt.watch = watch;
   return watch->ws;
 }
@@ -590,6 +604,15 @@ prop_restart:
 #endif
     s.active_prop = (void*) p;
     if(!p->propagate(s.infer.confl)) {
+#ifdef CHECK_STATE
+      for(clause_elt& e : s.infer.confl) {
+        if(!s.state.is_inconsistent_prev(e.atom))
+          goto confl_at_level;
+      }
+      ERROR;
+confl_at_level:
+#endif
+
       p->cleanup();
       prop_cleanup(s);
       return false; 
@@ -764,6 +787,7 @@ inline void simplify_at_root(solver_data& s) {
     s.infer.pred_watch_heads[pi].ptr = head;
     // Now that entailed watches are deleted, we're committed
     // to simplifying all the clauses.
+    // TODO: Also collect inactive watch-nodes.
 #endif
   }
 
@@ -811,7 +835,8 @@ model solver::get_model(void) {
 void bump_touched(solver_data& s,
   double mult, double alpha, int confl_num, int touched_start) {
   for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
-    pid_t p = s.persist.touched_preds[ti];
+    // pid_t p = s.persist.touched_preds[ti];
+    pid_t p = s.persist.touched_preds[ti]>>1;
     double reward = mult * (confl_num - s.confl.pred_saved[p].last_seen + 1);
     double& act = s.infer.pred_act[p];
     act = (1 - alpha)*act + alpha*reward;
@@ -861,6 +886,7 @@ solver::result solver::solve(void) {
     if(abort) {
       abort = 0;
       clear_handlers();
+      s.stats.conflicts += confl_num;
       return UNKNOWN;
     }
 
@@ -972,9 +998,19 @@ solver::result solver::solve(void) {
     bump_touched(s, 0.9, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
 
 #ifdef CHECK_STATE
-    int pi = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
-    for(; pi < s.infer.trail.size(); pi++)
-      assert(s.persist.pred_touched[s.infer.trail[pi].pid]);
+    int ti = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;
+    for(; ti < s.infer.trail.size(); ti++)
+      assert(s.persist.pred_touched[s.infer.trail[ti].pid]);
+
+    /*
+    // This _can_ happen legitimately - when we add a new learnt c,
+    // c[1] will already be false (so the watch node will be entailed.
+    // But it shouldn't inherently be a problem.
+
+    for(int pi = 0; pi < s.infer.pred_watches.size(); pi++) {
+      assert(s.infer.pred_watches[pi]->succ_val > s.state.p_vals[pi]);
+    }
+    */
 #endif
 
     if(decision_level(s) == 0)

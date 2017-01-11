@@ -109,6 +109,10 @@ int int_le(solver s, atom r, intvar x, intvar y, int k) {
                     *get_intvar(x), *get_intvar(y), k, get_atom(r));
 }
 
+int int_ne(solver s, atom r, intvar x, intvar y) {
+  return phage::int_ne(get_solver(s)->data,
+                    *get_intvar(x), *get_intvar(y), get_atom(r));
+}
 #ifdef __cplusplus
 }
 #endif

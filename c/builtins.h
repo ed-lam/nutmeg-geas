@@ -30,6 +30,7 @@ int bool_linear_ne(solver s, atom r, at_linterm* ts, int sz, int k);
 
 // r -> (x <= y + k)
 int int_le(solver s, atom r, intvar x, intvar y, int k);
+int int_ne(solver s, atom r, intvar x, intvar y);
 
 int int_mul(solver s, atom r, intvar z, intvar x, intvar y);
 int int_abs(solver s, atom r, intvar z, intvar x);

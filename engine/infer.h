@@ -42,6 +42,7 @@ public:
   pid_t new_pred(void) {
     pid_t p = new_half_pred();
     new_half_pred();
+    pred_act.push(0.0);
     return p;
   }
 
@@ -61,12 +62,14 @@ protected:
     // Create the root watch-node
     watch_node* w(new watch_node); 
     // w->atom = patom_t(pid, 0);
-    // w->curr_val = 0;
+#ifdef DEBUG_WMAP
+    w->curr_val = 0;
+#endif
     // w->succ_val = pval_max;
     w->succ_val = pval_err;
     pred_watches.push(w);
     pred_watch_heads.push(watch_head {0, w});
-    pred_act.push(0.0);
+//    pred_act.push(0.0);
 
     pred_ineqs.push();
 
@@ -90,7 +93,10 @@ public:
     it = watch_maps[p].add(key, w);
     --it;
     watch_node* pred = (*it).value;
-    // w->curr_val = val;
+#ifdef DEBUG_WMAP
+    w->curr_val = val;
+    assert(pred->curr_val < val);
+#endif
     w->succ_val = pred->succ_val;
     w->succ = pred->succ;
     pred->succ_val = val;

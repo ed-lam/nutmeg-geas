@@ -35,6 +35,8 @@ typedef struct {
   double restart_growthrate;
 
   boolean one_watch;
+
+  int eager_threshold;
 } options;
 
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
@@ -50,6 +52,7 @@ solver new_solver([in] options o);
 
 brancher new_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);
 brancher seq_brancher([in,size_is(sz)] brancher bs[], int sz);
+brancher limit_brancher([in] brancher base);
 void add_brancher([in] solver s, [in] brancher b);
 
 result solve([in] solver s, int clim);
@@ -62,6 +65,7 @@ boolean assume([in] solver s, atom at);
 void retract([in] solver s);
 
 intvar new_intvar([in] solver s, int lb, int ub);
+boolean make_sparse([in] intvar x, [in,size_is(sz)] int vals[], int sz);
 atom new_boolvar([in] solver s);
 
 int ivar_lb([in] intvar v);

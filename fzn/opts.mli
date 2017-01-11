@@ -7,6 +7,7 @@ val quiet : bool ref
 
 val max_solutions : int ref
 val print_stats : bool ref
+val free : bool ref
 
 val check : bool ref
 

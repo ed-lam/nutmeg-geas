@@ -33,6 +33,8 @@ typedef struct {
   double restart_growthrate;
 
   int one_watch;
+
+  int eager_threshold;
 } options;
 
 // static const options default_options = options();

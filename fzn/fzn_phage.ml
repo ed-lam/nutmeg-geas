@@ -21,11 +21,17 @@ let make_intvar solver dom =
   let v = Sol.new_intvar solver lb ub in
   (* Punch any holes. post_clause should never fail here. *)
   (* FIXME: export bindings for sparse vars. *)
+  (*
   List.iter
     (fun (hl, hu) ->
      ignore @@
        Sol.post_clause solver
                        [|Sol.ivar_lt v hl ; Sol.ivar_gt v hu|]) (Dom.holes dom)  ;
+                       *)
+  let _ =
+    match dom with
+    | Dom.Set ks -> ignore (Sol.make_sparse v (Array.of_list ks))
+    | _ -> () in
   (* Then return the constructed variable *)
   v
 
@@ -144,8 +150,14 @@ let rec parse_branching problem env ann =
   | _ -> failwith "Unknown search annotation"
 
 let build_branching problem env solver anns =
+  let wrap b =
+    if !Opts.free then
+      Sol.limit_brancher b
+    else
+      b
+  in
   List.iter (fun ann ->
-    Sol.add_brancher solver (parse_branching problem env ann)) anns
+    Sol.add_brancher solver (wrap (parse_branching problem env ann))) anns
 
 (* Print a variable assignment *)
 let print_binding fmt id expr =

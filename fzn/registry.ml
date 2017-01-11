@@ -54,8 +54,8 @@ let int_max solver args anns =
   Builtins.int_max solver At.at_True z [|x; y|]
 
 let array_int_max solver args anns =
-  let xs = Pr.get_array Pr.get_ivar args.(0) in
-  let z = Pr.get_ivar args.(1) in
+  let xs = Pr.get_array Pr.get_ivar args.(1) in
+  let z = Pr.get_ivar args.(0) in
   Builtins.int_max solver At.at_True z xs
 (*
 let int_min solver args anns =
@@ -356,21 +356,42 @@ let int_eq solver args anns =
   | Pr.Ilit c1, Pr.Ilit c2 -> c1 = c2
   | _, _ -> failwith "int_eq expects int operands."
 
+(* x <= y + k *)
+let post_int_diff s r x y k =
+  match x, y with
+  | Pr.Ivar x, Pr.Ivar y -> B.int_le s r x y k
+  | Pr.Ivar x, Pr.Ilit c -> S.post_clause s [|At.neg r; S.ivar_le x (c+k)|]
+  | Pr.Ilit c, Pr.Ivar y -> S.post_clause s [|At.neg r; S.ivar_ge y (c-k)|]
+  | Pr.Ilit c1, Pr.Ilit c2 ->
+    if c1 > c2 + k then
+      S.post_atom s (At.neg r)
+    else true
+  | _, _ -> failwith "Expected int-sorted arguments to int relation."
+
 let int_le solver args anns =
-  match args.(0), args.(1) with
-  | Pr.Ivar x, Pr.Ivar y -> B.int_le solver At.at_True x y 0
-  | Pr.Ivar x, Pr.Ilit c -> S.post_atom solver (S.ivar_le x c)
-  | Pr.Ilit c, Pr.Ivar x -> S.post_atom solver (S.ivar_ge x c)
-  | Pr.Ilit c1, Pr.Ilit c2 -> c1 <= c2
-  | _, _ -> failwith "int_le expects int operands."
+  post_int_diff solver At.at_True args.(0) args.(1) 0
+let int_lt solver args anns =
+  post_int_diff solver At.at_True args.(0) args.(1) (-1)
+
+let int_le_reif solver args anns =
+  match args.(2) with
+  | Pr.Blit true -> post_int_diff solver At.at_True args.(0) args.(1) 0 
+  | Pr.Blit false -> post_int_diff solver At.at_True args.(1) args.(0) (-1)
+  | Pr.Bvar r ->
+    post_int_diff solver r args.(0) args.(1) 0
+    && post_int_diff solver (At.neg r) args.(1) args.(0) (-1)
+  | _ -> failwith "Expected bool-typed reif var"
+
+let int_lt_reif solver args anns =
+  match args.(2) with
+  | Pr.Blit true -> post_int_diff solver At.at_True args.(0) args.(1) (-1) 
+  | Pr.Blit false -> post_int_diff solver At.at_True args.(1) args.(0) 0
+  | Pr.Bvar r ->
+    post_int_diff solver r args.(0) args.(1) (-1)
+    && post_int_diff solver (At.neg r) args.(1) args.(0) 0
+  | _ -> failwith "Expected bool-typed reif var"
 
 (*
-let int_le solver args anns =
-  let x = (force_ivar solver) args.(0) in
-  let y = (force_ivar solver) args.(1) in
-  B.int_le solver At.at_True x y 0
-  *)
-
 let int_lt solver args anns =
   match args.(0), args.(1) with
   | Pr.Ivar x, Pr.Ivar y -> B.int_le solver At.at_True x y (-1)
@@ -378,6 +399,7 @@ let int_lt solver args anns =
   | Pr.Ilit c, Pr.Ivar x -> S.post_atom solver (S.ivar_gt x c)
   | Pr.Ilit c1, Pr.Ilit c2 -> c1 < c2
   | _, _ -> failwith "int_le expects int operands."
+  *)
 
 (*
 let int_lt solver args anns =
@@ -389,7 +411,7 @@ let int_lt solver args anns =
 let int_eq_reif solver args anns =
   match Pr.get_bval args.(2) with
   | Pr.Bv_bool true -> int_eq solver args anns
-  | Pr.Bv_bool false -> failwith "int_ne not implemented."
+  | Pr.Bv_bool false -> failwith "int_ne not yet implemented"
   | Pr.Bv_var r ->
   begin
     match Pr.get_ival args.(0), Pr.get_ival args.(1) with
@@ -416,67 +438,25 @@ let int_ne_reif solver args anns =
     | Pr.Iv_var x, Pr.Iv_var y -> raise Util.Not_yet
   end
 
-(*
-let rec bool_sum_le_rec tbl solver idx xs k =
-  try H.find tbl (idx, k)
-  with Not_found ->
-    if k < 0 then
-      At.at_False
-    else if idx = Array.length xs then
-      At.at_True
+let int_abs solver args anns =
+  match Pr.get_ival args.(0), Pr.get_ival args.(1) with
+  | Pr.Iv_int x, Pr.Iv_int z -> z = abs x
+  | Pr.Iv_var x, Pr.Iv_int z -> S.make_sparse x [|-z ; z|]
+  | Pr.Iv_int k, Pr.Iv_var x -> S.post_atom solver (S.ivar_eq x (abs k))
+  | Pr.Iv_var x, Pr.Iv_var z -> B.int_abs solver At.at_True z x
+
+let bool_eq solver args anns =
+  match Pr.get_bval args.(0), Pr.get_bval args.(1) with
+  | Pr.Bv_bool a, Pr.Bv_bool b -> a = b
+  | (Pr.Bv_bool b, Pr.Bv_var x)
+  | (Pr.Bv_var x, Pr.Bv_bool b) ->
+    if b then
+      S.post_atom solver x
     else
-      let x = xs.(idx) in
-      begin
-      match x with
-      | Pr.Bv_bool true -> bool_sum_le_rec tbl solver (idx+1) xs (k+1)
-      | Pr.Bv_bool false -> bool_sum_le_rec tbl solver (idx+1) xs k
-      | Pr.Bv_var b -> 
-         let low = bool_sum_le_rec tbl solver (idx+1) xs (k+1) in
-          let high = bool_sum_le_rec tbl solver (idx+1) xs k in
-          let v = S.new_boolvar solver in
-          H.add tbl (idx, k) v ;
-          let _ = S.post_clause solver [|At.neg v ; low |] in
-          let _ = S.post_clause solver [|At.neg v ; high ; At.neg b|] in
-          v
-       end
-  
-let bool_sum_le_base solver xs kv =
-  let tbl = H.create 17 in
-  let k = 
-    match kv with
-    | Pr.Iv_int k -> k
-    | Pr.Iv_var x ->
-       let sz = Array.length xs in
-       H.add tbl (sz, 0) (At.at_True) ;
-       for i = 1 to sz do
-         H.add tbl (sz, i) (S.ivar_ge x i)
-       done ;
-       sz
-    in S.post_atom solver (bool_sum_le_rec tbl solver 0 xs k)
-
-let bool_sum_le solver args anns =
-  let xs = Pr.get_array Pr.get_bval args.(0) in
-  let kv = Pr.get_ival args.(1) in
-  bool_sum_le_base solver xs kv
-
-let bool_sum_ge_base solver xs kv =
-  let k = 
-    match kv with
-    | Pr.Iv_int k -> k
-    | Pr.Iv_var x ->
-       let sz = Array.length xs in
-       H.add tbl (sz, 0) (At.at_True) ;
-       for i = 1 to sz do
-         H.add tbl (sz, i) (S.ivar_ge x i)
-       done ;
-       sz
-    in S.post_atom solver (bool_sum_le_rec tbl solver 0 xs k)
-  
-let bool_sum_ge solver args anns =
-  let xs = Pr.get_array Pr.get_bval args.(0) in
-  let kv = Pr.get_ival args.(1) in
-  bool_sum_ge_base solver xs kv
-  *)
+      S.post_atom solver (At.neg x)
+  | Pr.Bv_var x, Pr.Bv_var y ->
+    S.post_clause solver [|x ; At.neg y|]
+    && S.post_clause solver [|At.neg x ; y |]
 
 (* Maybe separate this out into a separate
  * per-solver registrar *)
@@ -496,12 +476,16 @@ let initialize () =
      (* "int_lin_ne", ignore_constraint ; *)
      "int_eq", int_eq ;
      "int_le", int_le ;
+     "int_le_reif", int_le_reif ;
      "int_lt", int_lt ;
+     "int_lt_reif", int_lt_reif ;
+     "int_abs", int_abs ;
      (* "int_ne", int_ne ; *)
      (* "int_le_reif", int_le_reif ; *)
      "int_eq_reif", int_eq_reif ;
      "int_ne_reif", int_ne_reif ;
      "bool2int", bool2int ;
+     "bool_eq", bool_eq ;
      "array_bool_and", array_bool_and ;
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *)

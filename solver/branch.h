@@ -21,6 +21,7 @@ brancher* atom_act_branch(solver_data* s);
 
 brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>& preds);
 brancher* seq_brancher(vec<brancher*>& branchers);
+brancher* limit_brancher(brancher* b);
   
 patom_t branch(solver_data* s);
 

@@ -43,12 +43,17 @@ struct branch_val {
         }
       case Val_Saved:
         {
-          pval_t saved = s->confl.pred_saved[p].val;
+          // pval_t saved = s->confl.pred_saved[p].val;
+          pval_t saved = p&1 ? pval_inv(s->confl.pred_saved[p>>1].val)
+                             : s->confl.pred_saved[p>>1].val;
           if(saved <= lb(s, p))
-            return ~patom_t(p, lb(s, p)+1);
+            // return ~patom_t(p, lb(s, p)+1);
+            return le_atom(p, lb(s, p)+1);
           if(ub(s, p) <= saved)
-            return patom_t(p, ub(s, p));
-          return patom_t(p, saved);
+            // return patom_t(p, ub(s, p));
+            return ge_atom(p, ub(s, p));
+          // return patom_t(p, saved);
+          return ge_atom(p, saved);
         }
       default:
         NOT_YET; 
@@ -170,6 +175,21 @@ brancher* seq_brancher(vec<brancher*>& bs) {
   return new seq_branch(bs); 
 }
 
+class limit_branch : public brancher {
+public:
+  limit_branch(brancher* _b)
+    : b(_b) { }
+
+  patom_t branch(solver_data* s) {
+    if(s->stats.restarts == 0)
+      return b->branch(s);
+    return at_Undef;
+  }
+
+  brancher* b;
+};
+brancher* limit_brancher(brancher* b) { return new limit_branch(b); }
+
 brancher* select_inorder_brancher(ValChoice val_choice, vec<pid_t>& preds) {
   switch(val_choice) {
     case Val_Min:
@@ -238,7 +258,9 @@ public:
     while(!s->pred_heap.empty()) {
       pi = s->pred_heap.getMin();
       
-      if(!pred_fixed(s, pi)) {
+      // if(!pred_fixed(s, pi))
+      if(!pred_fixed(s, pi<<1))
+      {
         if(rem_count != removed.size()) {
           trail_push(s->persist, rem_count);
           rem_count = removed.size();
@@ -246,8 +268,8 @@ public:
 
         // Choose a value to branch on. Currently [| pi = lb(pi) |]
         // return ~patom_t(pi, pred_val(s, pi)+1);
-        // return branch_val<Val_Min>::branch(s, pi);
-        return branch_val<Val_Max>::branch(s, pi);
+        return branch_val<Val_Min>::branch(s, pi<<1);
+        // return branch_val<Val_Max>::branch(s, pi);
         // return branch_val<Val_Saved>::branch(s, pi);
       }
 
