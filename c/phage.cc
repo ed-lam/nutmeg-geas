@@ -3,8 +3,11 @@
 #include "solver/branch.h"
 #include "engine/logging.h"
 
+#include "utils/defs.h"
+
 #include "c/phage.h"
 #include "c/marshal.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +57,8 @@ forceinline phage::VarChoice get_varc(var_choice c) {
     case VAR_LEAST: return phage::Var_Smallest;
     case VAR_GREATEST: return phage::Var_Largest;
   }
+  ERROR;
+  return phage::Var_Smallest;
 }
 
 forceinline phage::ValChoice get_valc(val_choice c) {
@@ -62,6 +67,8 @@ forceinline phage::ValChoice get_valc(val_choice c) {
     case VAL_MAX: return phage::Val_Max;
     case VAL_SPLIT: return phage::Val_Split;
   }
+  ERROR;
+  return phage::Val_Min;
 }
 
 brancher new_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) {

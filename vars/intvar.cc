@@ -13,6 +13,7 @@ intvar_base::intvar_base(solver_data* _s, intvar_manager* _m, int _idx, pid_t _p
   : s(_s), man(_m), idx(_idx), pid(_pid)
 { assert(!(pid&1)); }
 
+/*
 val_t intvar_base::lb(void) const {
   return to_int(s->state.p_vals[pid]);
 }
@@ -20,6 +21,7 @@ val_t intvar_base::lb(void) const {
 val_t intvar_base::ub(void) const {
   return to_int(pval_max - s->state.p_vals[pid^1]);
 }
+*/
 
 bool intvar::is_fixed(void) const {
   return pred_fixed(s, pid);
@@ -65,27 +67,11 @@ static watch_result wakeup(void* ptr, int idx) {
   // Do some stuff
   int vi = idx>>1;
   if(pred_fixed(man->s, man->var_preds[vi])) {
-    /*
-    for(auto c : man->fix_callbacks[vi]) {
-      if(!c.can_skip(origin))
-        c();
-    }
-    */
     run_watches(man->fix_callbacks[vi], origin);
   }
   if(idx&1) {
-    /*
-    for(auto c : man->ub_callbacks[vi])
-      if(!c.can_skip(origin))
-        c();
-        */
     run_watches(man->ub_callbacks[vi], origin);
   } else {
-    /*
-    for(auto c : man->lb_callbacks[vi])
-      if(!c.can_skip(origin))
-        c();
-        */
     run_watches(man->lb_callbacks[vi], origin);
   }
 //  printf("Ping: %d\n", idx);

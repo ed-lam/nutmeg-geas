@@ -110,6 +110,7 @@ inline void run_watches(vec<watch_callback>& watches, void* origin) {
   for(int ii = 0; ii < watches.size(); ii++) {
     watch_callback& cb(watches[ii]);
     if(cb.can_skip(origin) || cb() == Wt_Keep)
+    // if(cb() == Wt_Keep)
       watches[jj++] = watches[ii];
   }
   watches.shrink_(watches.size() - jj);

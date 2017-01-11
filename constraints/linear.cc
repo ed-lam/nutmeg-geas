@@ -270,6 +270,9 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         / */
 
         // NOT_YET;
+#ifdef CHECK_STATE
+        assert(confl_is_current(s, confl));
+#endif
         return false; 
       }
 

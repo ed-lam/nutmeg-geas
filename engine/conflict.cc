@@ -369,4 +369,12 @@ level_found:
   return bt_level;
 }
 
+bool confl_is_current(solver_data* s, vec<clause_elt>& confl) {
+  for(clause_elt& e : confl) {
+    if(!s->state.is_inconsistent_prev(e.atom))
+      return true;
+  }
+  return false;
+}
+
 }

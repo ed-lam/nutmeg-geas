@@ -158,6 +158,16 @@ inline int_itv var_range(intvar x) {
   return int_itv { x.lb(), x.ub() };
 }
 
+// forceinline
+inline intvar::val_t intvar::lb(void) const {
+  return to_int(s->state.p_vals[pid]);
+}
+
+// forceinline
+inline intvar::val_t intvar::ub(void) const {
+  return to_int(pval_max - s->state.p_vals[pid^1]);
+}
+
 /*
 class intview {
 public:

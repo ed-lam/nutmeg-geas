@@ -55,6 +55,8 @@ public:
 int compute_learnt(solver_data* s, vec<clause_elt>& confl);
 void reduce_db(solver_data* s);
 
+bool confl_is_current(solver_data* s, vec<clause_elt>& confl);
+
 }
 
 #endif

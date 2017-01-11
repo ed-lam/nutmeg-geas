@@ -34,6 +34,7 @@ inline result unget_result(phage::solver::result r) {
     case phage::solver::UNSAT:
       return UNSAT;
     case phage::solver::UNKNOWN:
+    default:
       return UNKNOWN;
   }
 }

@@ -66,6 +66,7 @@ solver::solver(options& _opts)
 
 solver_data::solver_data(const options& _opts)
     : opts(_opts),
+      stats(),
       active_prop(nullptr),
       last_branch(default_brancher(this)), 
       pred_heap(act_cmp { infer.pred_act }),
@@ -521,7 +522,6 @@ forceinline void wakeup_pred(solver_data& s, pid_t p) {
   s.wake_queued[p] = false;
 }
 
-// FIXME: Allow attachment to patoms.
 void attach(solver_data* s, patom_t p, const watch_callback& cb) {
   watch_node* watch = s->infer.get_watch(p.pid, p.val);
   watch->callbacks.push(cb);
@@ -605,16 +605,12 @@ prop_restart:
     s.active_prop = (void*) p;
     if(!p->propagate(s.infer.confl)) {
 #ifdef CHECK_STATE
-      for(clause_elt& e : s.infer.confl) {
-        if(!s.state.is_inconsistent_prev(e.atom))
-          goto confl_at_level;
-      }
-      ERROR;
-confl_at_level:
+      assert(confl_is_current(&s, s.infer.confl));
 #endif
 
       p->cleanup();
       prop_cleanup(s);
+      s.active_prop = nullptr;
       return false; 
     }
     p->cleanup();
@@ -622,7 +618,7 @@ confl_at_level:
     // If one or more predicates were updated,
     // jump back to 
     if(!s.pred_queue.empty()) {
-      // s.active_prop = nullptr;
+      s.active_prop = nullptr;
       goto prop_restart;
     }
   }
@@ -725,7 +721,7 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
   if(s.state.is_entailed_l0((*c)[0].atom)
      || s.state.is_entailed_l0((*c)[1].atom)) {
     detach_clause(s, c);
-    delete c;
+    free(c);
     return dest;
   }
   
@@ -736,7 +732,7 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
     if(s.state.is_entailed_l0(e.atom)) {
       // Clause is satisfied at the root; remove it.
       detach_clause(s, c);
-      delete c; 
+      free(c); 
       return dest;
     }
     if(!s.state.is_inconsistent_l0(e.atom)) {
@@ -752,7 +748,7 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
     // Inline the clause body, and free the clause.
     replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
     replace_watch(find_watchlist(s, (*c)[1]), c, (*c)[0].atom);
-    delete c;
+    free(c);
     return dest;
   }
 
@@ -861,8 +857,8 @@ solver::result solver::solve(void) {
   // FIXME: add persistence to confl_num, so we don't need
   // to reset this.
   double alpha = 0.4;
-  for(double& act : s.infer.pred_act)
-    act = 0;
+//  for(double& act : s.infer.pred_act)
+//    act = 0;
 
   int restart_lim = s.opts.restart_limit;
   // FIXME: On successive runs, this may be smaller than
@@ -892,7 +888,8 @@ solver::result solver::solve(void) {
 
     int touched_start = s.persist.touched_preds.size();
     if(!propagate(s)) {
-      bump_touched(s, 1.0, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
+      // bump_touched(s, 1.0, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
+      bump_touched(s, 1.0, alpha, s.stats.conflicts + confl_num, touched_start);
       if(alpha > 0.06)
         alpha = alpha - 1e-6;
 
@@ -995,7 +992,8 @@ solver::result solver::solve(void) {
       continue;
     }
 
-    bump_touched(s, 0.9, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
+    // bump_touched(s, 0.9, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
+    bump_touched(s, 0.9, alpha, s.stats.conflicts + confl_num, touched_start);
 
 #ifdef CHECK_STATE
     int ti = decision_level(s) > 0 ? s.infer.trail_lim.last() : 0;

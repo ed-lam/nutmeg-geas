@@ -63,7 +63,8 @@ inline void bt_explns(solver_data* s, unsigned int l) {
   persistence& p(s->persist);
   unsigned int e_lim = p.expl_trail_lim[l];
   for(clause* c : rev_range(&p.expl_trail[e_lim], p.expl_trail.end()))
-    delete c;
+    // delete c;
+    free(c);
   dropTo_(p.expl_trail, e_lim);
   dropTo_(p.expl_trail_lim, l); 
 }

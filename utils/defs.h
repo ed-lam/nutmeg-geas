@@ -9,6 +9,7 @@
 #include "mtl/Vec.h"
 
 #define forceinline __attribute__((always_inline))
+// #define forceinline 
 
 #define NOT_YET assert(0 && "Not yet implemented.")
 #define NOT_YET_WARN fprintf(stderr, "WARNING: Incompletely implemented.\n")
