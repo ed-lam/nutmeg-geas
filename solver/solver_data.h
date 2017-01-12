@@ -54,6 +54,7 @@ public:
 
   vec<pid_t> wake_queue;
   vec<bool> wake_queued;
+  vec<pval_t> wake_vals;
   
   Queue<propagator*> prop_queue;
 

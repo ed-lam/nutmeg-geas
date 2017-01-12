@@ -128,6 +128,8 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
     
   s.wake_queued.push(false);
   s.wake_queued.push(false);
+  s.wake_vals.push(lb);
+  s.wake_vals.push(pval_inv(ub));
 
   s.state.new_pred(lb, ub);
   s.persist.new_pred();
@@ -161,6 +163,7 @@ pid_t new_pred(sdata& s, pred_init init) {
   // Root values are set up during allocation
   initialize(p, init, s.state.p_last);
   initialize(p, init, s.state.p_vals);
+  initialize(p, init, s.wake_vals);
 
   if(decision_level(s) > 0)
     s.state.initializers.push(pinit_data {p>>1, init} ); 
@@ -365,6 +368,9 @@ static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
 forceinline static 
 bool update_watchlist(solver_data& s,
     clause_elt elt, vec<clause_head>& ws) {
+#ifdef CHECK_STATE
+  assert(s.state.is_inconsistent(elt.atom));
+#endif
   int jj = 0;
   int ii;
   for(ii = 0; ii < ws.size(); ii++) {
@@ -510,15 +516,16 @@ forceinline void touch_pred(solver_data& s, pid_t p) {
   if(!s.persist.pred_touched[p]) {
     s.persist.pred_touched[p] = true;
     s.persist.touched_preds.push(p);
+    s.wake_vals[p] = s.state.p_last[p];
   }
 }
 
 forceinline void wakeup_pred(solver_data& s, pid_t p) {
-  // assert(!is_bool(s, p)); // Handle Bool wake-up separately
   s.active_prop = s.pred_origin[p];
   for(watch_callback call : s.pred_callbacks[p]) {
     call();
   }
+  s.wake_vals[p] = s.state.p_vals[p];
   s.wake_queued[p] = false;
 }
 
@@ -559,6 +566,7 @@ bool propagate(solver_data& s) {
       pid_t p(inits[ii].pi<<1); 
       initialize(p, inits[end].init, s.state.p_last);
       initialize(p, inits[end].init, s.state.p_vals);
+      initialize(p, inits[end].init, s.wake_vals);
       // If this is at its initial value, discard it.
       if(s.state.p_vals[p] != s.state.p_root[p]
         || s.state.p_vals[p+1] != s.state.p_root[p+1])
@@ -765,6 +773,7 @@ inline void simplify_at_root(solver_data& s) {
   for(int pi : s.persist.touched_preds) {
     s.state.p_last[pi] = s.state.p_vals[pi];
     s.state.p_root[pi] = s.state.p_vals[pi];
+    s.wake_vals[pi] = s.state.p_vals[pi];
       
 #if 1
     // Do garbage collection on the watch_node*-s.
@@ -920,6 +929,10 @@ solver::result solver::solve(void) {
         assert(s.state.is_inconsistent(s.infer.confl[ei].atom));
 #endif
       bt_to_level(&s, bt_level);
+#ifdef CHECK_STATE
+      for(pid_t p : s.persist.touched_preds)
+        assert(s.wake_vals[p] == s.state.p_vals[p]);
+#endif
 
 #ifdef LOG_ALL
       log_state(s.state);
@@ -991,6 +1004,10 @@ solver::result solver::solve(void) {
       }
       continue;
     }
+#ifdef CHECK_STATE
+    for(pid_t p : s.persist.touched_preds)
+      assert(s.wake_vals[p] == s.state.p_vals[p]);
+#endif
 
     // bump_touched(s, 0.9, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
     bump_touched(s, 0.9, alpha, s.stats.conflicts + confl_num, touched_start);

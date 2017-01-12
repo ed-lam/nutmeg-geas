@@ -105,10 +105,11 @@ intvar intvar_manager::new_var(val_t lb, val_t ub) {
   // Also set the p_last and p_root values
   s->state.p_last[p] = from_int(lb);
   s->state.p_root[p] = from_int(lb);
+  s->wake_vals[p] = from_int(lb);
 
   s->state.p_last[p^1] = pval_max - from_int(ub);
   s->state.p_root[p^1] = pval_max - from_int(ub);
-
+  s->wake_vals[p^1] = pval_max - from_int(ub);
 //  if(ub - lb < 100)
 //    for(int ii : irange(lb, ub+1))  
 //      make_eqatom(idx, ii);

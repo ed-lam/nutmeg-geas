@@ -74,7 +74,7 @@ void reduce_db(solver_data* s) {
     }
     shrunk_lits += c->size();
     detach_clause(c);
-    delete c;
+    free(c);
   }
   int num_shrunk = learnts.end() - mid;
   s->stats.num_learnts -= num_shrunk;

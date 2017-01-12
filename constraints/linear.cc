@@ -5,6 +5,7 @@
 #include "vars/intvar.h"
 
 // #define EXPL_EAGER
+// #define EXPL_NAIVE
 
 namespace phage {
 
@@ -339,6 +340,335 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
 #endif
 };
 
+// Incremental linear le propagator
+class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
+  enum { Var_None = -1 };
+  
+  struct elt {
+    elt(int _c, intvar _x)
+      : c(_c), x(_x) { }
+    int c;
+    intvar x;
+  };
+
+  forceinline int delta(int c, pid_t p) {
+    return c * (s->state.p_vals[p] - s->wake_vals[p]);
+  }
+
+  int compute_lb(void) {
+    int lb = 0;
+    for(const elt& e : xs)
+      lb += e.c * e.x.lb();
+    for(const elt& e : ys)
+      lb -= e.c * e.x.ub();
+    return lb;
+  }
+
+  watch_result wake_x(int xi) {
+    trail_change(s->persist, slack, slack - delta(xs[xi].c, xs[xi].x.pid));
+#ifdef CHECK_STATE
+    // Might not have processed all watches yet
+    assert(slack >= k - compute_lb());
+#endif
+    if(slack <= threshold)
+      queue_prop();
+    return Wt_Keep;
+  }
+  watch_result wake_y(int yi) {
+    trail_change(s->persist, slack, slack - delta(ys[yi].c, ys[yi].x.pid^1));
+#ifdef CHECK_STATE
+    // Might not have processed all watches yet
+    assert(slack >= k - compute_lb());
+#endif
+    if(slack <= threshold)
+      queue_prop();
+    return Wt_Keep;
+  }
+ 
+  // Requires backtracking
+  void ex_naive(int ei, vec<clause_elt>& expl) {
+    for(int xi = 0; xi < xs.size(); xi++) {
+      if(2*xi == ei)
+        continue;
+      expl.push(xs[xi].x < xs[xi].x.lb());
+    }
+    for(int yi = 0; yi < ys.size(); yi++) {
+      if(2*yi+1 == ei)
+        continue;
+      expl.push(ys[yi].x > ys[yi].x.ub());
+    }
+    /*
+    for(elt e : p->xs)
+      expl.push(e.x < e.x.lb());
+    for(elt e : p->ys)
+      expl.push(e.x > e.x.ub());
+      */
+  }
+
+  static void ex_x(void* ptr, int xi, pval_t pval,
+                       vec<clause_elt>& expl) {
+    lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
+#ifndef EXPL_NAIVE
+    intvar::val_t ival(to_int(pval_inv(pval)));
+    intvar::val_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
+
+    intvar::val_t sum = 0;
+    for(int xj : irange(xi))
+      sum += p->xs[xj].c * p->xs[xj].x.lb();
+    for(int xj : irange(xi+1, p->xs.size()))
+      sum += p->xs[xj].c * p->xs[xj].x.lb();
+    for(elt e : p->ys)
+      sum -= e.c * e.x.ub();
+    p->make_expl(2*xi, sum - lim, expl);
+#else
+    // Naive explanation
+    for(elt e : p->xs) {
+      assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
+      expl.push(e.x < e.x.lb());
+    }
+    for(elt e : p->ys) {
+      assert(p->s->state.is_inconsistent(e.x > e.x.ub()));
+      expl.push(e.x > e.x.ub());
+    }
+#endif
+  }
+
+  static void ex_y(void* ptr, int yi, pval_t pval,
+                       vec<clause_elt>& expl) {
+    lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
+
+#ifndef EXPL_NAIVE
+    intvar::val_t ival(to_int(pval));
+    intvar::val_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
+
+    intvar::val_t sum = 0;
+    for(elt e : p->xs)
+      sum += e.c * e.x.lb();
+    for(int yj : irange(yi))
+      sum -= p->ys[yj].c * p->ys[yj].x.ub();
+    for(int yj : irange(yi+1, p->ys.size()))
+      sum -= p->ys[yj].c * p->ys[yj].x.ub();
+
+    p->make_expl(2*yi+1, sum - lim, expl);
+#else
+    for(elt e : p->xs) {
+      assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
+      expl.push(e.x < e.x.lb());
+    }
+    for(elt e : p->ys) {
+      assert(p->s->state.is_inconsistent(e.x > e.x.ub()));
+      expl.push(e.x > e.x.ub());
+    }
+#endif
+  }
+
+#ifdef EXPL_EAGER
+  static void ex_eager(void* ptr, int pi, pval_t pval,
+                       vec<clause_elt>& expl) {
+    lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
+
+    for(patom_t at : p->expls[pi])
+      expl.push(at);
+  }
+
+  // Allocate a new reason (to be garbage collected)
+  int make_eager_expl(int var) {
+    trail_push(s->persist, expls_sz);
+    int pi = expls_sz++;
+    if(expls.size() < expls_sz)
+      expls.push();
+    vec<patom_t>& expl(expls[pi]);
+    expl.clear();
+
+    for(int ii = 0; ii < xs.size(); ii++) {
+      if(ii != 2*var) {
+        elt e = xs[ii];
+        expl.push(e.x < e.x.lb());
+      }
+    }
+    for(int ii = 0; ii < ys.size(); ii++) {
+      if(ii != 2*var + 1) {
+        elt e = ys[ii];
+        expl.push(e.x > e.x.ub());
+      }
+    }
+    
+    return pi;
+  }
+#endif
+
+  public: 
+
+    lin_le_inc(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& vs, int _k)
+      : propagator(s), k(_k), slack(k), threshold(0)
+#ifdef EXPL_EAGER
+        , expls_sz(0)
+#endif 
+      {
+      for(int ii = 0; ii < vs.size(); ii++) {
+        if(ks[ii] > 0) {
+          // vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size(), true));
+          vs[ii].attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
+          xs.push(elt(ks[ii], vs[ii]));
+        } else if(ks[ii] < 0) {
+          // vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));
+          vs[ii].attach(E_UB, watch<&P::wake_y>(ys.size(), Wt_IDEM));
+          ys.push(elt(-ks[ii], vs[ii]));
+        }
+      }
+      // Initialize lower bound
+      for(const elt& e : xs)
+        slack -= e.c * e.x.lb_prev();
+      for(const elt& e : ys)
+        slack += e.c * e.x.ub_prev();
+      // Tighten upper bound, and compute threshold? 
+      for(elt& e : xs) {
+        int x_ub = e.x.lb() + slack/e.c;
+        if(x_ub < e.x.ub())
+          e.x.set_ub(x_ub, reason());
+        threshold = std::max(threshold, (int) (e.x.ub() - e.x.lb_prev())/e.c);
+      }
+      for(elt& e : ys) {
+        int y_lb = e.x.ub() - slack/e.c;
+        if(y_lb > e.x.lb())
+          e.x.set_lb(y_lb, reason());
+        threshold = std::max(threshold, (int) (e.x.ub_prev() - e.x.lb())/e.c);
+      }
+      assert(slack >= k - compute_lb());
+    }
+
+    void root_simplify(void) {
+        
+    }
+    
+    template<class E>
+    void make_expl(int var, int slack, E& ex) {
+      assert(slack >= 0);
+      vec<int> xs_pending;
+      vec<int> ys_pending;
+      // First, collect things we can omit entirely, or
+      // include at the previous decision level
+      for(int xi : irange(0, xs.size())) {
+        if(2*xi == var)
+          continue;
+        elt e = xs[xi];
+
+        int x_lb = e.x.lb();
+        int x_lb_0 = e.x.lb_0();
+        int diff_0 = e.c * (x_lb - x_lb_0);
+        if(diff_0 <= slack) {
+          slack -= diff_0;
+          continue;
+        }
+        int x_lb_p = e.x.lb_prev();
+        int diff_p = e.c * (x_lb - x_lb_p);
+        if(diff_p <= slack) {
+          slack -= diff_p;
+          ex.push(e.x < x_lb_p); 
+          continue;
+        }
+        xs_pending.push(xi);
+      }
+      for(int yi : irange(0, ys.size())) {
+        if(2*yi+1 == var)
+          continue;
+        elt e = ys[yi];
+        int y_ub = e.x.ub();
+        int y_ub_0 = e.x.ub_0();
+        int diff_0 = e.c * (y_ub_0 - y_ub);
+        if(diff_0 <= slack) {
+          slack -= diff_0;
+          continue;
+        }
+        int y_ub_p = e.x.ub_prev();
+        int diff_p = e.c * (y_ub_p - y_ub);
+        if(diff_p <= slack) {
+          slack -= diff_p;
+          ex.push(e.x > y_ub_p);
+          continue;
+        }
+        ys_pending.push(yi);
+      }
+
+      // Then, add things at the current level
+      assert(slack >= 0);
+      for(int xi : xs_pending) {
+        elt e = xs[xi];
+        int diff = slack/e.c;
+        ex.push(e.x < e.x.lb() - diff);
+        slack -= e.c * diff;
+        assert(slack >= 0);
+      }
+      for(int yi : ys_pending) {
+        elt e = ys[yi];
+        int diff = slack/e.c;
+        ex.push(e.x > e.x.ub() + diff);
+        slack -= e.c * diff;
+        assert(slack >= 0);
+      }
+    }
+
+    bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_PROP
+      std::cout << "[[Running linear_le(inc)]]" << std::endl;
+#endif
+#ifdef CHECK_STATE
+      assert(slack == k - compute_lb());
+#endif
+      if(slack < 0) {
+        // Collect enough atoms to explain the sum.
+        // FIXME: This is kinda weak. We really want to
+        // push as much as we can onto the previous level.
+        make_expl(Var_None, -slack - 1, confl);
+
+#ifdef CHECK_STATE
+        assert(confl_is_current(s, confl));
+#endif
+        return false; 
+      }
+
+      // Otherwise, propagate upper bounds.
+//      int slack = k - lb;
+      int new_threshold = 0;
+      for(int xi : irange(0, xs.size())) {
+        elt e = xs[xi];
+        int x_diff = slack/e.c;
+        int x_ub = e.x.lb() + x_diff;
+        if(x_ub < e.x.ub()) {
+          // Build the explanation
+          if(!e.x.set_ub(x_ub,
+              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
+            return false;
+        }
+        new_threshold = std::max(new_threshold, (int) (e.x.ub() - e.x.lb())/e.c);
+      }
+
+      for(int yi : irange(0, ys.size())) {
+        elt e = ys[yi];
+        // int y_diff = slack/e.c;
+        int y_diff = slack/e.c;
+        int y_lb = e.x.ub() - y_diff;
+        if(e.x.lb() < y_lb) {
+          if(!e.x.set_lb(y_lb,
+              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
+            return false;
+        }
+        new_threshold = std::max(new_threshold, (int) (e.x.ub() - e.x.lb())/e.c);
+      }
+      trail_change(s->persist, threshold, new_threshold);
+      return true;
+    }
+
+    vec<elt> xs;
+    vec<elt> ys;
+    int k;
+
+    // Persistent state
+    int slack;
+    int threshold;
+};
+
+
 // MDD-style decomposition.
 // Introduce partial-sum variables, but coalesce ranges which
 // are equivalent.
@@ -586,7 +916,8 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   if(!s->state.is_entailed_l0(r)) {
     WARN("Half-reification not yet implemented for linear_le.");
   }
-  new int_linear_le(s, r, ks, vs, k);
+//  new int_linear_le(s, r, ks, vs, k);
+  new lin_le_inc(s, r, ks, vs, k);
   return true;
 }
 

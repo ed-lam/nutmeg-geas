@@ -484,7 +484,7 @@ class imax : public propagator, public prop_inst<imax> {
 public:
   imax(solver_data* s, intvar _z, vec<intvar>& _xs)
     : propagator(s), z(_z), xs(_xs),
-      z_change(0), supp_change(0) { 
+      sep_val(z.lb()), z_change(0), supp_change(0) { 
     z.attach(E_LB, watch_callback(wake_z, this, 0, true));
     z.attach(E_UB, watch_callback(wake_z, this, 1, true));
 

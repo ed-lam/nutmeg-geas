@@ -8,6 +8,7 @@ propagator::propagator(solver_data* _s)
 #ifdef PROOF_LOG
     cons_id = s->log.scope_constraint;
 #endif
+    s->propagators.push(this);
     queue_prop(); 
   }
 

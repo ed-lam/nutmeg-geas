@@ -7,6 +7,7 @@
 // #define LOG_RESTART
 // #define LOG_GC
 
+/*
 #ifdef LOG_ALL
 
 #ifndef LOG_RESTART
@@ -18,6 +19,7 @@
 #endif
 
 #endif
+*/
 
 namespace phage {
 

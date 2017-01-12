@@ -121,6 +121,7 @@ void bt_preds(solver_data* s, unsigned int l) {
     p.pred_touched[e.p] = true;
     p.touched_preds.push(e.p);
     st.p_vals[e.p] = st.p_last[e.p];
+    s->wake_vals[e.p] = st.p_last[e.p];
     st.p_last[e.p] = e.v;
   }
 #else

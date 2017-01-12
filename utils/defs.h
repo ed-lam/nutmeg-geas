@@ -10,6 +10,11 @@
 
 #define forceinline __attribute__((always_inline))
 // #define forceinline 
+#ifdef LOG_ALL
+#define LOG_PROP
+#define LOG_RESTART
+#define LOG_GC
+#endif
 
 #define NOT_YET assert(0 && "Not yet implemented.")
 #define NOT_YET_WARN fprintf(stderr, "WARNING: Incompletely implemented.\n")

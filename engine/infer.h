@@ -26,16 +26,16 @@ public:
       watch_node* p = h.ptr;
       while(p) {
         watch_node* s = p->succ;
-        delete(p);
+        delete p;
         p = s;
       }
     }
     
     // Then clauses and learnts
     for(clause* c : clauses)
-      delete c;
+      free(c);
     for(clause* l : learnts)
-      delete l;
+      free(l);
   }
 
   // Predicates should only be added in pairs.
