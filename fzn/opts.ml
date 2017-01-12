@@ -8,6 +8,8 @@ let quiet = ref false
 let max_solutions = ref 1
 let free = ref false
 
+let restart_limit = ref None
+
 let check = ref false
 
 let native = ref false
@@ -56,5 +58,10 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "-a",
       Arg.Unit (fun () -> max_solutions := 0),
       " : find all solutions"
+     ) ;
+     (
+      "-r",
+      Arg.Int (fun r -> restart_limit := Some r),
+      "<int> : initial restart limit"
      ) ;
     ]

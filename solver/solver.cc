@@ -15,8 +15,8 @@ options default_options = {
   0.01, // double pred_act_inc;
   1.05, // double pred_act_growthrate; 
 
-  0.01, // double learnt_act_inc;
-  1.05, // double learnt_act_growthrate;
+  1, // double learnt_act_inc;
+  1.001, // double learnt_act_growthrate;
 
   1000, // int restart_limit;
   1.05, // double restart_growthrate;
@@ -795,6 +795,21 @@ inline void simplify_at_root(solver_data& s) {
     // TODO: Also collect inactive watch-nodes.
 #endif
   }
+
+#ifdef LOG_RESTART
+  int count = 0;
+  int stale = 0;
+  for(watch_node* w : s.infer.pred_watches) {
+    while(w->succ) {
+      w = w->succ;
+      ++count;
+      if(w->ws.size() == 0 && w->callbacks.size() == 0)
+        ++stale;
+    }
+  }
+  fprintf(stderr, "%d watch nodes, %d stale\n", count, stale);
+#endif
+  
 
 #if 1
   // Watches may be invalidated when a clause is

@@ -9,6 +9,15 @@ namespace phage {
 static inline void bump_clause_act(solver_data* s, clause& cl) {
   cl.extra.act += s->learnt_act_inc;
 }
+static inline void decay_clause_act(solver_data* s) {
+  if((s->learnt_act_inc *= s->opts.learnt_act_growthrate) > 1e20) {
+    for(clause* c : s->infer.learnts) {
+      c->extra.act *= 1e-20;
+    }
+    s->learnt_act_inc *= 1e-20;
+  }
+}
+
 
 static inline void bump_pred_act(solver_data* s, pid_t p) {
   // FIXME: Update order in heap, also.
@@ -266,6 +275,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   s->confl.clevel = 0;
   s->confl.confl_num++;
   
+  decay_clause_act(s);
 //  std::cout << "confl:" << confl << std::endl;
 
   // Remember: the conflict contains things which are false.

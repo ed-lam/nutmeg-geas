@@ -296,6 +296,15 @@ let print_stats fmt stats =
         ((float_of_int stats.Sol.num_learnt_lits) /. (float_of_int stats.Sol.num_learnts))
     end
 
+let get_options () =
+  let defaults = Sol.default_options () in
+  let rlimit = !Opts.restart_limit in
+  { defaults with
+    Sol.restart_limit =
+      match rlimit with
+      | Some r -> r
+      | None -> defaults.Sol.restart_limit }
+  
 let main () =
   (* Parse the command-line arguments *)
   Arg.parse
@@ -313,7 +322,8 @@ let main () =
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
   let problem = Simplify.simplify orig_problem in
-  let solver = Sol.new_solver (Sol.default_options ()) in
+  let opts = get_options () in
+  let solver = Sol.new_solver opts in
   (* Do stuff *)
   let env = build_problem solver problem in
   build_branching problem env solver (snd problem.Pr.objective) ;
