@@ -187,9 +187,16 @@ let int_lin_le solver args anns =
       (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
       *)
 
+(*
+let bool_eq_reif s args anns =
+  match Pr.get_bval args.(0), Pr.get_bval args.(1), Pr.get_bval args.(2) with
+  | Pr.Bv_bool x, Pr.Bv_bool y, Pr.Bv_bool z -> z = (z = y)
+  | Pr.Bv_bool x, Pr.Bv_bool y, Pr.Bv_var z ->
+  *)
+    
 let post_lin_eq s r cs xs k =
   post_lin_le s r cs xs k
-  && post_lin_le s r (Array.map ((-) 0) cs) xs (-k) 
+  && post_lin_le s r (Array.map ((-) 0) cs) xs (-k)
 
 let int_lin_le solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
@@ -449,10 +456,17 @@ let int_lt solver args anns =
   B.int_le solver At.at_True x y 1
   *)
 
+let int_ne solver args anns =
+  match Pr.get_ival args.(0), Pr.get_ival args.(1) with
+  | Pr.Iv_int k1, Pr.Iv_int k2 -> k1 <> k2
+  | (Pr.Iv_var x, Pr.Iv_int k)
+  | (Pr.Iv_int k, Pr.Iv_var x) -> S.post_atom solver (S.ivar_ne x k)
+  | Pr.Iv_var x, Pr.Iv_var y -> B.int_ne solver At.at_True x y
+
 let int_eq_reif solver args anns =
   match Pr.get_bval args.(2) with
   | Pr.Bv_bool true -> int_eq solver args anns
-  | Pr.Bv_bool false -> failwith "int_ne not yet implemented"
+  | Pr.Bv_bool false -> int_ne solver args anns
   | Pr.Bv_var r ->
   begin
     match Pr.get_ival args.(0), Pr.get_ival args.(1) with
@@ -461,22 +475,33 @@ let int_eq_reif solver args anns =
     | (Pr.Iv_int k, Pr.Iv_var x) ->
       let at = S.ivar_eq x k in
       bool_iff solver r at
-    | Pr.Iv_var x, Pr.Iv_var y -> raise Util.Not_yet
+    | Pr.Iv_var x, Pr.Iv_var y ->
+      B.int_le solver r x y 0
+      && B.int_le solver r y x 0
+      && B.int_ne solver (At.neg r) x y
   end
+
 
 let int_ne_reif solver args anns =
   match Pr.get_bval args.(2) with
-  | Pr.Bv_bool true -> raise Util.Not_yet
+  | Pr.Bv_bool true -> int_ne solver args anns
   | Pr.Bv_bool false -> int_eq solver args anns
   | Pr.Bv_var r ->
   begin
     match Pr.get_ival args.(0), Pr.get_ival args.(1) with
-    | Pr.Iv_int k1, Pr.Iv_int k2 -> k1 <> k2
+    | Pr.Iv_int k1, Pr.Iv_int k2 ->
+      if k1 = k2 then
+        S.post_atom solver (At.neg r)
+      else
+        true
     | (Pr.Iv_var x, Pr.Iv_int k)
     | (Pr.Iv_int k, Pr.Iv_var x) ->
       let at = S.ivar_ne x k in
       bool_iff solver r at
-    | Pr.Iv_var x, Pr.Iv_var y -> raise Util.Not_yet
+    | Pr.Iv_var x, Pr.Iv_var y ->
+      B.int_ne solver r x y
+      && B.int_le solver (At.neg r) x y 0
+      && B.int_le solver (At.neg r) y x 0
   end
 
 let int_abs solver args anns =
