@@ -137,6 +137,18 @@ let collect_array_ivars env expr =
     in
     Array.of_list vars
 
+let collect_array_bvars env expr =
+  let vars = 
+    match expr with
+    | Pr.Arr es ->
+      List.rev @@ Array.fold_left (fun vs e ->
+        match e with
+        | Pr.Bvar v -> env.bvars.(v) :: vs
+        | _ -> vs) [] es
+    | _ -> failwith "Expected array in collect_array_ivars"
+    in
+    Array.of_list vars
+
 let rec parse_branching problem env ann =
   match ann with  
   | Pr.Ann_call ("seq_search", args) ->
@@ -146,7 +158,12 @@ let rec parse_branching problem env ann =
       let varb = get_var_branch args.(1) in
       let valb = get_val_branch args.(2) in
       let vars = collect_array_ivars env (Pr.resolve_ann problem args.(0)) in
-      Sol.new_brancher varb valb vars
+      Sol.new_int_brancher varb valb vars
+  | Pr.Ann_call ("bool_search", args) ->
+      let varb = get_var_branch args.(1) in
+      let valb = get_val_branch args.(2) in
+      let vars = collect_array_bvars env (Pr.resolve_ann problem args.(0)) in
+      Sol.new_bool_brancher varb valb vars
   | _ -> failwith "Unknown search annotation"
 
 let build_branching problem env solver anns =

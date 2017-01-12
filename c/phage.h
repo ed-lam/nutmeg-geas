@@ -62,7 +62,8 @@ atom new_boolvar(solver);
 typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
 typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
 
-brancher new_brancher(var_choice, val_choice, intvar*, int);
+brancher new_int_brancher(var_choice, val_choice, intvar*, int);
+brancher new_bool_brancher(var_choice, val_choice, atom*, int);
 brancher seq_brancher(brancher*, int);
 brancher limit_brancher(brancher);
 void add_brancher(solver, brancher);

@@ -50,7 +50,8 @@ quote(mlmli, "type t  = solver");
 solver new_solver([in] options o);
 // bool propagate([in] solver);
 
-brancher new_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);
+brancher new_int_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);
+brancher new_bool_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] atom vs[], int sz);
 brancher seq_brancher([in,size_is(sz)] brancher bs[], int sz);
 brancher limit_brancher([in] brancher base);
 void add_brancher([in] solver s, [in] brancher b);

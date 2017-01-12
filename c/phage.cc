@@ -71,11 +71,19 @@ forceinline phage::ValChoice get_valc(val_choice c) {
   return phage::Val_Min;
 }
 
-brancher new_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) {
+brancher new_int_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) {
   vec<phage::pid_t> vars;
   intvar* end = vs+sz;
   for(; vs != end; ++vs)
     vars.push(get_intvar(*vs)->pid);
+  return ((brancher) phage::basic_brancher(get_varc(varc), get_valc(valc), vars));
+}
+
+brancher new_bool_brancher(var_choice varc, val_choice valc, atom* vs, int sz) {
+  vec<phage::pid_t> vars;
+  atom* end = vs+sz;
+  for(; vs != end; ++vs)
+    vars.push(get_atom(*vs).pid);
   return ((brancher) phage::basic_brancher(get_varc(varc), get_valc(valc), vars));
 }
 

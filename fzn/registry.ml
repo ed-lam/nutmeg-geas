@@ -19,6 +19,11 @@ let lookup ident = H.find registry ident
 
 let bool_atom b = if b then Atom.at_True else Atom.neg Atom.at_True
 
+let array_nth expr i =
+  match expr with
+  | Pr.Arr es -> es.(i)
+  | _ -> failwith "Expected array argument to array_nth"
+
 let get_atom expr =
   match Pr.get_bval expr with
   | Pr.Bv_bool b -> bool_atom b
@@ -323,25 +328,61 @@ let array_bool_or solver args anns =
     (* z -> x_1 \/ ... \/ x_n *)
     (S.post_clause solver (Array.append [|At.neg z|] xs)) xs
 
+let val_indices ys x =
+  let (_, idxs) = 
+    Array.fold_left (fun (i, is) y ->
+      (i+1, if x = y then i :: is else is)) (1, []) ys
+  in idxs
+
 let array_int_element solver args anns =
-  let idx = (force_ivar solver) args.(0) in
   let elts = Pr.get_array Pr.get_int args.(1) in
-  let res = (force_ivar solver) args.(2) in
-  B.int_element solver At.at_True res idx elts
+  match Pr.get_ival args.(0), Pr.get_ival args.(2) with
+  | Pr.Iv_int idx, Pr.Iv_int res ->
+    res = elts.(idx-1) 
+  | Pr.Iv_var idx, Pr.Iv_int res ->
+    S.make_sparse idx (Array.of_list (val_indices elts res))
+  | Pr.Iv_int idx, Pr.Iv_var res ->
+    S.post_atom solver (S.ivar_eq res elts.(idx-1))
+  | Pr.Iv_var idx, Pr.Iv_var res ->
+    B.int_element solver At.at_True res idx elts
 
 let array_var_int_element solver args anns =
-  let idx = Pr.get_ivar args.(0) in
-  let res = Pr.get_ivar args.(2) in
-  if is_array is_int args.(1) then
-    let elts = Pr.get_array Pr.get_int args.(1) in
-    B.int_element solver At.at_True res idx elts
-  else 
-    let elts = Pr.get_array (force_ivar solver) args.(1) in
-    B.var_int_element solver At.at_True res idx elts
-    (*
-    (Format.fprintf Format.std_formatter "WARNING: var_int_element.@.";
-     true)
-    *)
+  match Pr.get_ival args.(0), Pr.get_ival args.(2) with
+  | Pr.Iv_int idx, Pr.Iv_int res ->
+    begin
+      match Pr.get_ival (array_nth args.(1) idx) with
+      | Pr.Iv_int elt -> res = elt
+      | Pr.Iv_var elt -> S.post_atom solver (S.ivar_eq elt res)
+    end
+  | Pr.Iv_int idx, Pr.Iv_var res -> 
+    begin
+      match Pr.get_ival (array_nth args.(1) idx) with
+      | Pr.Iv_int elt -> S.post_atom solver (S.ivar_eq res elt)
+      | Pr.Iv_var elt ->
+        B.int_le solver At.at_True res elt 0
+          && B.int_le solver At.at_True elt res 0
+    end
+  | Pr.Iv_var idx, Pr.Iv_int res ->
+    let okay = ref true in
+    Array.iteri (fun i elt ->
+      okay := !okay &&
+        match Pr.get_ival elt with
+        | Pr.Iv_int k ->
+          if res = k then
+            true
+          else
+            S.post_atom solver (S.ivar_ne idx (i+1))
+        | Pr.Iv_var v ->
+          S.post_clause solver [|S.ivar_ne idx (i+1) ; S.ivar_eq v res|]
+          ) (Pr.get_array (fun x -> x) args.(1)) ;
+      !okay
+  | Pr.Iv_var idx, Pr.Iv_var res ->
+    if is_array is_int args.(1) then
+      let elts = Pr.get_array Pr.get_int args.(1) in
+      B.int_element solver At.at_True res idx elts
+    else 
+      let elts = Pr.get_array (force_ivar solver) args.(1) in
+      B.var_int_element solver At.at_True res idx elts
  
 let bool_iff solver x y =
   S.post_clause solver [|x ; At.neg y|]
