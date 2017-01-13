@@ -1,8 +1,11 @@
 (** Problem simplification *)
-(*
-type rel = Le | Eq | Gt | Ne
-type bdef = bvar_id * rel * int
+type irel = Ile | Ieq | Igt | Ine
+type bdef =
+  | Beq of Problem.bval_id
+  | Bneg of Problem.bval_id
+  | At of Problem.ival_id * irel * int
 
+(*
 type ival_info = { id : ident ; dom : Dom.t ; ann : ann_expr list }
 type model = {
   symbols : (ident, fzn_expr * ann_expr list) Hashtbl.t ;
@@ -13,4 +16,4 @@ type model = {
 }
 *)
 
-val simplify : Problem.t -> Problem.t
+val simplify : Problem.t -> (bdef option array * Problem.t)

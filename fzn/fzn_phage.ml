@@ -8,8 +8,10 @@ open Token
 module P = Parser
 
 module Pr = Problem
+module Simp = Simplify
 
 module Sol = Solver
+module At = Atom
 
 exception Unknown_constraint of string
 
@@ -81,7 +83,25 @@ let post_constraint solver env ident exprs anns =
      Registry.register ident (fun _ _ _ -> true) ;
         true)
 
-let build_problem solver problem =
+let rel_fun = function
+  | Simp.Ile -> Sol.ivar_le
+  | Simp.Ieq -> Sol.ivar_eq
+  | Simp.Igt -> Sol.ivar_gt
+  | Simp.Ine -> Sol.ivar_ne
+
+let make_atoms s ivars bdefs =
+  let bvars = Array.make (Array.length bdefs) At.at_True in
+  Array.iteri (fun i _ ->
+    bvars.(i) <-
+      match bdefs.(i) with
+      | None -> Sol.new_boolvar s
+      | Some (Simp.Beq v) -> bvars.(v)
+      | Some (Simp.Bneg v) -> At.neg bvars.(v)
+      | Some (Simp.At (iv, rel, k)) ->
+        rel_fun rel ivars.(iv) k) bvars ;
+  bvars
+
+let build_problem solver problem bdefs =
   (* Allocate variables *)
   let ivars =
     Array.init
@@ -90,11 +110,7 @@ let build_problem solver problem =
        let vinfo = Dy.get problem.Pr.ivals i in
        make_intvar solver vinfo.Pr.dom)
   in
-  let bvars =
-    Array.init
-      (Dy.length problem.Pr.bvals)
-      (fun i -> Sol.new_boolvar solver)
-  in
+  let bvars = make_atoms solver ivars bdefs in
   let env = { ivars = ivars; bvars = bvars } in
   (* Process constraints *)
   Dy.iteri (fun id ((ident, expr), anns) ->
@@ -338,11 +354,11 @@ let main () =
   in
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
-  let problem = Simplify.simplify orig_problem in
+  let (bdefs, problem) = Simplify.simplify orig_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
   (* Do stuff *)
-  let env = build_problem solver problem in
+  let env = build_problem solver problem bdefs in
   build_branching problem env solver (snd problem.Pr.objective) ;
   (*
   let problem_HR =
