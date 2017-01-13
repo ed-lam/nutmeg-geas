@@ -64,7 +64,7 @@ inline bool is_locked(solver_data* s, clause* c) {
   if(s->infer.trail.size() <= depth)
     return false;
 
-  reason& r(s->infer.trail[depth].expl); 
+  reason& r(s->infer.trail[depth].expl);
   return r.kind == reason::R_Clause && r.cl == c;
 }
 
@@ -205,6 +205,7 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
     case reason::R_Clause:
       {
         // Skip the first literal (which we're resolving on)
+        // assert(is_locked(s, r.cl));
         bump_clause_act(s, *r.cl);
         auto it = r.cl->begin();
         for(++it; it != r.cl->end(); ++it) {

@@ -332,10 +332,13 @@ bool enqueue(sdata& s, patom_t p, reason r) {
   }
   s.pred_origin[p.pid] = s.active_prop;
 
+  if(r.kind == reason::R_Clause)
+    r.cl->extra.depth = s.infer.trail.size();
   infer_info::entry e = { p.pid, old_val, r };
 #ifdef PROOF_LOG
   e.expl.origin = s.log.active_constraint;
 #endif
+
   s.infer.trail.push(e);
   if(!s.pred_queued[p.pid]) {
     s.pred_queue.insert(p.pid);
@@ -444,8 +447,8 @@ bool update_watchlist(solver_data& s,
     ws[jj++] = ch;
 //    assert(c[0].watch);
 //    assert(c[1].watch);
-    // Save the trail location, so we can tell if it's locked.
-    c.extra.depth = s.infer.trail.size();
+    // Save the trail location, so we can tell if it's locked. (NOW DONE IN ENQUEUE)
+    // c.extra.depth = s.infer.trail.size();
     if(!enqueue(s, c[0].atom, &c)) {
       for(ii++; ii < ws.size(); ii++)
         ws[jj++] = ws[ii];
@@ -612,6 +615,9 @@ prop_restart:
 #endif
     s.active_prop = (void*) p;
     if(!p->propagate(s.infer.confl)) {
+#ifdef LOG_PROP
+      std::cerr << "[>Done-]" << std::endl;
+#endif
 #ifdef CHECK_STATE
       assert(confl_is_current(&s, s.infer.confl));
 #endif
@@ -621,6 +627,9 @@ prop_restart:
       s.active_prop = nullptr;
       return false; 
     }
+#ifdef LOG_PROP
+      std::cerr << "[>Done+]" << std::endl;
+#endif
     p->cleanup();
 
     // If one or more predicates were updated,
@@ -677,7 +686,7 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt, bool one_watch) {
     clause* c(clause_new(learnt));
     c->extra.is_learnt = true;
     c->extra.one_watch = one_watch;
-    c->extra.depth = s->infer.trail.size();
+    // c->extra.depth = s->infer.trail.size(); // NOW DONE IN ENQUEUE
 
     // Assumption:
     // learnt[0] is the asserting literal;
@@ -751,10 +760,12 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
   c->sz = ej - c->begin();
   assert(c->sz >= 2);
 
-  /* */ if(c->sz == 2)  /* / if (0) */ {
+  if(c->sz == 2)  {
     // c has become a binary clause.
     // Inline the clause body, and free the clause.
-    replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
+    // GKG: Should check if this is locked.
+    if(!c->extra.one_watch)
+      replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
     replace_watch(find_watchlist(s, (*c)[1]), c, (*c)[0].atom);
     free(c);
     return dest;
@@ -1131,7 +1142,7 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  /* */ if(elts.size() == 2) /* / if(0) */  {
+  if(elts.size() == 2) {
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
@@ -1141,7 +1152,6 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
     // Normal clause
     clause* c(clause_new(elts));
     // Any two watches should be fine
-    // clause_head h(elts[2].atom, c);
     clause_head h(elts.last().atom, c);
 
     find_watchlist(s, (*c)[0]).push(h);
@@ -1171,7 +1181,7 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   
   // Binary clause; embed the -other- literal
   // in the head;
-  /* */ if(elts.size() == 2) /* / if(0) */ {
+  if(elts.size() == 2) {
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
@@ -1180,8 +1190,6 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   } else {
     // Normal clause
     clause* c(clause_new(elts));
-    // FIXME: Choose appropriate watches
-    // clause_head h(elts[2].atom, c);
     clause_head h(elts.last().atom, c);
 
     find_watchlist(s, (*c)[0]).push(h);

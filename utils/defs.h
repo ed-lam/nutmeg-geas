@@ -11,9 +11,15 @@
 #define forceinline __attribute__((always_inline))
 // #define forceinline 
 #ifdef LOG_ALL
+#ifndef LOG_PROP
 #define LOG_PROP
+#endif
+#ifndef LOG_RESTART
 #define LOG_RESTART
+#endif
+#ifndef LOG_GC
 #define LOG_GC
+#endif
 #endif
 
 #define NOT_YET assert(0 && "Not yet implemented.")

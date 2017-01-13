@@ -24,6 +24,7 @@ LFLAGS    = -lz -Wall -Wno-deprecated
 
 COPTIMIZE = -O3 -march=x86-64 -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2
+#COPTIMIZE = -O1
 #COPTIMIZE = -O0
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG

@@ -86,19 +86,30 @@ let rec repr st v =
 (* Precondition - v and v' are class reprs. *)
 let merge_reprs st invert v v' =
   if v <> v' then
-    match st.defs.(v), st.defs.(v') with
-    | _, None -> st.defs.(v') <- Some (if invert then Bneg v else Beq v)
-    | None, _ -> st.defs.(v) <- Some (if invert then Bneg v' else Beq v')
+    let w, w' = min v v', max v v' in
+    match st.defs.(w), st.defs.(w') with
+    | (dw, None
+      | None, dw) ->
+      begin
+        st.defs.(w) <- dw ;
+        st.defs.(w') <- Some (if invert then Bneg w else Beq w)
+      end
+      (*
+        st.defs.(v') <- Some (if invert then Bneg v else Beq v)
+        *)
+      (*
+    | None, dw -> st.defs.(v) <- Some (if invert then Bneg v' else Beq v')
+    *)
     | Some (At _), Some (At (x, r, k)) ->
       begin
         if invert then
-          (st.defs.(v') <- Some (Bneg v) ;
+          (st.defs.(w') <- Some (Bneg w) ;
            Dy.add st.cons
-             (fzn_irel_reif (irel_neg r) (Pr.Bvar v) (Pr.Ivar x) (Pr.Ilit k)))
+             (fzn_irel_reif (irel_neg r) (Pr.Bvar w) (Pr.Ivar x) (Pr.Ilit k)))
         else
-          (st.defs.(v') <- Some (Beq v) ;
+          (st.defs.(w') <- Some (Beq w) ;
            Dy.add st.cons
-             (fzn_irel_reif r (Pr.Bvar v) (Pr.Ivar x) (Pr.Ilit k)))
+             (fzn_irel_reif r (Pr.Bvar w) (Pr.Ivar x) (Pr.Ilit k)))
       end
     | _, _ -> failwith "merge_reprs should only be called with representatives."
   else
@@ -217,8 +228,8 @@ let init () =
     [ "int_le_reif", simp_irel_reif Ile ;
       "int_eq_reif", simp_irel_reif Ieq ;
       "int_ne_reif", simp_irel_reif Ine ;
-      (* "bool_eq", simp_bool_eq ; *)
-      (* "bool_ne", simp_bool_ne *)
+      "bool_eq", simp_bool_eq ; 
+      "bool_ne", simp_bool_ne
     ] in
   List.iter (fun (id, h) -> H.add registry id h) handlers
 

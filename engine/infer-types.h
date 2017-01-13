@@ -44,7 +44,7 @@ struct clause_extra {
 class clause {
 public:
   // Empty constructor, for temporary explanations
-  clause(void) : sz(0) { }
+  clause(void) : extra(), sz(0) { }
 
   // As usual, don't use this directly...
   template<class T> clause(T& elts) {

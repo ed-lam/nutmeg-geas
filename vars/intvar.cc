@@ -151,6 +151,7 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
   if(it != eqtable[vid].end())
     return (*it).second;
 
+  // FIXME: Only safe at decision level 0.
   pval_t x_lb = s->state.p_vals[x_pi];
   pval_t x_ub = pval_max - s->state.p_vals[x_pi+1];
   if(val < x_lb || val > x_ub)
