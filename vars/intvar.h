@@ -111,6 +111,7 @@ public:
   bool in_domain(unsigned int vid, val_t val);
   patom_t make_eqatom(unsigned int vid, val_t val);
   bool make_sparse(unsigned int vid, vec<val_t>& vals);
+  void make_eager(unsigned int vid);
 
   vec<pid_t> var_preds;
 
@@ -144,6 +145,8 @@ bool make_sparse(intvar x, vec<T>& vals) {
     vs.push((intvar::val_t) v);
   return x.man->make_sparse(x.idx, vs);
 }
+
+inline void make_eager(intvar x) { x.man->make_eager(x.idx); }
 
 inline intvar::val_t to_int(pval_t v) { return intvar::to_int(v); }
 

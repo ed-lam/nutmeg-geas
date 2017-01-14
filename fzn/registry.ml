@@ -541,12 +541,12 @@ let initialize () =
      "int_lin_ne_reif", int_lin_ne_reif ;
      (* "int_lin_ne", ignore_constraint ; *)
      "int_eq", int_eq ;
+     "int_ne", int_ne ;
      "int_le", int_le ;
      "int_le_reif", int_le_reif ;
      "int_lt", int_lt ;
      "int_lt_reif", int_lt_reif ;
      "int_abs", int_abs ;
-     (* "int_ne", int_ne ; *)
      (* "int_le_reif", int_le_reif ; *)
      "int_eq_reif", int_eq_reif ;
      "int_ne_reif", int_ne_reif ;

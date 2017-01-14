@@ -977,9 +977,19 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
 bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r) {
   if(!s->state.is_entailed_l0(r)) {
-    WARN("Half-reification not yet implemented for linear_ne.");
+    // WARN("Half-reification not yet implemented for linear_ne.");
+    WARN("Half-reified linear_ne is a bit of a hack.");
+    patom_t a = new_bool(*s);
+    patom_t b = new_bool(*s);
+    add_clause(s, ~r, a, b);
+    new int_linear_le(s, a, ks, vs, k-1);
+    vec<int> neg_ks;
+    for(int k : ks)
+      neg_ks.push(-k);
+    new int_linear_le(s, b, neg_ks, vs, -k+1);
+  } else {
+    new int_linear_ne(s, r, ks, vs, k);
   }
-  new int_linear_ne(s, r, ks, vs, k);
   return true;
 }
 

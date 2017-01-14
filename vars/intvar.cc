@@ -152,8 +152,9 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
     return (*it).second;
 
   // FIXME: Only safe at decision level 0.
-  pval_t x_lb = s->state.p_vals[x_pi];
-  pval_t x_ub = pval_max - s->state.p_vals[x_pi+1];
+  pval_t x_lb = s->state.p_root[x_pi];
+  pval_t x_ub = pval_inv(s->state.p_root[x_pi+1]);
+
   if(val < x_lb || val > x_ub)
     return at_False;
   if(val == x_lb)
@@ -224,6 +225,18 @@ bool intvar_manager::make_sparse(unsigned int vid, vec<val_t>& ivals) {
 
   return true;
 }
+
+void intvar_manager::make_eager(unsigned int vid) {
+  // Find the appropriate var/val pair
+  pid_t x_pi(var_preds[vid]);
+  intvar::val_t lb(to_int(s->state.p_root[x_pi]));
+  intvar::val_t ub(to_int(pval_inv(s->state.p_root[x_pi+1])));
+
+  for(int ii = lb; ii <= ub; ii++) {
+    make_eqatom(vid, ii);
+  }
+}
+
 
 }
 
