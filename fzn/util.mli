@@ -1,6 +1,9 @@
 (** Various helper functions *)
 exception Not_yet
 
+val div_floor : int -> int -> int
+val div_ceil : int -> int -> int
+
 module HashSet :
 sig
   type 'a t

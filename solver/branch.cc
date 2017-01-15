@@ -48,12 +48,13 @@ struct branch_val {
                              : s->confl.pred_saved[p>>1].val;
           if(saved <= lb(s, p))
             // return ~patom_t(p, lb(s, p)+1);
-            return le_atom(p, lb(s, p)+1);
+            return le_atom(p, lb(s, p));
           if(ub(s, p) <= saved)
             // return patom_t(p, ub(s, p));
             return ge_atom(p, ub(s, p));
           // return patom_t(p, saved);
-          return ge_atom(p, saved);
+          // return ge_atom(p, saved);
+          return le_atom(p, saved);
         }
       default:
         NOT_YET; 
@@ -267,10 +268,10 @@ public:
         }
 
         // Choose a value to branch on. Currently [| pi = lb(pi) |]
-        // return ~patom_t(pi, pred_val(s, pi)+1);
+        // return ~patom_t(pi, pred_val(s, pi<<1)+1);
         return branch_val<Val_Min>::branch(s, pi<<1);
-        // return branch_val<Val_Max>::branch(s, pi);
-        // return branch_val<Val_Saved>::branch(s, pi);
+        // return branch_val<Val_Max>::branch(s, pi<<1);
+        // return branch_val<Val_Saved>::branch(s, pi<<1);
       }
 
       s->pred_heap.removeMin();

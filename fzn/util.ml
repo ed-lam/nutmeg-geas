@@ -4,6 +4,10 @@ exception Not_yet
 module H = Hashtbl
 module Q = Queue
 
+(* Urgh. Not an efficient solution, but whatever. *)
+let div_floor x d = int_of_float @@ floor @@ (float_of_int x) /. (float_of_int d)
+let div_ceil x d = int_of_float @@ ceil @@ (float_of_int x) /. (float_of_int d)
+
 module HashSet = struct
   type 'a t = ('a, unit) H.t
 

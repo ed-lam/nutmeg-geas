@@ -61,13 +61,13 @@
 %predicate bool_sum_gt(array[int] of var bool: x, var int: c); %=
 %    bool_lin_gt([1 | i in index_set(x)],x,c);
 
-predicate maximum(var int: m, array[int] of var int: x);
+%predicate array_int_maximum(var int: m, array[int] of var int: x);
 
-predicate int_eq_reif(var int: x, var int: y, var bool: r) =
-  let { var bool: a; var bool: b } in
-  (r <-> (a /\ b)) /\ int_le_reif(x, y, a) /\ int_le_reif(y, x, b);
-  %bool_clause([a],[r]) /\ bool_clause([b],[r]) /\ bool_clause([r], [a, b])
-  %/\ int_le_reif(x, y, a) /\ int_le_reif(y, x, b);
+%predicate int_eq_reif(var int: x, var int: y, var bool: r) =
+%  let { var bool: a; var bool: b } in
+%  (r <-> (a /\ b)) /\ int_le_reif(x, y, a) /\ int_le_reif(y, x, b);
+%  %bool_clause([a],[r]) /\ bool_clause([b],[r]) /\ bool_clause([r], [a, b])
+%  %/\ int_le_reif(x, y, a) /\ int_le_reif(y, x, b);
 
 %predicate int_ne_reif(var int: x, var int: y, var bool: r) =
 %  let { var bool: a; var bool: b } in

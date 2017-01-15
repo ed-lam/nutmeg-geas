@@ -433,73 +433,68 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     make_expl(Var_None, ex_slack, expl);
   }
 
-  static void ex_x(void* ptr, int xi, pval_t pval,
-                       vec<clause_elt>& expl) {
-    lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
+  void ex_x(int xi, pval_t pval, vec<clause_elt>& expl) {
 #ifndef EXPL_NAIVE
     intvar::val_t ival(to_int(pval_inv(pval)));
-    intvar::val_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
+    intvar::val_t lim(k - xs[xi].c*(ival+1) + 1);
 
     intvar::val_t sum = 0;
     for(int xj : irange(xi))
-      sum += p->xs[xj].c * p->xs[xj].x.lb();
-    for(int xj : irange(xi+1, p->xs.size()))
-      sum += p->xs[xj].c * p->xs[xj].x.lb();
-    for(elt e : p->ys)
+      sum += xs[xj].c * xs[xj].x.lb();
+    for(int xj : irange(xi+1, xs.size()))
+      sum += xs[xj].c * xs[xj].x.lb();
+    for(elt e : ys)
       sum -= e.c * e.x.ub();
-    expl.push(~p->r);
-    p->make_expl(2*xi, sum - lim, expl);
+    expl.push(~r);
+    make_expl(2*xi, sum - lim, expl);
 #else
     // Naive explanation
-    expl.push(~p->r);
-    for(elt e : p->xs) {
-      assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
+    expl.push(~r);
+    for(elt e : xs) {
+      assert(s->state.is_inconsistent(e.x < e.x.lb()));
       expl.push(e.x < e.x.lb());
     }
-    for(elt e : p->ys) {
-      assert(p->s->state.is_inconsistent(e.x > e.x.ub()));
+    for(elt e : ys) {
+      assert(s->state.is_inconsistent(e.x > e.x.ub()));
       expl.push(e.x > e.x.ub());
     }
 #endif
   }
 
-  static void ex_y(void* ptr, int yi, pval_t pval,
-                       vec<clause_elt>& expl) {
-    lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
-
+  void ex_y(int yi, pval_t pval, vec<clause_elt>& expl) {
 #ifndef EXPL_NAIVE
     intvar::val_t ival(to_int(pval));
-    intvar::val_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
+    intvar::val_t lim(k + ys[yi].c*(ival-1) + 1);
 
     intvar::val_t sum = 0;
-    for(elt e : p->xs)
+    for(elt e : xs)
       sum += e.c * e.x.lb();
     for(int yj : irange(yi))
-      sum -= p->ys[yj].c * p->ys[yj].x.ub();
-    for(int yj : irange(yi+1, p->ys.size()))
-      sum -= p->ys[yj].c * p->ys[yj].x.ub();
+      sum -= ys[yj].c * ys[yj].x.ub();
+    for(int yj : irange(yi+1, ys.size()))
+      sum -= ys[yj].c * ys[yj].x.ub();
 
-    expl.push(~p->r);
-    p->make_expl(2*yi+1, sum - lim, expl);
+    expl.push(~r);
+    make_expl(2*yi+1, sum - lim, expl);
 #else
-    expl.push(~p->r);
-    for(elt e : p->xs) {
-      assert(p->s->state.is_inconsistent(e.x < e.x.lb()));
+    expl.push(~r);
+    for(elt e : xs) {
+      assert(s->state.is_inconsistent(e.x < e.x.lb()));
       expl.push(e.x < e.x.lb());
     }
-    for(elt e : p->ys) {
-      assert(p->s->state.is_inconsistent(e.x > e.x.ub()));
+    for(elt e : ys) {
+      assert(s->state.is_inconsistent(e.x > e.x.ub()));
       expl.push(e.x > e.x.ub());
     }
 #endif
   }
 
 #ifdef EXPL_EAGER
-  static void ex_eager(void* ptr, int pi, pval_t pval,
+  void ex_eager(int pi, pval_t pval,
                        vec<clause_elt>& expl) {
     lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
 
-    for(patom_t at : p->expls[pi])
+    for(patom_t at : expls[pi])
       expl.push(at);
   }
 
@@ -692,7 +687,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         if(x_ub < e.x.ub()) {
           // Build the explanation
           if(!e.x.set_ub(x_ub,
-              expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
+              ex_thunk(ex<&P::ex_x>, xi, expl_thunk::Ex_BTPRED)))
             return false;
         }
         new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub() - e.x.lb())));
@@ -705,7 +700,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         int y_lb = e.x.ub() - y_diff;
         if(e.x.lb() < y_lb) {
           if(!e.x.set_lb(y_lb,
-              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
+              ex_thunk(ex<&P::ex_y>, yi, expl_thunk::Ex_BTPRED)))
             return false;
         }
         new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub() - e.x.lb())));
@@ -856,7 +851,6 @@ class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
     if(xi != Var_None)
       expl.push(~r);
     for(int ii = 0; ii < xi; ii++) {
-      // expl.push(p->vs[ii].x != p->vs[ii].x.lb());
       assert(vs[ii].x.is_fixed());
       expl.push(vs[ii].x < vs[ii].x.lb());
       expl.push(vs[ii].x > vs[ii].x.ub());

@@ -78,6 +78,11 @@ public:
   }
   
   // FIXME: Provide a central definition to_int
+  template<void (T::*F)(int x, pval_t p, vec<clause_elt>& elt)>
+  static void ex(void* ptr, int x, pval_t p, vec<clause_elt>& elt) {
+    return (cast(ptr)->*F)(x, p, elt);
+  }
+
   template<void (*F)(T* ptr, int x, vec<clause_elt>& elt)>
   static void ex_nil(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     F(cast(ptr), x, elt);

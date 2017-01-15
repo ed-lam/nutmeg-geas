@@ -101,26 +101,6 @@ let simplify_bool_linterms terms k =
   aux [] k (Array.to_list terms)
 
 (* Specialized int_lin_le *)
-(*
-let post_lin_le solver cs xs k =
-   let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
-  match simplify_linterms terms k with
-  | [], k -> 0 <= k
-    (* GKG: Check for rounding *)
-  | [c, x], k ->
-    if c < 0 then
-      S.post_atom solver (S.ivar_ge x ((-k)/(-c)))
-    else
-      S.post_atom solver (S.ivar_le x (k/c))
-  | [1, x; -1, y], k | [-1, y; 1, x], k ->
-    B.int_le solver At.at_True x y k
-  | ts, k ->
-    B.linear_le
-      solver At.at_True
-      (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
-      *)
-
-(* Specialized int_lin_le *)
 let post_lin_le s r cs xs k =
   let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
   match simplify_linterms terms k with
@@ -130,8 +110,10 @@ let post_lin_le s r cs xs k =
     else
       S.post_atom s (At.neg r)
   | [c, x], k ->
-    let bnd = if c < 0 then ((-k)/(-c)) else k/c in
-    S.post_clause s [|At.neg r; S.ivar_ge x bnd|]
+    if c < 0 then
+      S.post_clause s [|At.neg r; S.ivar_ge x (Util.div_ceil (-k) (-c))|]
+    else
+      S.post_clause s [|At.neg r; S.ivar_le x (Util.div_floor k c)|]
   | [1, x; -1, y], k | [-1, y; 1, x], k -> B.int_le s r x y k
   | ts, k -> B.linear_le s r (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
 
@@ -530,7 +512,7 @@ let initialize () =
   let handlers =
     ["bool_clause", bool_clause ;
      "int_max", int_max ;
-     "maximum", array_int_max ;
+     "array_int_maximum", array_int_max ;
      (* "int_min", int_min ; *)
      "int_times", int_mul ;
      "int_lin_le", int_lin_le ;
