@@ -9,7 +9,8 @@
 
 // Default options
 options default_options = {
-  50000, // int learnt_dbmax; 
+  // 50000, // int learnt_dbmax; 
+  10000, // int learnt_dbmax; 
   1.02, // double learnt_growthrate;
 
   0.01, // double pred_act_inc;
@@ -23,7 +24,8 @@ options default_options = {
 
   1,     // one_watch
 
-  200, // eager_threshold
+//  200, // eager_threshold
+   10, // eager_threshold
 };
 
 namespace phage {
@@ -72,6 +74,7 @@ solver_data::solver_data(const options& _opts)
       pred_heap(act_cmp { infer.pred_act }),
       // Assumption handling
       assump_end(0),
+      init_end(0),
       // Dynamic parameters
       learnt_act_inc(opts.learnt_act_inc),
       pred_act_inc(opts.pred_act_inc),
@@ -139,6 +142,8 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   // s.pred_heap.insert(pi);
   // s.pred_heap.insert(pi+1);
   s.pred_heap.insert(pi>>1);
+
+  s.polarity.push(0);
   
   return pi;  
 }
@@ -146,43 +151,80 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
 pid_t new_pred(sdata& s, pval_t lb, pval_t ub) {
   assert(decision_level(s) == 0);
   pid_t p = alloc_pred(s, lb, ub);
+
+  run_callbacks(s.on_pred);
+
   return p;
 }
 
+/*
 void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
   pred_init::prange_t r(init(vals));
   vals[p] = r[0];
   vals[p+1] = r[1];
 }
+*/
 
-pid_t new_pred(sdata& s, pred_init init) {
-  pred_init::prange_t r0(init(s.state.p_root)); 
+pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub) {
+  pval_t lb_0 = init_lb(s.state.p_root);
+  pval_t inv_ub_0 = init_ub(s.state.p_root);
 
-  pid_t p = alloc_pred(s, r0[0], pval_inv(r0[1]));
+  pid_t p = alloc_pred(s, lb_0, pval_inv(inv_ub_0));
   // Set up the prev and current values
   // Root values are set up during allocation
-  initialize(p, init, s.state.p_last);
-  initialize(p, init, s.state.p_vals);
-  initialize(p, init, s.wake_vals);
+  s.state.p_last[p] = init_lb(s.state.p_last);
+  s.state.p_last[p^1] = init_ub(s.state.p_last);
+    
+  pval_t lb = init_lb(s.state.p_vals);
+  pval_t ub = init_ub(s.state.p_vals);
 
-  if(decision_level(s) > 0)
-    s.state.initializers.push(pinit_data {p>>1, init} ); 
+  s.state.p_vals[p] = lb;
+  s.state.p_vals[p^1] = ub;
+
+  if(lb != lb_0) {
+    s.initializers.push(pinit_data {p, init_lb} ); 
+    if(lb != s.state.p_last[p]) {
+      infer_info::entry e = { p, s.state.p_last[p], init_lb.expl() };
+      s.infer.trail.push(e);
+    }
+  }
+
+  if(ub != inv_ub_0) {
+    s.initializers.push(pinit_data {p^1, init_ub} ); 
+    if(lb != s.state.p_last[p^1]) {
+      infer_info::entry e = { p^1, s.state.p_last[p^1], init_lb.expl() };
+      s.infer.trail.push(e);
+    }
+  }
+
+  run_callbacks(s.on_pred);
 
   return p;
 }
 
+pval_t init_bool_lb(void* ptr, int eid, vec<pval_t>& vals) {
+  return from_int(0);
+}
+pval_t init_bool_ub(void* ptr, int eid, vec<pval_t>& vals) {
+  return pval_inv(from_int(1));
+}
+
+/*
 pred_init::prange_t init_bool(void* ptr, int eid, vec<pval_t>& vals) {
   // return pred_init::prange_t { {0, pval_max - 1} };
   return pred_init::prange_t { {from_int(0), pval_max - from_int(1)} };
 }
+*/
 
-patom_t new_bool(sdata& s, pred_init init) {
-  pid_t pi(new_pred(s, init));
+patom_t new_bool(sdata& s, pred_init init_lb, pred_init init_ub) {
+  pid_t pi(new_pred(s, init_lb, init_ub));
   return patom_t(pi, from_int(1));
 }
 
 patom_t new_bool(sdata& s) {
-  return new_bool(s, pred_init(init_bool, nullptr, 0));
+  // return new_bool(s, pred_init(init_bool, nullptr, 0));
+  pid_t pi(new_pred(s, from_int(0), from_int(1)));
+  return patom_t(pi, from_int(1));
 }
 
 void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
@@ -507,7 +549,9 @@ bool propagate_pred(solver_data& s, pid_t p) {
     // If new preds are introduced during search, the
     // pred_watches vector may be resized, invalidating
     // the previous trail entries.
-    trail_change(s.persist, s.infer.pred_watches[p], curr);
+    // trail_change(s.persist, s.infer.pred_watches[p], curr);
+    s.persist.pwatch_trail.push({p, s.infer.pred_watches[p]});
+    s.infer.pred_watches[p] = curr;
   }
    
   return true;
@@ -537,6 +581,12 @@ void attach(solver_data* s, patom_t p, const watch_callback& cb) {
   watch->callbacks.push(cb);
 }
 
+void clear_reset_flags(solver_data& s) {
+  for(char* c : s.persist.reset_flags)
+    *c = 0;
+  s.persist.reset_flags.clear();
+}
+
 void prop_cleanup(solver_data& s) {
   // Make sure all modified preds are touched
   while(!s.pred_queue.empty()) {
@@ -555,29 +605,38 @@ void prop_cleanup(solver_data& s) {
     p->cleanup();
   }
   // s.active_prop = nullptr;
+  clear_reset_flags(s);
 }
 
-bool propagate(solver_data& s) {
-  // Initialize any lazy predicates
-  if(s.state.init_end != s.state.initializers.size()) {
-    vec<pinit_data>& inits(s.state.initializers);
-    unsigned int& end = s.state.init_end;
+inline void process_initializers(solver_data& s) {
+  if(s.init_end != s.initializers.size()) {
+    vec<pinit_data>& inits(s.initializers);
+    unsigned int& end = s.init_end;
 
     // FIXME: Trailing should probably be done in push_level.
     trail_push(s.persist, end);
     for(int ii = end; ii != inits.size(); ++ii) {
-      pid_t p(inits[ii].pi<<1); 
-      initialize(p, inits[end].init, s.state.p_last);
-      initialize(p, inits[end].init, s.state.p_vals);
-      initialize(p, inits[end].init, s.wake_vals);
+      pid_t p(inits[ii].pi); 
+      pval_t last = inits[ii].init(s.state.p_last);
+      pval_t curr = inits[ii].init(s.state.p_vals);
+      s.state.p_last[p] = last;
+      s.state.p_vals[p] = curr;
+      s.wake_vals[p] = curr;
+
+      if(curr != last) {
+        infer_info::entry e = { p, last, inits[ii].init.expl() };
+        s.infer.trail.push(e);
+      }
+
       // If this is at its initial value, discard it.
-      if(s.state.p_vals[p] != s.state.p_root[p]
-        || s.state.p_vals[p+1] != s.state.p_root[p+1])
+      if(last != s.state.p_root[p])
         inits[end++] = inits[ii];
     }
-    inits.shrink(inits.size() - end);
+    inits.shrink_(inits.size() - end);
   }
+}
 
+bool propagate(solver_data& s) {
   // Propagate any entailed clauses
   while(!s.pred_queue.empty()) {
 prop_restart:
@@ -640,6 +699,8 @@ prop_restart:
     }
   }
   s.active_prop = nullptr;
+  clear_reset_flags(s);
+
   return true;
 }
 
@@ -898,7 +959,7 @@ solver::result solver::solve(void) {
   int restart_lim = s.opts.restart_limit;
   // FIXME: On successive runs, this may be smaller than
   // the existing database
-  int gc_lim = s.opts.learnt_dbmax; 
+  int gc_lim = s.learnt_dbmax;
 
   int next_restart = restart_lim;
   int next_gc = gc_lim - s.infer.learnts.size();
@@ -911,6 +972,8 @@ solver::result solver::solve(void) {
 #ifdef LOG_ALL
       log_state(s.state);
 #endif
+
+  process_initializers(s);
 
   while(true) {
     // Signal handler
@@ -955,6 +1018,7 @@ solver::result solver::solve(void) {
         assert(s.state.is_inconsistent(s.infer.confl[ei].atom));
 #endif
       bt_to_level(&s, bt_level);
+      process_initializers(s);
 #ifdef CHECK_STATE
       for(pid_t p : s.persist.touched_preds)
         assert(s.wake_vals[p] == s.state.p_vals[p]);
@@ -1000,8 +1064,10 @@ solver::result solver::solve(void) {
           s.stats.restarts++;
   
           next_restart = restart_lim = restart_lim * s.opts.restart_growthrate;
-          if(decision_level(s) > 0)
+          if(decision_level(s) > 0) {
             bt_to_level(&s, 0);
+            process_initializers(s);
+          }
 #ifdef LOG_ALL
       log_state(s.state);
 #endif
@@ -1020,7 +1086,8 @@ solver::result solver::solve(void) {
           }
           next_gc = gc_lim - s.infer.learnts.size();
 #ifdef LOG_GC
-          std::cout << " ~~> " << s.infer.learnts.size() << std::endl;
+          std::cout << " ~~> " << s.infer.learnts.size()
+            << " {" << s.infer.trail.size() << " trail}" << std::endl;
 #endif
         }
 
@@ -1089,6 +1156,9 @@ solver::result solver::solve(void) {
       s.stats.conflicts += confl_num;
       s.stats.solutions++;
       clear_handlers();
+
+      run_callbacks(s.on_solution);
+
       return SAT;
     }
 
@@ -1100,6 +1170,8 @@ solver::result solver::solve(void) {
 
     push_level(&s);
     enqueue(s, dec, reason());
+
+    run_callbacks(s.on_branch);
   }
 
   // Unreachable
@@ -1163,12 +1235,18 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
 // Add a clause, but not necessarily at the root level.
 bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   int jj = 0;
+  int kk = 0;
   for(clause_elt e : elts) {
     if(s.state.is_entailed_l0(e.atom))
       return true;
     if(s.state.is_inconsistent_l0(e.atom))
       continue;
-    elts[jj++] = e;
+    if(s.state.is_inconsistent(e.atom)) {
+      elts[jj++] = e;
+    } else {
+      elts[jj++] = elts[kk];
+      elts[kk++] = e;
+    }
   }
   elts.shrink(elts.size()-jj);
   
@@ -1187,6 +1265,8 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
 
     find_watchlist(s, elts[0]).push(h1);
     find_watchlist(s, elts[1]).push(h0); 
+    if(s.state.is_inconsistent(elts[1].atom))
+      return enqueue(s, elts[0].atom, elts[1].atom);
   } else {
     // Normal clause
     clause* c(clause_new(elts));
@@ -1194,6 +1274,8 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 
+    if(s.state.is_inconsistent(elts[1].atom))
+      return enqueue(s, elts[0].atom, c);
   }
   return true;
 }

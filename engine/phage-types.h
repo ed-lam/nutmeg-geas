@@ -105,6 +105,39 @@ protected:
   bool is_idempotent;
 };
 
+// For other events -- on new_pred, solution, branch or conflict.
+// GKG: Perhaps pass in the solver_data?
+class event_callback {
+public:
+  typedef void (*fun)(void*);
+
+  event_callback(fun _f, void* _obj)
+    : f(_f), obj(_obj)
+  { }
+
+  void operator()(void) { f(obj); }
+
+protected:
+  fun f;
+  void* obj;
+};
+
+template<class T>
+class evt {
+public:
+  typedef T E;
+  
+  template<void (E::*F)(void)>
+  static void call_evt(void* ptr) {
+    return (static_cast<E*>(ptr)->*F)();
+  }
+
+  template<void (E::*F)(void)>
+  event_callback event(void) {
+    return event_callback(call_evt<F>, (void*) this);
+  }
+};
+
 inline void run_watches(vec<watch_callback>& watches, void* origin) {
   int jj = 0;
   for(int ii = 0; ii < watches.size(); ii++) {
@@ -116,35 +149,11 @@ inline void run_watches(vec<watch_callback>& watches, void* origin) {
   watches.shrink_(watches.size() - jj);
 }
 
-// For late initialization of a predicate
-class pred_init {
-public:
-  struct prange_t {
-    pval_t& operator[](int i) { return v[i]; }
-    pval_t v[2];
-  };
-  typedef prange_t (*fun)(void*, int, vec<pval_t>&);
+inline void run_callbacks(vec<event_callback>& callbacks) {
+  for(event_callback& call : callbacks)
+    call();
+}
 
-  pred_init(fun _f, void* _obj, int _data)
-    : f(_f), obj(_obj), data(_data)
-  { }
-  pred_init(void)
-    : f(nullptr), obj(nullptr), data(0) { }
-  
-  prange_t operator()(vec<pval_t>& state) {
-    assert(f);
-    return f(obj, data, state);
-  }
-  /* Need to add expl-thunks */
-
-  operator bool() const { return f; } 
-
-protected:
-  fun f;
-  void* obj;
-  int data;
-};
-struct pinit_data { pid_t pi; pred_init init; };
 
 }
 #endif

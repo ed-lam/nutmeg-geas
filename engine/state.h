@@ -32,8 +32,7 @@ public:
 // Representing the current state of atomic predicates
 class pred_state {
 public:
-  pred_state(void)
-    : init_end(0) {
+  pred_state(void) {
       // solver_data constructor will call new_pred 
   }
 
@@ -101,11 +100,6 @@ public:
   vec<pval_t> p_last; // Values at previous decision level
   vec<pval_t> p_root; // ...and at the root
 
-  // Initialization thunks for
-  // lazily added predicates.
-  // struct pinit_data { int pi; pred_init init; };
-  vec<pinit_data> initializers;
-  unsigned int init_end;
 };
 
 void log_state(pred_state& s);

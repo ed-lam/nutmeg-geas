@@ -386,6 +386,7 @@ let specific_handlers =
       match defined_var model anns with
       | Some v -> rules_linear_def [|1; -1|] [|args.(0); args.(1)|] v
       | None -> default_handler model args anns) ;
+   "int_abs", handle_fundef [|Bi; Def|] ;
    "int_eq_reif", handle_reif_mixed ;
    "int_le_reif", handle_fundef [|Anti; Mono; Def|]  ;
    "int_lin_le", (fun _ args _ -> 
@@ -419,12 +420,10 @@ let specific_handlers =
    "int_max", handle_fundef [|Mono; Mono; Def|] ;
    "int_min", handle_fundef [|Mono; Mono; Def|] ;
    (* Element versions *)
-   (*
    "array_bool_element", handle_fundef [|Cmix; Mono; Def |] ;
    "array_var_bool_element", handle_fundef [|Cmix; Mono; Def|] ;
    "array_int_element", handle_fundef [|Cmix; Mono; Def|] ;
    "array_var_int_element", handle_fundef [|Cmix; Mono; Def|] ;
-   *)
    (* Set constraints *)
    (* "set_in_reif", handle_fundef [|Bi; Bi; Def|] ; *)
    (* Globals *) 
@@ -433,6 +432,7 @@ let specific_handlers =
    "bool_sum_ge", handle_rel [|Mono; Anti|] ;
    "bool_sum_eq", handle_fundef [|Mono; Def|] ;
    *)
+   "array_int_maximum", handle_fundef [|Def; Mono|] ;
    "cumulatives", handle_rel [|Cmix; Cneg; Cneg; Cpos|] ;
    "chuffed_cumulative", handle_rel [|Cmix; Cneg; Cneg; Cpos|] ;
    "chuffed_cumulative_vars", handle_rel [|Cmix; Cneg; Cneg; Cpos|] ]

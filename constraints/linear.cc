@@ -4,6 +4,7 @@
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 
+// #define SKIP_L0
 // #define EXPL_EAGER
 // #define EXPL_NAIVE
 
@@ -192,12 +193,14 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         elt e = xs[xi];
 
         int x_lb = e.x.lb();
+#ifndef SKIP_L0
         int x_lb_0 = e.x.lb_0();
         int diff_0 = e.c * (x_lb - x_lb_0);
         if(diff_0 <= slack) {
           slack -= diff_0;
           continue;
         }
+#endif
         int x_lb_p = e.x.lb_prev();
         int diff_p = e.c * (x_lb - x_lb_p);
         if(diff_p <= slack) {
@@ -212,12 +215,14 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           continue;
         elt e = ys[yi];
         int y_ub = e.x.ub();
+#ifndef SKIP_L0
         int y_ub_0 = e.x.ub_0();
         int diff_0 = e.c * (y_ub_0 - y_ub);
         if(diff_0 <= slack) {
           slack -= diff_0;
           continue;
         }
+#endif
         int y_ub_p = e.x.ub_prev();
         int diff_p = e.c * (y_ub_p - y_ub);
         if(diff_p <= slack) {
@@ -602,15 +607,9 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           slack -= diff_0;
           continue;
         }
-        int x_lb_p = e.x.lb_prev();
-        int diff_p = e.c * (x_lb - x_lb_p);
-        if(diff_p <= slack) {
-          slack -= diff_p;
-          ex.push(e.x < x_lb_p); 
-          continue;
-        }
         xs_pending.push(xi);
       }
+
       for(int yi : irange(0, ys.size())) {
         if(2*yi+1 == var)
           continue;
@@ -622,6 +621,28 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           slack -= diff_0;
           continue;
         }
+        ys_pending.push(yi);
+      }
+
+      int* xp = xs_pending.begin();
+      for(int xi : xs_pending) {
+        elt e = xs[xi];
+        int x_lb = e.x.lb();
+        int x_lb_p = e.x.lb_prev();
+        int diff_p = e.c * (x_lb - x_lb_p);
+        if(diff_p <= slack) {
+          slack -= diff_p;
+          ex.push(e.x < x_lb_p); 
+          continue;
+        }
+        *xp = xi; ++xp;
+      }
+      xs_pending.shrink_(xs_pending.end() - xp);
+
+      int* yp = ys_pending.begin();
+      for(int yi : ys_pending) {
+        elt e = ys[yi];
+        int y_ub = e.x.ub();
         int y_ub_p = e.x.ub_prev();
         int diff_p = e.c * (y_ub_p - y_ub);
         if(diff_p <= slack) {
@@ -629,8 +650,9 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           ex.push(e.x > y_ub_p);
           continue;
         }
-        ys_pending.push(yi);
+        *yp = yi; ++yp;
       }
+      ys_pending.shrink_(ys_pending.end() - yp);
 
       // Then, add things at the current level
       assert(slack >= 0);

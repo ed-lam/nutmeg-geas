@@ -1025,7 +1025,8 @@ public:
 #endif
 
 // Avoids introducing equality lits
-class ine_bound : public propagator {
+#if 0
+class ine_bound : public propagator, public prop_inst<ine_bound> {
   enum Vtag { Var_X = 1, Var_Z = 2 };
 
   static watch_result wake_fix(void* ptr, int k) {
@@ -1042,16 +1043,40 @@ class ine_bound : public propagator {
     return Wt_Keep;
   }
 
+   watch_result wake_r(int k) {
+     if(fixed)
+       queue_prop();
+     return Wt_Keep;
+   }
+
+  static void expl(void* ptr, int xi, pval_t v, vec<clause_elt>& ex) {
+    ine_bound* p(static_cast<ine_bound*>(ptr));
+    if(xi != 0) {
+//      ex.push(p->x != p->x.lb());
+      ex.push(p->x < p->x.lb());
+      ex.push(p->x > p->x.ub());
+    }
+    if(xi != 1) {
+      // ex.push(p->z != p->z.lb());
+      ex.push(p->z < p->z.lb());
+      ex.push(p->z > p->z.lb());
+    }
+    if(xi != 2)
+      ex.push(~p->r);
+  }
+
 public:
-  ine_bound(solver_data* s, intvar _z, intvar _x)
-    : propagator(s), z(_z), x(_x),
-      fixed(0) {
+  ine_bound(solver_data* s, intvar _z, intvar _x, patom_t _r)
+    : propagator(s), z(_z), x(_x), r(_r),
+      fixed(0), new_fix(0) {
+    attach(s, r, watch<&P::wake_r>(0));
     z.attach(E_FIX, watch_callback(wake_fix, this, 0));
-    z.attach(E_LU, watch_callback(wake_bound, this, 0));
+//    z.attach(E_LU, watch_callback(wake_bound, this, 0));
 
     x.attach(E_FIX, watch_callback(wake_fix, this, 1));
-    x.attach(E_LU, watch_callback(wake_bound, this, 1));
+//    x.attach(E_LU, watch_callback(wake_bound, this, 1));
   }
+
 
   inline bool prop_bound(intvar a, intvar b) {
     int k = a.lb();
@@ -1074,14 +1099,20 @@ public:
     
     switch(fixed) {
       case Var_X:
-        return prop_bound(x, z);
+        // return prop_bound(x, z);
+        return enqueue(*s, z != x.lb(), ex_thunk(expl, 0));
       case Var_Z:
-        return prop_bound(z, x);
+//        return prop_bound(z, x);
+        return enqueue(*s, x != z.lb(), ex_thunk(expl, 1));
       default:
-        if(z.lb() == x.lb()) {          
+        if(z.lb() == x.lb()) {
+          /*
           int k = z.lb();
-          vec_push(confl, z < k, z > k, x < k, x > k);
+          // vec_push(confl, z < k, z > k, x < k, x > k);
+          vec_push(confl, z != k, x != k);
           return false;
+          */
+          return enqueue(*s, ~r, ex_thunk(expl, 2));
         }
         return true;
     }
@@ -1105,12 +1136,200 @@ public:
 protected:
   intvar z;
   intvar x;
+  patom_t r;
 
   // Persistent state
-  char new_fix;
+  char fixed;
 
   // Transient state
-  char fixed;
+  char new_fix;
+};
+#endif
+class ineq : public propagator, public prop_inst<ineq> {
+  enum Vtag { Var_X = 1, Var_Z = 2 };
+  enum TrigKind { T_Atom, T_Var };
+
+  struct trigger {
+    TrigKind kind;
+    int idx;
+  };
+
+  inline bool is_active(trigger t) {
+    switch(t.kind) {
+      case T_Atom:
+        return s->state.is_entailed(r);
+      case T_Var:
+        return pred_fixed(s, vs[t.idx].pid);
+    }
+  }
+
+  inline void attach_trigger(trigger t, int ii) {
+    switch(t.kind) {
+      case T_Atom: 
+        attach(s, r, watch<&P::wake_trig>(ii, Wt_IDEM));
+        break;
+      case T_Var:
+        vs[t.idx].attach(E_FIX, watch<&P::wake_trig>(ii, Wt_IDEM));
+        break;
+    }
+  }
+
+  watch_result wake_lb(int wake_gen) {
+    if(wake_gen != gen || !is_active(trigs[1 - active]))
+      return Wt_Drop;
+
+    queue_prop();
+    return Wt_Keep;
+  }
+
+  watch_result wake_ub(int wake_gen) {
+    if(wake_gen != gen || !is_active(trigs[1 - active]))
+      return Wt_Drop;
+
+    queue_prop(); 
+    return Wt_Keep;
+  }
+
+  inline bool enqueue_trigger(trigger t, int ii, vec<clause_elt>& confl) {
+    if(is_active(t)) {
+      assert(vs[0].is_fixed());
+      assert(vs[1].is_fixed());
+      assert(vs[0].lb() == vs[1].lb());
+      intvar::val_t val = vs[0].lb();
+      confl.push(~r);
+      /*
+      confl.push(vs[0] != val);
+      confl.push(vs[1] != val);
+      */
+      confl.push(vs[0] < val);
+      confl.push(vs[0] > val);
+      confl.push(vs[1] < val);
+      confl.push(vs[1] > val);
+      return false; 
+    }
+    switch(t.kind) {
+      case T_Atom:
+        return enqueue(*s, ~r, ex_thunk(ex_nil<&P::expl>,ii));
+      case T_Var:
+      {
+        intvar::val_t val = vs[1 - t.idx].lb();
+        if(vs[t.idx].lb() == val) {
+          return vs[t.idx].set_lb(val+1, ex_thunk(ex_nil<&P::expl_lb>, ii));
+        }
+        if(vs[t.idx].ub() == val) {
+          return vs[t.idx].set_ub(val-1, ex_thunk(ex_nil<&P::expl_ub>, ii));
+        }
+        // Otherwise, add LB and UB watches
+        ++gen;
+        attach(s, vs[t.idx] >= val, watch<&P::wake_lb>(gen, Wt_IDEM));
+        attach(s, vs[t.idx] <= val, watch<&P::wake_ub>(gen, Wt_IDEM));
+        /*
+        return enqueue(*s, vs[t.idx] != val, ex_thunk(ex_nil<&P::expl>,ii)); 
+        */
+      }
+    }
+    return true;
+  }
+
+  watch_result wake_trig(int wi) {
+    if(!is_active(trigs[2])) {
+      std::swap(trigs[2], trigs[wi]); 
+      attach_trigger(trigs[wi], wi); 
+      return Wt_Drop;
+    }
+    if(!is_active(trigs[1 - wi]))
+      active = 1 - wi;
+    queue_prop();
+    return Wt_Keep;
+  }
+
+  void expl(int xi, vec<clause_elt>& ex) {
+    trigger t = trigs[active];
+    switch(t.kind) {
+      case T_Atom:  
+      /*
+        ex.push(vs[0] != vs[0].lb());
+        ex.push(vs[1] != vs[1].lb());
+        */
+        ex.push(vs[0] < vs[0].lb());
+        ex.push(vs[0] > vs[0].ub());
+        ex.push(vs[1] < vs[1].lb());
+        ex.push(vs[1] > vs[1].ub());
+        return;
+      case T_Var:
+        ex.push(~r);
+      /*
+        ex.push(vs[1 - t.idx] != vs[1 - t.idx].lb());
+        */
+        ex.push(vs[1 - t.idx] < vs[1 - t.idx].lb());
+        ex.push(vs[1 - t.idx] > vs[1 - t.idx].ub());
+        return;
+    }
+  }
+
+  void expl_lb(int xi, vec<clause_elt>& ex) {
+    trigger t = trigs[active];
+    ex.push(~r);
+    ex.push(vs[t.idx] > prop_val);
+    ex.push(vs[1 - t.idx] < prop_val);
+    ex.push(vs[1 - t.idx] > prop_val);
+    return;
+  }
+
+  void expl_ub(int xi, vec<clause_elt>& ex) {
+    trigger t = trigs[active];
+    ex.push(~r);
+    ex.push(vs[t.idx] < prop_val);
+    ex.push(vs[1 - t.idx] < prop_val);
+    ex.push(vs[1 - t.idx] > prop_val);
+    return;
+  }
+
+public:
+  ineq(solver_data* s, intvar _z, intvar _x, patom_t _r)
+    : propagator(s), r(_r), active(0), prop_val(0), gen(0) {
+    vs[0] = _z;
+    vs[1] = _x; 
+
+    trigs[0] = { T_Var, 0 };
+    trigs[1] = { T_Var, 1 };
+    trigs[2] = { T_Atom };
+
+    attach_trigger(trigs[0], 0);
+    attach_trigger(trigs[1], 1);
+  }
+
+
+  bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_PROP
+    std::cout << "[[Running ineq]]" << std::endl;
+#endif
+    assert(is_active(trigs[1 - active]));
+    assert(is_active(trigs[2]));
+    if(vs[0].ub() < vs[1].lb() || vs[0].lb() > vs[1].ub())
+      return true;
+    if(s->state.is_inconsistent(r))
+      return true;
+
+    return enqueue_trigger(trigs[active], active, confl);
+  }
+
+  void root_simplify(void) { }
+
+  void cleanup(void) {
+    is_queued = false;
+  }
+
+protected:
+  intvar vs[2];
+  patom_t r;
+
+  // Persistent state
+  trigger trigs[3];
+  int active;
+  intvar::val_t prop_val;
+
+  unsigned int gen;
 };
 
 void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {
@@ -1148,15 +1367,21 @@ bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r) {
 bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
   intvar::val_t lb = std::max(x.lb(), y.lb());
   intvar::val_t ub = std::min(x.ub(), y.ub());
-  if(ub - lb < s->opts.eager_threshold) {
-    for(int k : irange(lb, ub)) {
+  if(ub < lb)
+    return true;
+
+  // if(ub - lb < s->opts.eager_threshold)
+  if(0)
+  {
+    for(int k : irange(lb, ub+1)) {
       if(!add_clause(s, ~r, x != k, y != k))
         return false;
     }
   } else {
     // FIXME
-    assert(s->state.is_entailed_l0(r));
-    new ine_bound(s, x, y);
+//    assert(s->state.is_entailed_l0(r));
+    // new ine_bound(s, x, y, r);
+    new ineq(s, x, y, r);
   }
   return true;
 }

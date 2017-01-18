@@ -67,7 +67,20 @@ public:
   vec<patom_t> assumptions;
   vec<int> assump_level;
   int assump_end;
-  
+
+  // Initialization thunks for
+  // lazily added predicates.
+  // struct pinit_data { int pi; pred_init init; };
+  vec<pinit_data> initializers;
+  unsigned int init_end;
+
+  // Callbacks for various events
+  vec<event_callback> on_pred;
+  vec<event_callback> on_branch;
+  vec<event_callback> on_solution;
+
+  vec<bool> polarity;
+
   double learnt_act_inc;
   double pred_act_inc;
   int learnt_dbmax;
@@ -77,10 +90,10 @@ public:
 inline int num_preds(solver_data* s) { return s->pred_callbacks.size(); }
 
 pid_t new_pred(solver_data& s, pval_t lb = pval_min, pval_t ub = pval_max);
-pid_t new_pred(solver_data& s, pred_init init);
+pid_t new_pred(solver_data& s, pred_init init_lb, pred_init init_ub);
 
 patom_t new_bool(solver_data& s);
-patom_t new_bool(solver_data& s, pred_init init);
+patom_t new_bool(solver_data& s, pred_init init_l, pred_init init_u);
 
 inline pval_t pred_val(solver_data* s, pid_t p) { return s->state.p_vals[p]; }
 inline bool pred_fixed(solver_data* s, pid_t p) { return pval_max - pred_val(s, p) == pred_val(s, p^1); }
@@ -93,6 +106,8 @@ bool enqueue(solver_data& s, patom_t p, reason r);
 
 // Warning: Modifies elts in place.
 bool add_clause(solver_data& s, vec<clause_elt>& elts);
+// For adding at non-0 decision level
+bool add_clause_(solver_data& s, vec<clause_elt>& elts);
 
 void attach(solver_data* s, patom_t p, const watch_callback& c);
 
@@ -103,6 +118,15 @@ bool add_clause(solver_data* s, patom_t e, Ts... args) {
   vec_push(elts, args...);
   return add_clause(*s, elts);  
 }
+
+template<typename... Ts>
+bool add_clause_(solver_data* s, patom_t e, Ts... args) {
+  vec<clause_elt> elts;
+  elts.push(e);
+  vec_push(elts, args...);
+  return add_clause_(*s, elts);  
+}
+
 
 // For debugging
 std::ostream& operator<<(std::ostream& o, const patom_t& at);

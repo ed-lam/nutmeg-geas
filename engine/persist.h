@@ -31,6 +31,11 @@ public:
   } pred_entry;
 
   typedef struct {
+    pid_t p;
+    watch_node* node;
+  } pwatch_entry;
+
+  typedef struct {
     void* ptr;
     char sz;
     uint64_t val;
@@ -55,6 +60,8 @@ public:
     pred_ltrail_lim.clear();
     data_trail.clear();
     dtrail_lim.clear();
+    pwatch_trail.clear();
+    pwatch_lim.clear();
   }
 
   clause* alloc_expl(unsigned int sz) {
@@ -89,12 +96,30 @@ public:
   // Trail for other data
   vec<data_entry> data_trail;
   vec<int> dtrail_lim;
+
+  // Watch heads
+  vec<pwatch_entry> pwatch_trail;
+  vec<int> pwatch_lim;
+
+  // Flags to reset at a new decision level
+  vec<char*> reset_flags;
 };
 
 void push_level(solver_data* s);
 void pop_level(solver_data* s);
 void bt_to_level(solver_data* s, unsigned int l);
 
+// When we backtrack beyond the current point, it will be
+// restored to val.
+template<class T>
+inline void trail_fake(persistence& p, T& elt, T val) {
+  static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+    "sizeof(T) must be 2^k, k <- [0, 3]");
+  persistence::data_entry e = { (void*) &elt, sizeof(T), (uint64_t) val };
+  p.data_trail.push(e); 
+}
+
+// Save the current value of elt
 template<class T>
 inline void trail_push(persistence& p, T& elt) {
   static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
@@ -103,10 +128,22 @@ inline void trail_push(persistence& p, T& elt) {
   p.data_trail.push(e); 
 }
 
+// Save elt, and update
 template<class T>
 inline void trail_change(persistence& p, T& elt, T val) {
   trail_push(p, elt);      
   elt = val;
+}
+
+// Batched version of trail_push -- only trailed
+// if flag is unset; flag will be cleared at each decision level.
+template<class T>
+inline void trail_save(persistence& p, T& elt, char& flag) {
+  if(flag)
+    return;
+  trail_push(p, elt);
+  p.reset_flags.push(&flag);
+  flag = true;
 }
 
 }

@@ -71,9 +71,14 @@ let int_min solver args anns =
  *)
 
 let int_mul solver args anns =
+(*
   let x = Pr.get_ivar args.(0) in
   let y = Pr.get_ivar args.(1) in
   let z = Pr.get_ivar args.(2) in
+  *)
+  let x = force_ivar solver args.(0) in
+  let y = force_ivar solver args.(1) in
+  let z = force_ivar solver args.(2) in
   Builtins.int_mul solver At.at_True z x y
 
 (* Specialization of linear inequalities *)

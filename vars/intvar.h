@@ -87,6 +87,7 @@ public:
   enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
 
   struct eq_elt { val_t val; patom_t atom; };
+  struct eq_info { pid_t pid; pval_t val; };
 
   class var_data {
   public: 
@@ -121,6 +122,7 @@ public:
 
   // FIXME: Switch to a lighter-weight data-structure
   std::vector< std::unordered_map<pval_t, patom_t> > eqtable;
+  vec<eq_info> eqinfo;
 
   solver_data* s;
 };

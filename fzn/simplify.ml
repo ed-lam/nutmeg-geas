@@ -225,11 +225,16 @@ let simplify problem =
 (* Register all the simplifiers. *)
 let init () = 
   let handlers =
-    [ "int_le_reif", simp_irel_reif Ile ;
+    [
+      "int_le_reif", simp_irel_reif Ile ;
+      (*
       "int_eq_reif", simp_irel_reif Ieq ;
       "int_ne_reif", simp_irel_reif Ine ;
+      *)
+      (*
       "bool_eq", simp_bool_eq ; 
       "bool_ne", simp_bool_ne
+      *)
     ] in
   List.iter (fun (id, h) -> H.add registry id h) handlers
 

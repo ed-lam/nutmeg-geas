@@ -69,6 +69,9 @@ intvar new_intvar([in] solver s, int lb, int ub);
 boolean make_sparse([in] intvar x, [in,size_is(sz)] int vals[], int sz);
 atom new_boolvar([in] solver s);
 
+void set_bool_polarity([in] solver s, [in] atom at, [in] boolean pol);
+void set_int_polarity([in] intvar x, [in] boolean pol);
+
 int ivar_lb([in] intvar v);
 int ivar_ub([in] intvar v);
 

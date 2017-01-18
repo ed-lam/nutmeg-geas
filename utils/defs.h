@@ -75,7 +75,7 @@ public:
   struct iterator {
     iterator(int _i) : i(_i) { }
     iterator& operator++(void) { ++i; return *this; }
-    bool operator!=(const iterator& o) const { return i != o.i; } 
+    bool operator!=(const iterator& o) const { return i < o.i; }
     int operator*(void) const { return i; }
     int i;
   };

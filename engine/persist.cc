@@ -14,6 +14,8 @@ void push_level(solver_data* s) {
   // p.bvar_trail_lim.push(p.bvar_trail.size());
   p.dtrail_lim.push(p.data_trail.size());
 
+  p.pwatch_lim.push(p.pwatch_trail.size());
+
   p.pred_ltrail_lim.push(p.pred_ltrail.size());
   for(pid_t pi : p.touched_preds) {
     p.pred_touched[pi] = false;
@@ -146,6 +148,13 @@ void bt_preds(solver_data* s, unsigned int l) {
 #endif
   dropTo_(p.pred_ltrail, p_lim);
   dropTo_(p.pred_ltrail_lim, l);
+
+  // Update the watch heads
+  unsigned int pw_lim = p.pwatch_lim[l];
+  for(auto e : rev_range(&p.pwatch_trail[pw_lim], p.pwatch_trail.end()))
+    s->infer.pred_watches[e.p] = e.node;
+  dropTo_(p.pwatch_trail, pw_lim);
+  dropTo_(p.pwatch_lim, l);
 }
 
 void pop_level(solver_data* s) {

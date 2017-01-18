@@ -9,7 +9,7 @@ propagator::propagator(solver_data* _s)
     cons_id = s->log.scope_constraint;
 #endif
     s->propagators.push(this);
-    queue_prop(); 
+//    queue_prop(); 
   }
 
 void propagator::queue_prop(void) {

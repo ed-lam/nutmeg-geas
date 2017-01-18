@@ -13,7 +13,7 @@ public:
 
 // Standard branchers
 enum VarChoice { Var_InputOrder, Var_FirstFail, Var_Smallest, Var_Largest };
-enum ValChoice { Val_Min, Val_Max, Val_Split, Val_Saved, Val_Default };
+enum ValChoice { Val_Min, Val_Max, Val_Split, Val_Saved, Val_Pol, Val_Default };
 
 brancher* default_brancher(solver_data* s);
 brancher* pred_act_branch(solver_data* s);

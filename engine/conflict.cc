@@ -104,12 +104,14 @@ static void remove(solver_data* s, pid_t p) {
   s->confl.pred_seen.remove(p);
   if(s->state.p_last[p] < s->confl.pred_eval[p])
     s->confl.clevel--;
+  assert(!s->confl.pred_seen.elem(p));
 }
 
 static void add(solver_data* s, clause_elt elt) {
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
   pval_t val = pval_max - elt.atom.val + 1;
+  assert(s->state.is_entailed(patom_t(pid, val)));
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
     /*
@@ -133,17 +135,22 @@ static void add(solver_data* s, clause_elt elt) {
   } else {
     // Check whether the atom is already entailed.
     // pval_t val = elt.atom.val;
-    if(val <= s->confl.pred_eval[pid])
+    pval_t e_val = s->confl.pred_eval[pid];
+    if(val <= e_val) {
+      if(val == e_val && elt.watch)
+        s->confl.pred_hint[pid] = elt.watch;
       return;
+    }
     
     // Check whether this changes the current-level count
-    if(s->state.p_last[pid] < val
-      && s->confl.pred_eval[pid] <= s->state.p_last[pid])
+    pval_t p_last = s->state.p_last[pid];
+    if(p_last < val && e_val <= p_last)
       s->confl.clevel++;
 
     s->confl.pred_eval[pid] = val;
     s->confl.pred_hint[pid] = elt.watch;
   }
+  assert(s->state.is_entailed(patom_t(pid, s->confl.pred_eval[pid])));
   assert(s->confl.pred_seen.elem(pid));
 }
 
@@ -311,6 +318,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
     pval_t ex_val(s->confl.pred_eval[e.pid]);
+    assert(s->state.is_entailed(patom_t(e.pid, ex_val)));
     remove(s, e.pid);
 #ifdef LOG_ALL
     std::cout << " <~ {" << pos << "} " << e.expl << std::endl;

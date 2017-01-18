@@ -41,6 +41,14 @@ struct branch_val {
           pval_t mid = lb(s, p) + ((ub(s, p) - lb(s, p) + 1)/2);
           return patom_t(p, mid);
         }
+      case Val_Pol:
+        {
+          if(s->polarity[p>>1]^(p&1)) {
+            return ge_atom(p, ub(s, p));
+          } else {
+            return le_atom(p, lb(s, p));
+          }
+        }
       case Val_Saved:
         {
           // pval_t saved = s->confl.pred_saved[p].val;
@@ -62,6 +70,72 @@ struct branch_val {
     }
   }
 };
+
+class prog_branch : public evt< prog_branch > {
+public:
+  void on_pred(void) {
+//    fprintf(stderr, "Called on_pred\n");
+    step.push(1); 
+  }
+
+  static void branch_call(void* ptr) {
+    return static_cast<prog_branch*>(ptr)->on_branch();
+  }
+  static void pred_call(void* ptr) {
+    return static_cast<prog_branch*>(ptr)->on_pred();
+  }
+
+  void on_branch(void) {
+    trail_fake(s->persist, step[last], std::max(step[last], step[last]<<1));
+    if(step[last] > 1)
+      step[last] = step[last]>>1;
+  }
+
+  prog_branch(solver_data* _s)
+    : s(_s) {
+//    fprintf(stderr, "Created (%d)!\n", s->state.p_vals.size());
+    for(int pi = 0; pi < s->state.p_vals.size(); pi++)
+      step.push(1);
+    s->on_pred.push(event_callback(pred_call, this));
+    s->on_branch.push(event_callback(branch_call, this));
+  }
+
+  // FIXME: Boundary conditions
+  patom_t branch(solver_data* s, pid_t p) {
+    int idx = p>>1;
+    last = idx;
+//    fprintf(stderr, "%d/%d\n", idx, step.size());
+    while(step.size() <= idx)
+      step.push(1);
+    assert(idx < step.size());
+    /*
+    switch(ValC) {
+      case Val_Min:
+      */
+      {
+        pval_t diff = std::min(ub(s, p) - lb(s, p) - 1, step[idx]);
+        return le_atom(p, lb(s, p)+diff);
+      }
+      /*
+      case Val_Max:
+      {
+        bound = std::max(ub(s, p)-step[p], lb(s, p)+1);
+        pval_t diff = std::min(ub(s, p) - lb(s, p) - 1, step[idx]);
+        return ge_atom(p, ub(s, p)-diff);
+      }
+      default:
+        NOT_YET; 
+        return at_Error;
+    }
+    */
+  }
+
+  solver_data* s;
+
+  vec<pval_t> step;
+  pid_t last;
+};
+
 
 template<int ValC>
 class inorder_branch : public brancher {
@@ -243,7 +317,7 @@ brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>&
 class pred_act_brancher : public brancher {
 public:
   pred_act_brancher(solver_data* _s)
-    : s(_s), rem_count(0) { }
+    : s(_s), /* valb(_s), */ rem_count(0) { }
   
   patom_t branch(solver_data* s) {
     // Restore not-necessarily-fixed predicates
@@ -269,7 +343,9 @@ public:
 
         // Choose a value to branch on. Currently [| pi = lb(pi) |]
         // return ~patom_t(pi, pred_val(s, pi<<1)+1);
-        return branch_val<Val_Min>::branch(s, pi<<1);
+        // return branch_val<Val_Min>::branch(s, pi<<1);
+        return branch_val<Val_Pol>::branch(s, pi<<1);
+//        return valb.branch(s, pi<<1);
         // return branch_val<Val_Max>::branch(s, pi<<1);
         // return branch_val<Val_Saved>::branch(s, pi<<1);
       }
@@ -282,6 +358,7 @@ public:
   }
 
   solver_data* s;
+//  prog_branch valb;
 
   // Used for restoration 
   vec<int> removed;

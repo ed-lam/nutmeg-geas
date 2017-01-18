@@ -7,6 +7,7 @@ let quiet = ref false
 
 let max_solutions = ref 1
 let free = ref false
+let pol = ref true
 
 let restart_limit = ref None
 
@@ -48,6 +49,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "-f",
       Arg.Unit (fun () -> free := true),
       " : free search"
+     ) ;
+     (
+      "-pol",
+      Arg.Bool (fun b -> pol := b),
+      " : use polarity analysis"
      ) ;
      (
        "-nof_solutions",

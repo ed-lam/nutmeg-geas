@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <utility>
 
+
 namespace phage {
 #define intvar_base intvar
 
@@ -142,6 +143,44 @@ bool intvar_manager::in_domain(unsigned int vid, val_t val) {
   return s->state.p_vals[pid] <= pval && pval <= pval_max - s->state.p_vals[pid^1];
 }
 
+static pval_t init_lb(void* ptr, int ei, vec<pval_t>& vals) {
+  intvar_manager* man(static_cast<intvar_manager*>(ptr));
+  intvar_manager::eq_info info = man->eqinfo[ei];
+  if(pred_lb(man->s, info.pid) < info.val)
+    return from_int(0);
+  if(pred_ub(man->s, info.pid) > info.val)
+    return from_int(0);
+  return from_int(1);
+}
+static void ex_lb(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
+  intvar_manager* man(static_cast<intvar_manager*>(ptr));
+  intvar_manager::eq_info info = man->eqinfo[ei];
+  elts.push(le_atom(info.pid, info.val-1));
+  elts.push(ge_atom(info.pid, info.val+1));
+}
+
+
+static pval_t init_ub(void* ptr, int ei, vec<pval_t>& vals) {
+  intvar_manager* man(static_cast<intvar_manager*>(ptr));
+  intvar_manager::eq_info info = man->eqinfo[ei];
+  if(pred_lb(man->s, info.pid) > info.val)
+    return pval_inv(from_int(0));
+  if(pred_ub(man->s, info.pid) < info.val)
+    return pval_inv(from_int(0));
+  return pval_inv(from_int(1));
+}
+
+static void ex_ub(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
+  intvar_manager* man(static_cast<intvar_manager*>(ptr));
+  intvar_manager::eq_info info = man->eqinfo[ei];
+  if(pred_lb(man->s, info.pid) > info.val) {
+    elts.push(le_atom(info.pid, info.val));
+  } else {
+    assert(pred_ub(man->s, info.pid) < info.val);
+    elts.push(ge_atom(info.pid, info.val));
+  }
+}
+
 patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
   // Find the appropriate var/val pair
   pid_t x_pi(var_preds[vid]);
@@ -163,12 +202,19 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
     return patom_t(x_pi, val);
 
   // Allocate the atom
-  patom_t at(new_bool(*s));
+  // patom_t at(new_bool(*s));
+  int eq_idx = eqinfo.size();
+  pred_init in_lb(init_lb, this, eq_idx,
+    expl_thunk {ex_lb, this, eq_idx});
+  pred_init in_ub(init_ub, this, eq_idx,
+    expl_thunk {ex_ub, this, eq_idx});
+  eqinfo.push({ x_pi, val });
+  patom_t at(new_bool(*s, in_lb, in_ub));
 
   // Connect it to the corresponding bounds
-  add_clause(s, ~at, patom_t(x_pi, val));
-  add_clause(s, ~at, ~patom_t(x_pi, val+1));
-  add_clause(s, at, ~patom_t(x_pi, val), patom_t(x_pi, val+1));
+  add_clause_(s, ~at, patom_t(x_pi, val));
+  add_clause_(s, ~at, ~patom_t(x_pi, val+1));
+  add_clause_(s, at, ~patom_t(x_pi, val), patom_t(x_pi, val+1));
 
   eqtable[vid].insert(std::make_pair(val, at));
 

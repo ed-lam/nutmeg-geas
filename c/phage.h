@@ -59,6 +59,9 @@ int make_sparse(intvar, int* vals, int sz);
 
 atom new_boolvar(solver);
 
+void set_int_polarity(intvar, int);
+void set_bool_polarity(solver, atom, int);
+
 typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
 typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
 

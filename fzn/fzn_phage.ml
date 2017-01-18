@@ -9,6 +9,7 @@ module P = Parser
 
 module Pr = Problem
 module Simp = Simplify
+module Pol = Polarity
 
 module Sol = Solver
 module At = Atom
@@ -338,6 +339,24 @@ let get_options () =
       | Some r -> r
       | None -> defaults.Sol.restart_limit }
   
+let set_polarity solver env pol_info =
+  Array.iteri (fun i ctx ->
+    match ctx with
+    | { Pol.pos = false ; Pol.neg = true } ->
+      Sol.set_bool_polarity solver env.bvars.(i) false
+    | { Pol.pos = true ; Pol.neg = false } ->
+      Sol.set_bool_polarity solver env.bvars.(i) true
+    | _ -> ()
+  ) pol_info.Pol.bvars ;
+  Array.iteri (fun i ctx -> 
+    match ctx with
+    | { Pol.pos = false ; Pol.neg = true } ->
+      Sol.set_int_polarity env.ivars.(i) false
+    | { Pol.pos = true ; Pol.neg = false } ->
+      Sol.set_int_polarity env.ivars.(i) true
+    | _ -> ()
+  ) pol_info.Pol.ivars
+
 let main () =
   (* Parse the command-line arguments *)
   Arg.parse
@@ -357,8 +376,11 @@ let main () =
   let (bdefs, problem) = Simplify.simplify orig_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
-  (* Do stuff *)
+  (* Construct the problem *)
   let env = build_problem solver problem bdefs in
+  (* Perform polarity analysis, to set branching *)
+  let _ = if !Opts.pol then
+    set_polarity solver env (Polarity.polarity orig_problem) in
   build_branching problem env solver (snd problem.Pr.objective) ;
   (*
   let problem_HR =

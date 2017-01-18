@@ -187,6 +187,41 @@ public:
 #endif
 };
 
+// For late initialization of a predicate
+class pred_init {
+public:
+  static void expl_none(void* ptr, int xi, pval_t p, vec<clause_elt>& ex) {
+    return;
+  }
+
+  typedef pval_t (*fun)(void*, int, vec<pval_t>&);
+
+  pred_init(fun _f, void* _obj, int _data, expl_thunk _eth)
+    : f(_f), obj(_obj), data(_data), eth(_eth)
+  { }
+  pred_init(void)
+    : f(nullptr), obj(nullptr), data(0),
+      eth(expl_thunk { expl_none, nullptr, 0 }) { }
+  
+  pval_t operator()(vec<pval_t>& state) {
+    assert(f);
+    return f(obj, data, state);
+  }
+
+  reason expl(void) const { return eth; }
+
+  operator bool() const { return f; }
+
+protected:
+  fun f;
+  void* obj;
+  int data;
+
+  expl_thunk eth;
+};
+
+struct pinit_data { pid_t pi; pred_init init; };
+
 
 }
 

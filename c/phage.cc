@@ -138,6 +138,20 @@ atom new_boolvar(solver s) {
   return unget_atom(get_solver(s)->new_boolvar());
 }
 
+void set_bool_polarity(solver s, atom at, int pol) {
+  phage::solver_data* d = get_solver(s)->data;
+  pid_t p = get_atom(at).pid;
+
+  d->polarity[p>>1] = pol^(p&1);
+}
+
+void set_int_polarity(intvar x, int pol) {
+  phage::solver_data* d = get_intvar(x)->s;
+  pid_t p = get_intvar(x)->pid;
+
+  d->polarity[p>>1] = pol^(p&1);
+}
+
 model get_model(solver s) {
   phage::model* m(new phage::model(get_solver(s)->get_model()));
   return (model) m;
