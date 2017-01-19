@@ -161,9 +161,18 @@ void pop_level(solver_data* s) {
   bt_to_level(s, s->infer.trail_lim.size()-1);
 }
 
+void check_at_fixpoint(solver_data* s) {
+  assert(s->pred_queue.empty());
+  assert(s->wake_queue.size() == 0);
+  assert(s->prop_queue.empty());  
+}
+
 void bt_to_level(solver_data* s, unsigned int l) {
   // Three components of state:
   // predicates, explanations, and opaque data
+#ifdef CHECK_STATE
+  check_at_fixpoint(s);
+#endif
 
   // Deal with current and last-level pred values
   bt_preds(s, l);

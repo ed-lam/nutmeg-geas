@@ -373,10 +373,15 @@ let main () =
   in
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
+  let pol_ctxs = Polarity.polarity orig_problem in
   let (bdefs, problem) = Simplify.simplify orig_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
   (* Construct the problem *)
+  let problem =
+    if !Opts.half_reify then
+      Half_reify.half_reify ~ctxs:pol_ctxs problem 
+    else problem in
   let env = build_problem solver problem bdefs in
   (* Perform polarity analysis, to set branching *)
   let _ = if !Opts.pol then

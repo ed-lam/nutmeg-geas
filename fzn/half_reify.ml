@@ -34,9 +34,12 @@ let transform_constraint ctxs rs ((id, args), ann) =
     with Not_found -> default_handler in
   List.append (handler ctxs id args ann) rs
 
-let half_reify model =
+let half_reify ?ctxs:opt_ctxs model =
   (* Identify variables of interest *)
-  let ctxs = Polarity.polarity model in
+  let ctxs =
+    match opt_ctxs with
+    | None -> Polarity.polarity model
+    | Some ctxs -> ctxs in
   begin
     if !Opts.verbosity > 0 then
       begin

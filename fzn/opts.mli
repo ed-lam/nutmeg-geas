@@ -9,6 +9,7 @@ val max_solutions : int ref
 val print_stats : bool ref
 val free : bool ref
 val pol : bool ref
+val half_reify : bool ref
 
 val restart_limit : int option ref
 

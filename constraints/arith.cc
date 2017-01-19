@@ -1148,6 +1148,7 @@ protected:
 class ineq : public propagator, public prop_inst<ineq> {
   enum Vtag { Var_X = 1, Var_Z = 2 };
   enum TrigKind { T_Atom, T_Var };
+  enum Status { S_None = 0, S_Active = 1 };
 
   struct trigger {
     TrigKind kind;
@@ -1175,17 +1176,21 @@ class ineq : public propagator, public prop_inst<ineq> {
   }
 
   watch_result wake_lb(int wake_gen) {
-    if(wake_gen != gen || !is_active(trigs[1 - active]))
+    if(wake_gen != gen || !(status&S_Active))
       return Wt_Drop;
 
+//    fprintf(stderr, "{%p,lb: %d %d %d\n", this, is_active(trigs[0]), is_active(trigs[1]), is_active(trigs[2]));
+    assert(is_active(trigs[1 - active]));
     queue_prop();
     return Wt_Keep;
   }
 
   watch_result wake_ub(int wake_gen) {
-    if(wake_gen != gen || !is_active(trigs[1 - active]))
+    if(wake_gen != gen || !(status&S_Active))
       return Wt_Drop;
 
+//    fprintf(stderr, "{%p,ub: %d %d %d\n", this, is_active(trigs[0]), is_active(trigs[1]), is_active(trigs[2]));
+    assert(is_active(trigs[1 - active]));
     queue_prop(); 
     return Wt_Keep;
   }
@@ -1213,6 +1218,8 @@ class ineq : public propagator, public prop_inst<ineq> {
       case T_Var:
       {
         intvar::val_t val = vs[1 - t.idx].lb();
+        prop_val = val;
+
         if(vs[t.idx].lb() == val) {
           return vs[t.idx].set_lb(val+1, ex_thunk(ex_nil<&P::expl_lb>, ii));
         }
@@ -1221,6 +1228,7 @@ class ineq : public propagator, public prop_inst<ineq> {
         }
         // Otherwise, add LB and UB watches
         ++gen;
+        trail_change(s->persist, status, (char) S_Active);
         attach(s, vs[t.idx] >= val, watch<&P::wake_lb>(gen, Wt_IDEM));
         attach(s, vs[t.idx] <= val, watch<&P::wake_ub>(gen, Wt_IDEM));
         /*
@@ -1232,13 +1240,17 @@ class ineq : public propagator, public prop_inst<ineq> {
   }
 
   watch_result wake_trig(int wi) {
+    assert(is_active(trigs[wi]));
     if(!is_active(trigs[2])) {
       std::swap(trigs[2], trigs[wi]); 
-      attach_trigger(trigs[wi], wi); 
+      attach_trigger(trigs[wi], wi);
       return Wt_Drop;
     }
     if(!is_active(trigs[1 - wi]))
       active = 1 - wi;
+
+//    fprintf(stderr, "{%p(%d): %d %d %d\n", this, wi, is_active(trigs[0]), is_active(trigs[1]), is_active(trigs[2]));
+    assert(is_active(trigs[1 - active]));
     queue_prop();
     return Wt_Keep;
   }
@@ -1270,7 +1282,7 @@ class ineq : public propagator, public prop_inst<ineq> {
   void expl_lb(int xi, vec<clause_elt>& ex) {
     trigger t = trigs[active];
     ex.push(~r);
-    ex.push(vs[t.idx] > prop_val);
+    ex.push(vs[t.idx] < prop_val);
     ex.push(vs[1 - t.idx] < prop_val);
     ex.push(vs[1 - t.idx] > prop_val);
     return;
@@ -1279,7 +1291,7 @@ class ineq : public propagator, public prop_inst<ineq> {
   void expl_ub(int xi, vec<clause_elt>& ex) {
     trigger t = trigs[active];
     ex.push(~r);
-    ex.push(vs[t.idx] < prop_val);
+    ex.push(vs[t.idx] > prop_val);
     ex.push(vs[1 - t.idx] < prop_val);
     ex.push(vs[1 - t.idx] > prop_val);
     return;
@@ -1287,7 +1299,7 @@ class ineq : public propagator, public prop_inst<ineq> {
 
 public:
   ineq(solver_data* s, intvar _z, intvar _x, patom_t _r)
-    : propagator(s), r(_r), active(0), prop_val(0), gen(0) {
+    : propagator(s), r(_r), active(0), prop_val(0), gen(0), status(0) {
     vs[0] = _z;
     vs[1] = _x; 
 
@@ -1330,6 +1342,7 @@ protected:
   intvar::val_t prop_val;
 
   unsigned int gen;
+  char status;
 };
 
 void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {

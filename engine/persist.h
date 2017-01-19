@@ -146,6 +146,8 @@ inline void trail_save(persistence& p, T& elt, char& flag) {
   flag = true;
 }
 
+void check_at_fixpoint(solver_data* s);
+
 }
 
 #endif

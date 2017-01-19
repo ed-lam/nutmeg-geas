@@ -651,6 +651,9 @@ prop_restart:
     s.active_prop = nullptr;
     if(!propagate_pred(s, pi)) {
       prop_cleanup(s);
+#ifdef CHECK_STATE
+      check_at_fixpoint(&s);
+#endif
       return false;
     }
   }
@@ -684,6 +687,9 @@ prop_restart:
       p->cleanup();
       prop_cleanup(s);
       s.active_prop = nullptr;
+#ifdef CHECK_STATE
+  check_at_fixpoint(&s);
+#endif
       return false; 
     }
 #ifdef LOG_PROP
@@ -700,6 +706,9 @@ prop_restart:
   }
   s.active_prop = nullptr;
   clear_reset_flags(s);
+#ifdef CHECK_STATE
+  check_at_fixpoint(&s);
+#endif
 
   return true;
 }
@@ -1065,6 +1074,7 @@ solver::result solver::solve(void) {
   
           next_restart = restart_lim = restart_lim * s.opts.restart_growthrate;
           if(decision_level(s) > 0) {
+            prop_cleanup(s);
             bt_to_level(&s, 0);
             process_initializers(s);
           }

@@ -8,6 +8,7 @@ let quiet = ref false
 let max_solutions = ref 1
 let free = ref false
 let pol = ref true
+let half_reify = ref false
 
 let restart_limit = ref None
 
@@ -53,6 +54,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
      (
       "-pol",
       Arg.Bool (fun b -> pol := b),
+      " : use polarity analysis"
+     ) ;
+     (
+      "-half-reif",
+      Arg.Bool (fun b -> half_reify := b),
       " : use polarity analysis"
      ) ;
      (
