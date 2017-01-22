@@ -1264,8 +1264,12 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   if(elts.size() == 0)
     return false;
   // Unit at root level
+  /*
   if(elts.size() == 1)
     return enqueue(s, elts[0].atom, reason()); 
+    */
+  if(elts.size() == 1)
+    return true;
   
   // Binary clause; embed the -other- literal
   // in the head;
@@ -1275,8 +1279,11 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
 
     find_watchlist(s, elts[0]).push(h1);
     find_watchlist(s, elts[1]).push(h0); 
+    return true;
+    /*
     if(s.state.is_inconsistent(elts[1].atom))
       return enqueue(s, elts[0].atom, elts[1].atom);
+      */
   } else {
     // Normal clause
     clause* c(clause_new(elts));
@@ -1284,8 +1291,11 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 
+    /*
     if(s.state.is_inconsistent(elts[1].atom))
       return enqueue(s, elts[0].atom, c);
+      */
+    return true;
   }
   return true;
 }

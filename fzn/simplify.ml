@@ -36,11 +36,13 @@ let fzn_irel_reif rel r x y =
     | Ine -> (("int_ne_reif", [|x; y; r|]), [])
   
 type bdef =
+  (* | Bconst of bool *)
   | Beq of Problem.bval_id
   | Bneg of Problem.bval_id
   | At of Problem.ival_id * irel * int
 
 let bdef_neg = function
+  (* | Bconst b -> Bconst (not b) *)
   | Beq p -> Bneg p
   | Bneg p -> Beq p
   | At (x, r, k) -> At (x, irel_neg r, k)
@@ -59,10 +61,13 @@ let init_state pr =
 
 let set_bool st x b =
   (* FIXME: Add new definition *)
+  (*
   if b then
     Dy.add st.cons (("bool_clause", [| Pr.Arr [|Pr.Bvar x|]; Pr.Arr [| |] |]), [])
   else
     Dy.add st.cons (("bool_clause", [| Pr.Arr [| |]; Pr.Arr [|Pr.Bvar x|] |]), [])
+    *)
+  Dy.add st.cons (("bool_eq", [| Pr.Bvar x; Pr.Blit b |]), [])
  
 (* Dealing with signed union-find stuff *)
 type rep = Pos of int | Neg of int
@@ -156,7 +161,9 @@ let simp_irel_reif rel st args anns =
       match x, y with
       | Pr.Iv_int a, Pr.Iv_int b ->
         let res = match rel with
-          | Ile -> a <= b
+          | Ile ->
+            (Format.fprintf Format.err_formatter "{r} <-> %d <= %d@." a b ;
+            a <= b)
           | Ieq -> a = b
           | Igt -> a > b
           | Ine -> a <> b in
@@ -173,6 +180,7 @@ let simp_irel_reif rel st args anns =
         apply_def st b def
       | Pr.Iv_var x, Pr.Iv_var y ->
         Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) (Pr.Ivar x) (Pr.Ivar y))
+      | _, _ -> Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) args.(0) args.(1))
     end
 
 let simp_bool_eq st args anns =
@@ -211,7 +219,7 @@ let log_reprs defs =
   ) Format.std_formatter defs
 
 let simplify problem =
-  (*
+(*
   let bdefs = Array.make (Dy.length problem.Pr.bvals) None in
   (bdefs, problem)
   *)
@@ -226,15 +234,11 @@ let simplify problem =
 let init () = 
   let handlers =
     [
-      "int_le_reif", simp_irel_reif Ile ;
-      (*
+      "int_le_reif", simp_irel_reif Ile ; 
       "int_eq_reif", simp_irel_reif Ieq ;
       "int_ne_reif", simp_irel_reif Ine ;
-      *)
-      (*
       "bool_eq", simp_bool_eq ; 
       "bool_ne", simp_bool_ne
-      *)
     ] in
   List.iter (fun (id, h) -> H.add registry id h) handlers
 

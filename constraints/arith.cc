@@ -1734,7 +1734,33 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
   if(s->state.is_entailed(r))
     return pred_leq(s, x, y, k);
-  new pred_le_hr(s, x, y, k, r);
+  pval_t lb = std::max(pred_lb(s, x), pred_lb(s, y)+k);
+  pval_t ub = std::min(pred_ub(s, x), pred_ub(s, y)+k);
+
+  if(ub < lb) {
+    if(pred_lb(s, x) > pred_ub(s, y) + k)
+      return enqueue(*s, ~r, reason());
+    return true;
+  }
+
+  if(ub - lb < s->opts.eager_threshold)
+  // if(0)
+  {
+    if(pred_lb(s, y)+k < lb) {   
+      if(!add_clause(s, ~r, ge_atom(y, lb-k)))
+        return false;
+    }
+    if(pred_ub(s, x) > ub) {
+      if(!add_clause(s, ~r, le_atom(x, ub)))
+        return false;
+    }
+    for(pval_t v = lb; v < ub; ++v) {
+      if(!add_clause(s, ~r, le_atom(x, v), ge_atom(y, v-k+1)))
+        return false;
+    }
+  } else {
+    new pred_le_hr(s, x, y, k, r);
+  }
   return true;
 }
 

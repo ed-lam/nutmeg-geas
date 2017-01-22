@@ -85,12 +85,12 @@ predicate int_lin_eq_reif(
   (r <-> (a /\ b)) /\ int_lin_le_reif(cs, xs, k, a)
   /\ int_lin_le_reif([-c | c in cs], xs, -k, b);
 
-predicate int_lin_ne_reif(
-  array [int] of int: cs, array [int] of var int: xs, int: k, var bool: r) =
-  let { var bool: a; var bool: b } in
-  (r <-> ((not a) \/ (not b)))
-  /\ int_lin_le_reif(cs, xs, k, a)
-  /\ int_lin_le_reif([-c | c in cs], xs, -k, b);
+%predicate int_lin_ne_reif(
+%  array [int] of int: cs, array [int] of var int: xs, int: k, var bool: r) =
+%  let { var bool: a; var bool: b } in
+%  (r <-> ((not a) \/ (not b)))
+%  /\ int_lin_le_reif(cs, xs, k, a)
+%  /\ int_lin_le_reif([-c | c in cs], xs, -k, b);
 
 predicate bool_eq_reif(var bool: x, var bool: y, var bool: r) =
   r <-> (x <-> y);

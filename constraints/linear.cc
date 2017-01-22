@@ -823,67 +823,87 @@ protected:
 };
 
 class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
-  enum { Var_None = 0 };
-  enum { P_Deact = 1, P_Prop = 2};
+  enum { Var_None = 0, Var_LB = 1, Var_UB = 2 };
   enum { S_Active = 1, S_Red = 2 };
+
+  enum TrigKind { T_Atom, T_Var };
+  struct trigger {
+    TrigKind kind;
+    unsigned int idx;
+  };
+  
+  inline bool is_triggered(trigger t) {
+    switch(t.kind) {
+      case T_Atom:
+        return s->state.is_entailed(r);
+      case T_Var:
+        return vs[t.idx].x.is_fixed();
+      default:
+        ERROR;
+        return false;
+    }
+  }
+
+  inline void attach_trigger(trigger t, int ii) {
+    switch(t.kind) {
+      case T_Atom:
+        attach(s, r, watch<&P::wake_trig>(ii, Wt_IDEM));
+        break;
+      case T_Var:
+        vs[t.idx].x.attach(E_FIX, watch<&P::wake_trig>(ii, Wt_IDEM));
+        break;
+    }
+  }
 
   // See if we can find some other unfixed variable
   watch_result wake_bound(int vi) {
-    if(!vs[perm[1]].x.is_fixed())
+    if(!(status&S_Active) || !is_triggered(trigs[1 - t_act]))
       return Wt_Drop;
-    if(status&S_Active)
-      queue_prop();
+
+    queue_prop();
     return Wt_Keep;
   }
 
-  watch_result wake_fix(int vi) {
-    if(status&S_Red)
-      return Wt_Keep;
-
-    // Just like two-literal watching, find a replacement watch
-    if(perm[1] != vi) {
-      perm[0] = perm[1];
-    }
-
-    for(int pi = 2; pi < perm.size(); ++pi) {
-      int wi = perm[pi];
-      if(!vs[wi].x.is_fixed()) {
-        perm[1] = wi;
-        perm[pi] = vi;
-        vs[wi].x.attach(E_FIX, watch<&P::wake_fix>(wi, Wt_IDEM));
+  watch_result wake_trig(int ti) {
+    // Look for a replacement watch
+    for(int ii = 2; ii < trigs.size(); ii++) {
+      if(!is_triggered(trigs[ii])) {
+        std::swap(trigs[ti], trigs[ii]);
+        attach_trigger(trigs[ti], ti);  
         return Wt_Drop;
       }
     }
     // None found
-    if(!vs[perm[0]].x.is_fixed()) {
-      int x0 = perm[0];
-      vs[x0].x.attach(E_LU, watch<&P::wake_bound>(x0, Wt_IDEM)); 
-    }
-    queue_prop();  
+    if(!is_triggered(trigs[1 - ti]))
+      t_act = 1 - ti;
+    queue_prop();
     return Wt_Keep;
   }
 
-  watch_result wake_r(int vi) {
-    if(vs[perm[1]].x.is_fixed())
-      queue_prop();
-    return Wt_Keep;   
+  inline void ex_trig(trigger t, vec<clause_elt>& expl) {
+    switch(t.kind) {
+      case T_Atom:
+        expl.push(~r);
+        return;
+      case T_Var:
+      /*
+        expl.push(vs[t.idx].x < vs[t.idx].x.lb());
+        expl.push(vs[t.idx].x > vs[t.idx].x.ub()); 
+        */
+        expl.push(vs[t.idx].x != vs[t.idx].x.lb());
+        return;
+    }
   }
 
   void expl(int xi, vec<clause_elt>& expl) {
-    if(xi != Var_None)
-      expl.push(~r);
-    for(int ii = 0; ii < xi; ii++) {
-      assert(vs[ii].x.is_fixed());
-      expl.push(vs[ii].x < vs[ii].x.lb());
-      expl.push(vs[ii].x > vs[ii].x.ub());
-    }
-    int sz = vs.size();
-    for(int ii = xi+1; ii < sz; ++ii) {
-      // expl.push(vs[ii].x != vs[ii].x.lb());
-      assert(vs[ii].x.is_fixed());
-      expl.push(vs[ii].x < vs[ii].x.lb());
-      expl.push(vs[ii].x > vs[ii].x.ub());
-    }
+    ex_trig(trigs[1 - t_act], expl);
+    for(int ti = 2; ti < trigs.size(); ti++)
+      ex_trig(trigs[ti], expl);
+
+    if(xi&E_LB)
+      expl.push(vs[t_act].x < excl_val);
+    if(xi&E_UB)
+      expl.push(vs[t_act].x > excl_val);
   }
 
 public:
@@ -897,66 +917,75 @@ public:
   int_linear_ne(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& xs, int _k)
     : propagator(s), r(_r), k(_k), status(0) {
     assert(xs.size() >= 2);
-    for(int ii = 0; ii < xs.size(); ii++) {
+    for(unsigned int ii = 0; ii < xs.size(); ii++) {
       vs.push(elt { ks[ii], xs[ii] });
-      perm.push(ii);
+      trigs.push(trigger { T_Var, ii });
     }
-    xs[0].attach(E_FIX, watch<&P::wake_fix>(0, Wt_IDEM));
-    xs[1].attach(E_FIX, watch<&P::wake_fix>(1, Wt_IDEM));
+    if(!s->state.is_entailed(r)) {
+      trigs.push(trigs[0]);
+      trigs[0] = { T_Atom };
+    }
+    attach_trigger(trigs[0], 0);
+    attach_trigger(trigs[1], 1);
   }
 
   bool propagate(vec<clause_elt>& confl) {
-    // Find the first un-fixed variable   
 #ifdef LOG_PROP
     std::cout << "[[Running linear_ne]]" << std::endl;
 #endif
-    elt* e = vs.begin();
-    elt* end = vs.end();
-
-    int r = k;
-    for(; e != end; ++e) {
-      elt el = *e;
-      if(!el.x.is_fixed())
-        goto found_unfixed;
-      r -= el.c * el.x.lb();
-    }
-    // All fixed
-    if(r == 0) {
-      // Set the conflict.
-      // Could use x < e.x.lb() \/ x > e.x.ub() instead.
-      for(elt e : vs) {
-        // confl.push(e.x != e.x.lb());    
-        confl.push(e.x < e.x.lb());    
-        confl.push(e.x > e.x.ub());    
+    if(status&S_Active) {
+      int idx = trigs[t_act].idx;
+      if(vs[idx].x.lb() == excl_val) {
+        return vs[idx].x.set_lb(excl_val+1, ex_thunk(ex_nil<&P::expl>, E_LB));
+      } else {
+        assert(vs[idx].x.ub() == excl_val);
+        return vs[idx].x.set_ub(excl_val-1, ex_thunk(ex_nil<&P::expl>, E_UB));
       }
-      return false; 
     }
-    return true;
 
-found_unfixed:
-    elt* fst = e; 
-    for(++e; e != end; ++e) {
-      elt el = *e;
-      if(!el.x.is_fixed()) {
-        // Two unfixed variables.
+    if(trigs[t_act].kind == T_Atom) {
+      intvar::val_t sum = k;
+      for(const elt& e : vs)
+        sum -= e.c * e.x.lb();
+
+      if(sum)
+        return true;
+      return enqueue(*s, ~r, ex_thunk(ex_nil<&P::expl>, 0));
+    } else {
+      int vi = trigs[t_act].idx;
+      intvar::val_t sum = k;
+      for(int ii = 0; ii < vi; ii++)
+        sum -= vs[ii].c * vs[ii].x.lb();
+      for(int ii = vi+1; ii < vs.size(); ii++)
+        sum -= vs[ii].c * vs[ii].x.lb();
+
+      if(sum % vs[vi].c != 0)
+        return true;
+      
+      // Check if it's already satisfied or propagatable.
+      excl_val = sum/vs[vi].c;   
+      /*
+      if(vs[vi].x.lb() >= excl_val) {
+        if(vs[vi].x.lb() == excl_val)
+          return vs[vi].x.set_lb(excl_val+1, ex_thunk(ex_nil<&P::expl>, E_LB));
+        return true;
+      } else if(vs[vi].x.ub() <= excl_val) {
+        if(vs[vi].x.ub() == excl_val)
+          return vs[vi].x.set_ub(excl_val-1, ex_thunk(ex_nil<&P::expl>, E_UB));
         return true;
       }
-      r -= el.c * el.x.lb();
-    }
-    
-    int gap = r/fst->c;
-//    if(r % fst->c == 0 && in_domain(fst->x, gap)) {
-//      if(!enqueue(*s, fst->x != gap, expl_thunk { expl, this, (int) (fst - vs.begin()) }))
-//        return false;
-//    }
-    if(r % fst->c == 0) {
-      if(fst->x.lb() == gap) {
-        if(!fst->x.set_lb(gap+1, ex_thunk(ex_nil<&P::expl>, (int) (fst - vs.begin()))))
-          return false;
-      } else if(fst->x.ub() == gap) {
-        if(!fst->x.set_ub(gap-1, ex_thunk(ex_nil<&P::expl>, (int) (fst - vs.begin()))))
-          return false;
-      }
+      
+      // Otherwise, add the new watches
+      trail_change(s->persist, status, (char) S_Active);
+      attach(s, vs[vi].x >= excl_val, watch<&P::wake_bound>(0, Wt_IDEM));
+      attach(s, vs[vi].x <= excl_val, watch<&P::wake_bound>(1, Wt_IDEM));
+      return true;
+      */
+      if(vs[vi].x.lb() > excl_val)
+        return true;
+      if(vs[vi].x.ub() < excl_val)
+        return true;
+      return enqueue(*s, vs[vi].x != excl_val, ex_thunk(ex_nil<&P::expl>, 0));
     }
     return true;
   }
@@ -968,9 +997,10 @@ found_unfixed:
   vec<elt> vs;
   int k;
 
-  vec<int> perm;
-
+  vec<trigger> trigs;
+  unsigned int t_act;
   char status;
+  intvar::val_t excl_val;
 };
 
 void linear_le_dec(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k) {
@@ -992,6 +1022,7 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
 
 bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r) {
+  /*
   if(!s->state.is_entailed_l0(r)) {
     // WARN("Half-reification not yet implemented for linear_ne.");
     WARN("Half-reified linear_ne is a bit of a hack.");
@@ -1006,6 +1037,8 @@ bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   } else {
     new int_linear_ne(s, r, ks, vs, k);
   }
+  */
+  new int_linear_ne(s, r, ks, vs, k);
   return true;
 }
 
