@@ -28,6 +28,7 @@ public:
   typedef struct {
     pid_t p;
     pval_t v;
+//    unsigned int depth;
   } pred_entry;
 
   typedef struct {

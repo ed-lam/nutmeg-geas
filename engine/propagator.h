@@ -65,7 +65,11 @@ public:
   enum { Wt_IDEM = 1 };
   typedef T P;
 
+#ifdef PVAL_32
+  static inline val_t to_int(pval_t v) { return (((pval_t) INT32_MIN) + v); }
+#else
   static inline val_t to_int(pval_t v) { return (((pval_t) INT64_MIN) + v); }
+#endif
 
   static bool propagate(void* ptr) { return cast(ptr)->propagate(); }
   static bool check_sat(void* ptr) { return cast(ptr)->check_sat(); }

@@ -50,8 +50,13 @@ inline void remove_watch(watch_node* watch, clause* cl) {
 }
 
 inline watch_node* find_watchlist(solver_data* s, clause_elt& elt) {
+#ifdef CACHE_WATCH
+  assert(elt.watch);
+  return elt.watch;
+#else
   patom_t p(~elt.atom);
   return s->infer.get_watch(p.pid, p.val);
+#endif
 }
 
 inline void detach_clause(solver_data* s, clause* cl) {
@@ -131,15 +136,19 @@ static void add(solver_data* s, clause_elt elt) {
       bump_pred_act(s, pid);
     }
     */
+    /*
     if(s->confl.pred_saved[pid>>1].last_seen != s->confl.confl_num) {
       s->confl.pred_saved[pid>>1] = { s->confl.confl_num,
         pid&1 ? pval_inv(val) : val };
       bump_pred_act(s, pid);
     }
+    */
 
     s->confl.pred_seen.insert(pid);
     s->confl.pred_eval[pid] = val;
-//    s->confl.pred_hint[pid] = elt.watch;
+#ifdef CACHE_WATCH
+    s->confl.pred_hint[pid] = elt.watch;
+#endif
 
     if(s->state.p_last[pid] < val)
       s->confl.clevel++;
@@ -148,10 +157,10 @@ static void add(solver_data* s, clause_elt elt) {
     // pval_t val = elt.atom.val;
     pval_t e_val = s->confl.pred_eval[pid];
     if(val <= e_val) {
-      /*
+#ifdef CACHE_WATCH
       if(val == e_val && elt.watch)
         s->confl.pred_hint[pid] = elt.watch;
-        */
+#endif
       return;
     }
     
@@ -161,7 +170,9 @@ static void add(solver_data* s, clause_elt elt) {
       s->confl.clevel++;
 
     s->confl.pred_eval[pid] = val;
-//    s->confl.pred_hint[pid] = elt.watch;
+#ifdef CACHE_WATCH
+    s->confl.pred_hint[pid] = elt.watch;
+#endif
   }
   assert(s->state.is_entailed(patom_t(pid, s->confl.pred_eval[pid])));
   assert(s->confl.pred_seen.elem(pid));
@@ -274,6 +285,71 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
   }
 }
 
+// TODO: Fix proof logging
+#if 0
+static forceinline bool atom_is_redundant(solver_data* s, patom_t at) {
+  pid_t pid = at.pid^1;
+  pval_t val = pval_max - at.val + 1;
+  assert(s->state.is_entailed(patom_t(pid, val)));
+  if(!s->confl.pred_seen.elem(pid))
+    return false;
+
+  pval_t e_val = s->confl.pred_eval[pid];
+  return val <= e_val;
+}
+
+static forceinline bool is_redundant(solver_data* s, reason r) {
+  switch(r.kind) {
+    case reason::R_Atom:
+      // add(s, r.at);
+      return atom_is_redundant(s, r.at);
+      break;
+    case reason::R_Clause:
+      {
+        // Skip the first literal (which we're resolving on)
+        // assert(is_locked(s, r.cl));
+        auto it = r.cl->begin();
+        for(++it; it != r.cl->end(); ++it) {
+          if(!atom_is_redundant(s, (*it).atom))
+            return false;
+          return true;
+        }
+      }
+      break;
+    case reason::R_LE:
+      {
+        // p <= q + offset.
+        pval_t ex_val(s->confl.pred_eval[e.pid]);
+        patom_t at(~patom_t(r.le.p, ex_val + r.le.offset));
+        return atom_is_redundant(s, at);
+      }
+      break;
+    case reason::R_Thunk:
+      {
+        if(r.eth.flags) {
+          // If the explanation needs backtracking,
+          // don't.
+          return false;
+        }
+        vec<clause_elt> es;
+        pval_t ex_val(s->confl.pred_eval[e.pid]);
+        r.eth(ex_val, es);
+        for(clause_elt e : es) {
+          if(!atom_is_redundant(s, e.at))
+            return false;
+        }
+        return true;
+      }
+      break;
+    case reason::R_NIL:
+      return true;
+      break;
+    default:
+      NOT_YET;
+  }
+}
+#endif
+
 // Is the given trail entry required in the conflict?
 inline bool needed(solver_data* s, infer_info::entry& entry) {
   return s->confl.pred_seen.elem(entry.pid) &&
@@ -288,7 +364,9 @@ inline bool l_needed(solver_data* s, persistence::pred_entry entry) {
 inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   return clause_elt(
     patom_t(p^1, pval_max - s->confl.pred_eval[p] + 1)
-//    , s->confl.pred_hint[p]
+#ifdef CACHE_WATCH
+    , s->confl.pred_hint[p]
+#endif
   );
 }
 

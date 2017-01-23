@@ -210,13 +210,15 @@ let simplify_constraint state id args anns =
   with Not_found -> Dy.add state.cons ((id, args), anns)
 
 let log_reprs defs =
-  Util.print_array ~post:"|]@." (fun fmt def ->
-    match def with
-    | None -> Format.fprintf fmt "_"
-    | Some (Beq b) -> Format.fprintf fmt "%d" b
-    | Some (Bneg b) -> Format.fprintf fmt "~%d" b
-    | Some (At (x, r, k)) -> Format.fprintf fmt "x%d %s %d" x (rel_str r) k
-  ) Format.std_formatter defs
+  if !Opts.verbosity > 0 then
+    Util.print_array ~post:"|]@." (fun fmt def ->
+      match def with
+      | None -> Format.fprintf fmt "_"
+      | Some (Beq b) -> Format.fprintf fmt "%d" b
+      | Some (Bneg b) -> Format.fprintf fmt "~%d" b
+      | Some (At (x, r, k)) -> Format.fprintf fmt "x%d %s %d" x (rel_str r) k
+    ) Format.std_formatter defs
+  else ()
 
 let simplify problem =
 (*

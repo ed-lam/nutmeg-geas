@@ -7,6 +7,9 @@
 #include "solver/options.h"
 #include "engine/conflict.h"
 
+#define KEEP_GLUE
+// #define RESTART_LUBY
+
 // Default options
 options default_options = {
   // 50000, // int learnt_dbmax; 
@@ -356,6 +359,11 @@ void solver::clear_assumptions(void) {
   data->assump_end = 0;
 }
 
+#ifdef LOG_RESTART
+static int num_props = 0;
+#endif
+
+// static 
 bool enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
   std::cout << "|- " << p << "{" << s.infer.trail.size() << "}" << std::endl;
@@ -365,6 +373,10 @@ bool enqueue(sdata& s, patom_t p, reason r) {
   // assert(!s.state.is_entailed(p));
   if(s.state.is_entailed(p))
     return true;
+
+#ifdef LOG_RESTART
+  num_props++;
+#endif
 
   pval_t old_val = s.state.p_vals[p.pid];
   if(!s.state.post(p)) {
@@ -376,12 +388,14 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 
   if(r.kind == reason::R_Clause)
     r.cl->extra.depth = s.infer.trail.size();
-  infer_info::entry e = { p.pid, old_val, r };
-#ifdef PROOF_LOG
-  e.expl.origin = s.log.active_constraint;
-#endif
 
-  s.infer.trail.push(e);
+  // infer_info::entry e = { p.pid, old_val, r };
+  // s.infer.trail.push(e);
+  s.infer.trail.push(infer_info::entry { p.pid, old_val, r });
+#ifdef PROOF_LOG
+  // e.expl.origin = s.log.active_constraint;
+  s.infer.trail.last().expl.origin = s.log.active_constraint;
+#endif
   if(!s.pred_queued[p.pid]) {
     s.pred_queue.insert(p.pid);
     s.pred_queued[p.pid] = true;
@@ -394,21 +408,23 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 // forceinline
 static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
-  /*
+#ifdef CACHE_WATCH
   if(elt.watch) {
 #ifdef DEBUG_WMAP
     assert(elt.watch->curr_val == ~(elt.atom).val);
 #endif
     return elt.watch->ws;
   }
-  */
+#endif
 
   patom_t p(~elt.atom);
   watch_node* watch = s.infer.get_watch(p.pid, p.val);
 #ifdef DEBUG_WMAP
   assert(watch->curr_val == ~(elt.atom).val);
 #endif
-//  elt.watch = watch;
+#ifdef CACHE_WATCH
+  elt.watch = watch;
+#endif
   return watch->ws;
 }
 
@@ -444,10 +460,14 @@ bool update_watchlist(solver_data& s,
     // Normal case: look for a new watch
     clause& c(*ch.c);
     if(c[1].atom != elt.atom) {
-//      elt.watch = c[0].watch;
+#ifdef CACHE_WATCH
+      elt.watch = c[0].watch;
+#endif
       c[0] = c[1];
     } else {
-//      elt.watch = c[1].watch;
+#ifdef CACHE_WATCH
+      elt.watch = c[1].watch;
+#endif
     }
 
     /*
@@ -707,6 +727,11 @@ prop_restart:
     }
   }
   s.active_prop = nullptr;
+  /*  
+  if(!s.pred_queue.empty())
+    goto prop_restart;
+    */
+
   clear_reset_flags(s);
 #ifdef CHECK_STATE
   check_at_fixpoint(&s);
@@ -755,6 +780,15 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt, bool one_watch) {
     enqueue(*s, learnt[0].atom, learnt[1].atom);
   } else {
     // Normal clause
+#ifdef KEEP_GLUE
+    bool is_glue = true;
+    for(int ii = 1; ii < learnt.size(); ii++)
+      if(s->state.is_inconsistent_prev(learnt[ii].atom))
+        is_glue = false;
+#else
+    bool is_glue = false;
+#endif
+
     clause* c(clause_new(learnt));
     c->extra.is_learnt = true;
     c->extra.one_watch = one_watch;
@@ -770,7 +804,10 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt, bool one_watch) {
       find_watchlist(*s, (*c)[0]).push(h);
     find_watchlist(*s, (*c)[1]).push(h); 
     enqueue(*s, learnt[0].atom, c);
-    s->infer.learnts.push(c);
+    if(is_glue)
+      s->infer.clauses.push(c);
+    else
+      s->infer.learnts.push(c);
   }
 }
 
@@ -857,42 +894,7 @@ inline void simplify_at_root(solver_data& s) {
     s.state.p_last[pi] = s.state.p_vals[pi];
     s.state.p_root[pi] = s.state.p_vals[pi];
     s.wake_vals[pi] = s.state.p_vals[pi];
-      
-#if 1
-    // Do garbage collection on the watch_node*-s.
-    pval_t head_val = s.infer.pred_watch_heads[pi].val;
-    watch_node* head = s.infer.pred_watch_heads[pi].ptr;
-    watch_node* dest = s.infer.pred_watches[pi];
-
-    while(head != dest) {
-      s.infer.watch_maps[pi].rem(head_val);
-      watch_node* w = head;
-      head_val = head->succ_val;
-      head = head->succ;
-      delete w;
-    }
-    s.infer.pred_watch_heads[pi].val = head_val;
-    s.infer.pred_watch_heads[pi].ptr = head;
-    // Now that entailed watches are deleted, we're committed
-    // to simplifying all the clauses.
-    // TODO: Also collect inactive watch-nodes.
-#endif
   }
-
-#ifdef LOG_RESTART
-  int count = 0;
-  int stale = 0;
-  for(watch_node* w : s.infer.pred_watches) {
-    while(w->succ) {
-      w = w->succ;
-      ++count;
-      if(w->ws.size() == 0 && w->callbacks.size() == 0)
-        ++stale;
-    }
-  }
-  fprintf(stderr, "%d watch nodes, %d stale\n", count, stale);
-#endif
-  
 
 #if 1
   // Watches may be invalidated when a clause is
@@ -910,6 +912,45 @@ inline void simplify_at_root(solver_data& s) {
   }
   s.infer.learnts.shrink_(s.infer.learnts.end() - lj);
 #endif
+
+#if 1
+  for(int pi : s.persist.touched_preds) {
+    // Do garbage collection on the watch_node*-s.
+    pval_t head_val = s.infer.pred_watch_heads[pi].val;
+    watch_node* head = s.infer.pred_watch_heads[pi].ptr;
+    watch_node* dest = s.infer.pred_watches[pi];
+
+    while(head != dest) {
+      s.infer.watch_maps[pi].rem(head_val);
+      watch_node* w = head;
+      head_val = head->succ_val;
+      head = head->succ;
+      delete w;
+    }
+    s.infer.pred_watch_heads[pi].val = head_val;
+    s.infer.pred_watch_heads[pi].ptr = head;
+    // Now that entailed watches are deleted, we're committed
+    // to simplifying all the clauses.
+    // TODO: Also collect inactive watch-nodes.
+  }
+#endif
+
+#ifdef LOG_RESTART
+  int count = 0;
+  int stale = 0;
+  for(watch_node* w : s.infer.pred_watches) {
+    while(w->succ) {
+      w = w->succ;
+      ++count;
+      if(w->ws.size() == 0 && w->callbacks.size() == 0)
+        ++stale;
+    }
+  }
+  fprintf(stderr, "%d watch nodes, %d stale\n", count, stale);
+  fprintf(stderr, "%d propagations, %d clauses, %d learnts\n", num_props,
+    s.infer.clauses.size(), s.infer.learnts.size());
+#endif
+  
 
   for(propagator* p : s.propagators)
     p->root_simplify();
@@ -948,6 +989,16 @@ void bump_touched(solver_data& s,
   }
 }
 
+void save_touched(solver_data& s, int touched_start) {
+  for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
+    pid_t p = s.persist.touched_preds[ti];
+    if(p&1)
+      s.confl.pred_saved[p>>1].val = pval_inv(s.state.p_vals[p]);
+    else
+      s.confl.pred_saved[p>>1].val = s.state.p_vals[p];
+  }
+}
+
 // Solving
 solver::result solver::solve(void) {
   // Top-level failure
@@ -968,6 +1019,11 @@ solver::result solver::solve(void) {
 //    act = 0;
 
   int restart_lim = s.opts.restart_limit;
+#ifdef RESTART_LUBY
+  unsigned int luby_m = 1;
+  unsigned int luby_r = 0;
+#endif
+
   // FIXME: On successive runs, this may be smaller than
   // the existing database
   int gc_lim = s.learnt_dbmax;
@@ -999,6 +1055,7 @@ solver::result solver::solve(void) {
     if(!propagate(s)) {
       // bump_touched(s, 1.0, alpha, /* s.stats.conflicts + */ confl_num, touched_start);
       bump_touched(s, 1.0, alpha, s.stats.conflicts + confl_num, touched_start);
+      save_touched(s, touched_start);
       if(alpha > 0.06)
         alpha = alpha - 1e-6;
 
@@ -1074,7 +1131,17 @@ solver::result solver::solve(void) {
 #endif
           s.stats.restarts++;
   
+#ifdef RESTART_LUBY
+          if(luby_r & luby_m) {
+            luby_r ^= luby_m;
+            luby_m <<= 1;
+          } else {
+            luby_r |= luby_m;
+          }
+          next_restart = restart_lim * luby_m;
+#else
           next_restart = restart_lim = restart_lim * s.opts.restart_growthrate;
+#endif
           if(decision_level(s) > 0) {
             prop_cleanup(s);
             bt_to_level(&s, 0);

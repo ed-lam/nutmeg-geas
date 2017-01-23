@@ -16,17 +16,22 @@ class watch_node;
 class clause_elt {
 public:
   clause_elt(patom_t _at)
-    : atom(_at) //, watch(nullptr)
+    : atom(_at)
+#ifdef CACHE_WATCH
+    , watch(nullptr)
+#endif
   { }
-  /*
+#ifdef CACHE_WATCH
   clause_elt(patom_t _at, watch_node* _watch)
     : atom(_at), watch(_watch)
   { }
-  */
+#endif
 
   patom_t atom;
   // We cache the appropriate watch-list
-//  watch_node* watch;
+#ifdef CACHE_WATCH
+  watch_node* watch;
+#endif
 };
 
 struct clause_extra {

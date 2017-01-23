@@ -143,6 +143,7 @@ void set_bool_polarity(solver s, atom at, int pol) {
   pid_t p = get_atom(at).pid;
 
   d->polarity[p>>1] = pol^(p&1);
+  d->confl.pred_saved[p>>1].val = phage::from_int(p&1);
 }
 
 void set_int_polarity(intvar x, int pol) {
@@ -150,6 +151,10 @@ void set_int_polarity(intvar x, int pol) {
   pid_t p = get_intvar(x)->pid;
 
   d->polarity[p>>1] = pol^(p&1);
+  if(p&1)
+    d->confl.pred_saved[p>>1].val = phage::pval_inv(d->state.p_root[p]);
+  else
+    d->confl.pred_saved[p>>1].val = d->state.p_root[p];
 }
 
 model get_model(solver s) {
