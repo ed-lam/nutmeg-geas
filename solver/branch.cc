@@ -374,7 +374,7 @@ public:
 
   patom_t branch(solver_data* s) {
     NOT_YET;
-
+    return at_Undef;
   }
 
   solver_data* s;

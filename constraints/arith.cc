@@ -1383,17 +1383,14 @@ bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
   if(ub < lb)
     return true;
 
-  // if(ub - lb < s->opts.eager_threshold)
-  if(0)
+  if(ub - lb < s->opts.eager_threshold)
+  // if(0)
   {
     for(int k : irange(lb, ub+1)) {
       if(!add_clause(s, ~r, x != k, y != k))
         return false;
     }
   } else {
-    // FIXME
-//    assert(s->state.is_entailed_l0(r));
-    // new ine_bound(s, x, y, r);
     new ineq(s, x, y, r);
   }
   return true;

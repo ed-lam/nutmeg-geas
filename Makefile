@@ -26,7 +26,7 @@ COPTIMIZE = -O3 -march=x86-64 -ffast-math -funroll-loops # -freorder-blocks-and-
 #COPTIMIZE = -O2
 #COPTIMIZE = -O1
 #COPTIMIZE = -O0
-#COPTIMIZE += -DNDEBUG
+COPTIMIZE += -DNDEBUG
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
 CXXFLAGS += -ggdb

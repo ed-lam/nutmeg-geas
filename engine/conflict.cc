@@ -49,14 +49,25 @@ inline void remove_watch(watch_node* watch, clause* cl) {
   }
 }
 
-inline void detach_clause(clause* cl) {
+inline watch_node* find_watchlist(solver_data* s, clause_elt& elt) {
+  patom_t p(~elt.atom);
+  return s->infer.get_watch(p.pid, p.val);
+}
+
+inline void detach_clause(solver_data* s, clause* cl) {
   // At least the current watches should be cached
   if(!cl->extra.one_watch) {
+    /*
     assert((*cl)[0].watch);
     remove_watch((*cl)[0].watch, cl);
+    */
+    remove_watch(find_watchlist(s, (*cl)[0]), cl);
   }
+  /*
   assert((*cl)[1].watch);
   remove_watch((*cl)[1].watch, cl);
+  */
+  remove_watch(find_watchlist(s, (*cl)[1]), cl);
 }
 
 inline bool is_locked(solver_data* s, clause* c) {
@@ -82,7 +93,7 @@ void reduce_db(solver_data* s) {
       continue;
     }
     shrunk_lits += c->size();
-    detach_clause(c);
+    detach_clause(s, c);
     free(c);
   }
   int num_shrunk = learnts.end() - mid;
@@ -128,7 +139,7 @@ static void add(solver_data* s, clause_elt elt) {
 
     s->confl.pred_seen.insert(pid);
     s->confl.pred_eval[pid] = val;
-    s->confl.pred_hint[pid] = elt.watch;
+//    s->confl.pred_hint[pid] = elt.watch;
 
     if(s->state.p_last[pid] < val)
       s->confl.clevel++;
@@ -137,8 +148,10 @@ static void add(solver_data* s, clause_elt elt) {
     // pval_t val = elt.atom.val;
     pval_t e_val = s->confl.pred_eval[pid];
     if(val <= e_val) {
+      /*
       if(val == e_val && elt.watch)
         s->confl.pred_hint[pid] = elt.watch;
+        */
       return;
     }
     
@@ -148,7 +161,7 @@ static void add(solver_data* s, clause_elt elt) {
       s->confl.clevel++;
 
     s->confl.pred_eval[pid] = val;
-    s->confl.pred_hint[pid] = elt.watch;
+//    s->confl.pred_hint[pid] = elt.watch;
   }
   assert(s->state.is_entailed(patom_t(pid, s->confl.pred_eval[pid])));
   assert(s->confl.pred_seen.elem(pid));
@@ -274,8 +287,8 @@ inline bool l_needed(solver_data* s, persistence::pred_entry entry) {
 
 inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   return clause_elt(
-    patom_t(p^1, pval_max - s->confl.pred_eval[p] + 1),
-    s->confl.pred_hint[p]
+    patom_t(p^1, pval_max - s->confl.pred_eval[p] + 1)
+//    , s->confl.pred_hint[p]
   );
 }
 

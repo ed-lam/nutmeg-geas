@@ -394,19 +394,21 @@ bool enqueue(sdata& s, patom_t p, reason r) {
 // forceinline
 static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
+  /*
   if(elt.watch) {
 #ifdef DEBUG_WMAP
     assert(elt.watch->curr_val == ~(elt.atom).val);
 #endif
     return elt.watch->ws;
   }
+  */
 
   patom_t p(~elt.atom);
   watch_node* watch = s.infer.get_watch(p.pid, p.val);
 #ifdef DEBUG_WMAP
   assert(watch->curr_val == ~(elt.atom).val);
 #endif
-  elt.watch = watch;
+//  elt.watch = watch;
   return watch->ws;
 }
 
@@ -442,10 +444,10 @@ bool update_watchlist(solver_data& s,
     // Normal case: look for a new watch
     clause& c(*ch.c);
     if(c[1].atom != elt.atom) {
-      elt.watch = c[0].watch;
+//      elt.watch = c[0].watch;
       c[0] = c[1];
     } else {
-      elt.watch = c[1].watch;
+//      elt.watch = c[1].watch;
     }
 
     /*
