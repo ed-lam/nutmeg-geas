@@ -78,6 +78,7 @@ int post_clause(solver, atom*, int);
 
 int assume(solver, atom);
 void retract(solver);
+void get_conflict(solver, atom**, int*);
 
 model get_model(solver);
 void destroy_model(model);

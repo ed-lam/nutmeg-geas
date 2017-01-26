@@ -57,6 +57,8 @@ void reduce_db(solver_data* s);
 
 bool confl_is_current(solver_data* s, vec<clause_elt>& confl);
 
+// Retrieve the last conflict, resolved back to assumptions
+void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl);
 }
 
 #endif

@@ -29,7 +29,7 @@ CMIS = $(addsuffix .cmi, $(basename $(IDLSRCS)))
 CMOS = $(addsuffix .cmo, $(basename $(IDLSRCS)))
 CMXS = $(addsuffix .cmx, $(basename $(IDLSRCS)))
 STUBS = $(addsuffix _stubs.c, $(basename $(IDLSRCS)))
-OBJS = $(addsuffix _stubs.o, $(basename $(IDLSRCS)))
+OBJS = $(addsuffix _stubs.o, $(basename $(IDLSRCS))) solver_extra.o
 #DEPS = $(addsuffix .d, $(basename $(IDLSRCS)))
 
 MLLIBS = phage

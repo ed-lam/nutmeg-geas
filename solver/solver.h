@@ -40,6 +40,7 @@ public:
   bool assume(patom_t p);
   void retract(void);
   void clear_assumptions(void);
+  void get_conflict(vec<patom_t>& atom);
 
   void level_push(void);
   void level_pop(void);

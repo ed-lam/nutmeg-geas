@@ -126,6 +126,17 @@ void retract(solver s) {
   get_solver(s)->retract();
 }
 
+void get_conflict(solver s, atom** at, int* out_sz) {
+  vec<phage::patom_t> confl;
+  get_solver(s)->get_conflict(confl);
+
+  *out_sz = confl.size();
+  *at = (atom*) malloc(sizeof(atom) * confl.size());
+  for(int ii = 0; ii < confl.size(); ++ii) {
+    (*at)[ii] = unget_atom(confl[ii]);
+  }
+}
+
 int post_clause(solver s, atom* cl, int sz) {
   reset(s);
   vec<phage::clause_elt> elts;

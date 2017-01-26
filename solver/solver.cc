@@ -294,8 +294,11 @@ static forceinline bool propagate_assumps(solver_data& s) {
     if(is_entailed(s, at))
       continue;
 
-    if(is_inconsistent(s, at))
+    if(is_inconsistent(s, at)) {
+      s.infer.confl.clear();
+      s.infer.confl.push(at);
       return false;
+    }
     
     // Otherwise, push a new level and propagate
     // the assumption.
@@ -1270,6 +1273,10 @@ void solver::level_push(void) {
 // context. 
 void solver::level_pop(void) {
   NOT_YET; 
+}
+
+void solver::get_conflict(vec<patom_t>& confl) {
+  retrieve_assumption_nogood(data, confl);
 }
 
 // Add a clause at the root level.

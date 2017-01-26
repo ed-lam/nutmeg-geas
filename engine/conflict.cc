@@ -18,7 +18,7 @@ static inline void decay_clause_act(solver_data* s) {
   }
 }
 
-
+#if 0
 static inline void bump_pred_act(solver_data* s, pid_t p) {
   // FIXME: Update order in heap, also.
   /*
@@ -33,6 +33,7 @@ static inline void bump_pred_act(solver_data* s, pid_t p) {
     s->pred_heap.decrease(x);
   */
 }
+#endif
 
 struct cmp_clause_act {
   bool operator()(clause* x, clause* y) { return x->extra.act > y->extra.act; }
@@ -130,12 +131,6 @@ static void add(solver_data* s, clause_elt elt) {
   assert(s->state.is_entailed(patom_t(pid, val)));
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
-    /*
-    if(s->confl.pred_saved[pid].last_seen != s->confl.confl_num) {
-      s->confl.pred_saved[pid] = { s->confl.confl_num, val };
-      bump_pred_act(s, pid);
-    }
-    */
     /*
     if(s->confl.pred_saved[pid>>1].last_seen != s->confl.confl_num) {
       s->confl.pred_saved[pid>>1] = { s->confl.confl_num,
@@ -485,6 +480,186 @@ bool confl_is_current(solver_data* s, vec<clause_elt>& confl) {
       return true;
   }
   return false;
+}
+
+/*=============
+ * Code for retrieving nogoods talking only about assumptions.
+ *=============
+ */
+static inline void register_assump(solver_data& s, patom_t at) {
+  if(!s.pred_queued[at.pid]) {
+    s.pred_queued[at.pid] = true;
+    s.wake_vals[at.pid] = at.val;
+  } else {
+    s.wake_vals[at.pid] = std::max(s.wake_vals[at.pid], at.val);
+  }
+}
+
+// Drop a predicate from the explanation
+static void aconfl_remove(solver_data* s, pid_t p) {
+  s->confl.pred_seen.remove(p);
+  if(!s->pred_queued[p] || s->wake_vals[p] < s->confl.pred_eval[p])
+    s->confl.clevel--;
+  assert(!s->confl.pred_seen.elem(p));
+}
+
+// Is the given trail entry required in the conflict?
+static inline bool aconfl_needed(solver_data* s, infer_info::entry& entry) {
+  if(!s->confl.pred_seen.elem(entry.pid))
+    return false;
+  if(entry.old_val >= s->confl.pred_eval[entry.pid])
+    return false;
+
+  if(!s->pred_queued[entry.pid])
+    return true;
+  return s->confl.pred_eval[entry.pid] > s->wake_vals[entry.pid];
+}
+
+
+static inline void aconfl_add(solver_data* s, clause_elt elt) {
+  assert(s->state.is_inconsistent(elt.atom));
+  pid_t pid = elt.atom.pid^1;
+  pval_t val = pval_max - elt.atom.val + 1;
+  assert(s->state.is_entailed(patom_t(pid, val)));
+  if(!s->confl.pred_seen.elem(pid)) {
+    // Not yet in the explanation
+
+    s->confl.pred_seen.insert(pid);
+    s->confl.pred_eval[pid] = val;
+
+    // Check if this is an assumption
+    if(!s->pred_queued[pid] || s->wake_vals[pid] < val)
+      s->confl.clevel++;
+  } else {
+    // Check whether the atom is already entailed.
+    // pval_t val = elt.atom.val;
+    pval_t e_val = s->confl.pred_eval[pid];
+    if(val <= e_val) {
+      return;
+    }
+    
+    // Check whether this adds a new non-assumption
+    if(s->pred_queued[pid]) {
+      if(s->wake_vals[pid] < val
+         && e_val <= s->wake_vals[pid])
+        s->confl.clevel++;
+    }
+
+    s->confl.pred_eval[pid] = val;
+  }
+  assert(s->state.is_entailed(patom_t(pid, s->confl.pred_eval[pid])));
+  assert(s->confl.pred_seen.elem(pid));
+}
+
+static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
+  switch(r.kind) {
+    case reason::R_Atom:
+#ifdef PROOF_LOG
+      log::add_atom(*s, r.at);
+#endif
+      aconfl_add(s, r.at);
+      break;
+    case reason::R_Clause:
+      {
+        // Skip the first literal (which we're resolving on)
+        // assert(is_locked(s, r.cl));
+        auto it = r.cl->begin();
+        for(++it; it != r.cl->end(); ++it) {
+#ifdef PROOF_LOG
+          log::add_atom(*s, (*it).atom);
+#endif
+          aconfl_add(s, *it);
+        }
+      }
+      break;
+    case reason::R_LE:
+      {
+        // p <= q + offset.
+        patom_t at(~patom_t(r.le.p, ex_val + r.le.offset));
+#ifdef PROOF_LOG
+        log::add_atom(*s, at);
+#endif
+        aconfl_add(s, at);
+      }
+      break;
+    case reason::R_Thunk:
+      {
+        if(r.eth.flags) {
+          // Deal with Ex_BTPRED and Ex_BTGEN
+          if(r.eth.flags&expl_thunk::Ex_BTPRED) {
+            bt_infer_to_pos(s, pos);
+          }
+          if(r.eth.flags&expl_thunk::Ex_BTGEN) {
+            NOT_YET;
+          }
+        }
+        vec<clause_elt> es;
+        r.eth(ex_val, es);
+        for(clause_elt e : es) {
+#ifdef PROOF_LOG
+          log::add_atom(*s, e.atom);
+#endif
+          aconfl_add(s, e);
+        }
+      }
+      break;
+    case reason::R_NIL:
+      break;
+    default:
+      NOT_YET;
+  }
+}
+
+void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
+  // Propagation shouldn't be running when this is called, so
+  // we'll abuse s.pred_queued and s.wake_vals to hold the assump values
+  for(int ai = 0; ai < s->assump_end; ai++)
+    register_assump(*s, s->assumptions[ai]);
+   
+  for(clause_elt& e : s->infer.confl) {
+    aconfl_add(s, e);
+  }
+
+  unsigned int pos = s->infer.trail.size()-1;
+  infer_info::entry e(s->infer.trail[pos]);
+  while(!aconfl_needed(s, s->infer.trail[pos])) {
+    assert(pos >= 1);
+    pos--;
+  }
+
+  while(s->confl.clevel > 0) {
+    pval_t ex_val(s->confl.pred_eval[e.pid]);
+    assert(s->state.is_entailed(patom_t(e.pid, ex_val)));
+    aconfl_remove(s, e.pid);
+
+    aconfl_add_reason(s, pos, ex_val, e.expl);
+    
+    assert(pos >= 1);
+    pos--;
+    while(!aconfl_needed(s, s->infer.trail[pos])) {
+      assert(pos >= 1);
+      pos--;
+    }
+    e = s->infer.trail[pos];
+  }
+  
+  // Now collect the conflict
+  for(unsigned int p : s->confl.pred_seen)
+    confl.push(get_clause_elt(s, p).atom);
+    
+  // And clean up the solver state
+  clear(s);
+
+  // Explanations may have backtracked
+  unsigned int lev = s->infer.trail_lim.size();
+  for(; lev > 0 && s->infer.trail_lim[lev-1] <= s->infer.trail.size(); --lev)
+    continue;
+
+  if(lev < s->infer.trail_lim.size())
+    bt_to_level(s, lev);
+
+  for(patom_t at : s->assumptions) 
+    s->pred_queued[at.pid] = false;
 }
 
 }
