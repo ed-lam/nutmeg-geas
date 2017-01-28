@@ -19,6 +19,8 @@ atom neg(atom at) {
   return unget_atom(~get_atom(at));
 }
 
+pval_t pval_inv(pval_t p) { return phage::pval_inv(p); }
+int64_t to_int(pval_t p) { return phage::to_int(p); }
 //atom at_true(void) {
 //    
 //}

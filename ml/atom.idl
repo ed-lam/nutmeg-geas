@@ -1,6 +1,8 @@
 quote(c, "#include \"../c/atom.h\"")
 
 typedef [int32] unsigned long pred_t;
+typedef [int64] unsigned long pval_t;
+
 quote(MLMLI, "type pred = pred_t");
 
 typedef struct {
@@ -10,6 +12,8 @@ typedef struct {
 quote(MLMLI, "type t = atom");
 
 atom neg(atom at);
+[int64] long to_int([int64] unsigned long val);
+[int64,mlname(inv)] unsigned long pval_inv([int64] unsigned long val);
 
 quote(MLI, "val at_True : atom");
 quote(ML, "let at_True = { pid = Int32.zero ; value = Int64.zero }");

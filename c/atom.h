@@ -12,8 +12,12 @@ typedef struct {
 } atom;
 
 typedef uint32_t pred_t;
+typedef uint64_t pval_t;
 
 atom neg(atom);
+
+pval_t pval_inv(pval_t);
+int64_t to_int(pval_t);
 
 #ifdef __cplusplus
 }

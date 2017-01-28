@@ -322,14 +322,36 @@ let apply_assumps solver assumps =
         else false
   in aux assumps
 
+let print_nogood fmt nogood =
+  let print_atom fmt at =
+    if (Int32.to_int at.At.pid) mod 2 == 0 then
+      Format.fprintf fmt "p%s >= %s"
+        (Int32.to_string (Int32.shift_right at.At.pid 1))
+        (Int64.to_string (At.to_int at.At.value))
+    else
+      Format.fprintf fmt "p%s <= %s"
+        (Int32.to_string (Int32.shift_right at.At.pid 1))
+        (Int64.to_string (At.to_int @@ At.inv at.At.value))
+  in
+  Util.print_array ~pre:"%% @[[" ~post:"]@]@." print_atom fmt nogood
+    
 let solve_satisfy print_model solver assumps =
   let fmt = Format.std_formatter in
   if not (apply_assumps solver assumps) then
-    Format.fprintf fmt "Inconsistent assumptions"
+    begin
+      print_nogood fmt (Sol.get_conflict solver) ;
+      Format.fprintf fmt "============@."
+    end
   else
     match Sol.solve solver (-1) with
     | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
-    | Sol.UNSAT -> Format.fprintf fmt "============@."
+    | Sol.UNSAT ->
+      begin
+        if List.length assumps > 0 then
+          let nogood = Sol.get_conflict solver in
+          print_nogood fmt nogood
+      end ; 
+      Format.fprintf fmt "============@."
     | Sol.SAT -> print_model fmt (Sol.get_model solver)
 
 let solve_findall print_model block_solution solver assumps =
@@ -479,9 +501,11 @@ let main () =
        let block = block_solution problem env in
        solve_findall print_model block solver assumps
   | Pr.Minimize obj ->
-     solve_optimize print_model (decrease_ivar env.ivars.(obj)) solver assumps
+     solve_optimize print_model
+       (decrease_ivar env.ivars.(obj)) solver assumps
   | Pr.Maximize obj ->
-     solve_optimize print_model (increase_ivar env.ivars.(obj)) solver assumps
+     solve_optimize print_model
+       (increase_ivar env.ivars.(obj)) solver assumps
   end ;
   print_stats Format.std_formatter (Sol.get_statistics solver)
 
