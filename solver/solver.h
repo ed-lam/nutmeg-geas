@@ -31,6 +31,7 @@ public:
 
   // Solving
   result solve(void);
+  void abort(void);
 
   // Retrieve a model
   model get_model(void);

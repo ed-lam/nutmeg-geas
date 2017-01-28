@@ -72,12 +72,14 @@ brancher limit_brancher(brancher);
 void add_brancher(solver, brancher);
 
 result solve(solver, int);
+void abort_solve(solver);
 
 int post_atom(solver, atom);
 int post_clause(solver, atom*, int);
 
 int assume(solver, atom);
 void retract(solver);
+void retract_all(solver);
 void get_conflict(solver, atom**, int*);
 
 model get_model(solver);

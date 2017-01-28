@@ -166,6 +166,11 @@ let collect_array_bvars env expr =
     in
     Array.of_list vars
 
+let is_search_ann ann =
+  match ann with
+  | Pr.Ann_call (("seq_search"|"int_search"|"bool_search"), _) -> true
+  | _ -> false
+
 let rec parse_branching problem env ann =
   match ann with  
   | Pr.Ann_call ("seq_search", args) ->
@@ -183,6 +188,44 @@ let rec parse_branching problem env ann =
       Sol.new_bool_brancher varb valb vars
   | _ -> failwith "Unknown search annotation"
 
+let rec parse_branchings problem env anns =
+  let rec aux acc anns =
+    match anns with
+    | [] -> List.rev acc
+    | ann :: anns' ->
+      if is_search_ann ann  then
+        aux (parse_branching problem env ann :: acc) anns'
+      else
+        aux acc anns'
+  in
+  aux [] anns
+
+(* Returns none if failed *)
+let get_array_assumps env in_acc arr =
+  let r_assumps = Array.fold_left
+    (fun acc elt ->
+      match acc, elt with
+      | None, _ -> None
+      | _, Pr.Blit false -> None
+      | Some assumps, Pr.Blit true -> Some assumps
+      | Some assumps, Pr.Bvar b -> Some (env.bvars.(b) :: assumps)
+      | _ -> failwith "Non-bool in assumption.") (Some in_acc) arr in
+  r_assumps
+
+let get_ann_assumps problem env anns =
+  let rec aux acc anns =
+    match anns with
+    | [] -> Some (List.rev acc)
+    | ((Pr.Ann_call ("assume", args)) :: anns') -> 
+      begin
+        match get_array_assumps env acc
+                (Pr.get_array (fun x -> x) (Pr.resolve_ann problem args.(0))) with
+        | None -> None
+        | Some acc' -> aux acc' anns'
+      end
+    | _ :: anns' -> aux acc anns'
+  in aux [] anns
+ 
 let build_branching problem env solver anns =
   let wrap b =
     if !Opts.free then
@@ -190,8 +233,12 @@ let build_branching problem env solver anns =
     else
       b
   in
-  List.iter (fun ann ->
-    Sol.add_brancher solver (wrap (parse_branching problem env ann))) anns
+  match parse_branchings problem env anns with
+  | [] -> ()
+  | [b] ->  Sol.add_brancher solver (wrap b)
+  | bs ->
+    let b = Sol.seq_brancher (Array.of_list bs) in
+     Sol.add_brancher solver (wrap b)
 
 (* Print a variable assignment *)
 let print_binding fmt id expr =
@@ -265,14 +312,27 @@ let block_solution problem env =
     (* Sol.post_clause solver (Array.of_list (iv_atoms @ bv_atoms)) *)
     Sol.post_clause solver (Array.of_list (iv_low @ (iv_high @ bv_atoms)))
       
-let solve_satisfy print_model solver =
-  let fmt = Format.std_formatter in
-  match Sol.solve solver (-1) with
-  | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
-  | Sol.UNSAT -> Format.fprintf fmt "============@."
-  | Sol.SAT -> print_model fmt (Sol.get_model solver)
+let apply_assumps solver assumps =
+  let rec aux assumps =
+    match assumps with
+      | [] -> true
+      | at :: assumps' ->  
+        if Sol.assume solver at then
+          aux assumps'
+        else false
+  in aux assumps
 
-let solve_findall print_model block_solution solver =
+let solve_satisfy print_model solver assumps =
+  let fmt = Format.std_formatter in
+  if not (apply_assumps solver assumps) then
+    Format.fprintf fmt "Inconsistent assumptions"
+  else
+    match Sol.solve solver (-1) with
+    | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
+    | Sol.UNSAT -> Format.fprintf fmt "============@."
+    | Sol.SAT -> print_model fmt (Sol.get_model solver)
+
+let solve_findall print_model block_solution solver assumps =
   let fmt = Format.std_formatter in
   let rec aux max_sols =
     match Sol.solve solver (-1) with
@@ -289,7 +349,10 @@ let solve_findall print_model block_solution solver =
              Format.fprintf fmt "===========@." 
        end
   in
-  aux !Opts.max_solutions
+  if not (apply_assumps solver assumps) then
+    Format.fprintf fmt "============@."
+  else
+    aux !Opts.max_solutions
           
 let decrease_ivar ivar solver model =
   let model_val = Sol.int_value model ivar in
@@ -299,7 +362,8 @@ let increase_ivar ivar solver model =
   let model_val = Sol.int_value model ivar in
   Sol.post_atom solver (Sol.ivar_gt ivar model_val)
 
-let solve_optimize print_model constrain solver =
+let solve_optimize print_model constrain solver assumps =
+  assert (List.length assumps = 0) ;
   let fmt = Format.std_formatter in
   let rec aux model =
     print_model fmt model ;
@@ -386,6 +450,11 @@ let main () =
   (* Perform polarity analysis, to set branching *)
   let _ = if !Opts.pol then
     set_polarity solver env (Polarity.polarity orig_problem) in
+  let assumps =
+    match get_ann_assumps problem env (snd problem.Pr.objective) with
+    | None -> [ At.neg At.at_True ]
+    | Some atoms -> atoms
+  in
   build_branching problem env solver (snd problem.Pr.objective) ;
   (*
   let problem_HR =
@@ -394,25 +463,6 @@ let main () =
     else
       Half_reify.half_reify problem in
    *)
-  (*
-  if not !Opts.quiet then
-    begin
-      let output = match !Opts.outfile with
-          | None -> stdout
-          | Some file -> open_out file in 
-      let fmt = Format.formatter_of_out_channel output in
-      (* Pr.print fmt problem_HR ; *)
-      Pr.print fmt problem ;
-      close_out output
-    end ;
-   *)
-  (*
-  let sig_handler = Sys.Signal_handle (fun i ->
-    print_stats Format.std_formatter (Sol.get_statistics solver) ;
-    exit 1) in
-  Sys.set_signal Sys.sigterm sig_handler ;
-  Sys.set_signal Sys.sigint sig_handler ;
-  *)
   let print_model =
     (fun fmt model ->
       if not !Opts.quiet then
@@ -424,14 +474,14 @@ let main () =
   match fst problem.Pr.objective with
   | Pr.Satisfy ->
      if !Opts.max_solutions = 1 then
-        solve_satisfy print_model solver
+        solve_satisfy print_model solver assumps
      else
        let block = block_solution problem env in
-       solve_findall print_model block solver
+       solve_findall print_model block solver assumps
   | Pr.Minimize obj ->
-     solve_optimize print_model (decrease_ivar env.ivars.(obj)) solver
+     solve_optimize print_model (decrease_ivar env.ivars.(obj)) solver assumps
   | Pr.Maximize obj ->
-     solve_optimize print_model (increase_ivar env.ivars.(obj)) solver
+     solve_optimize print_model (increase_ivar env.ivars.(obj)) solver assumps
   end ;
   print_stats Format.std_formatter (Sol.get_statistics solver)
 

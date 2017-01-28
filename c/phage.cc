@@ -108,6 +108,8 @@ result solve(solver s, int lim) {
   return unget_result(get_solver(s)->solve()); 
 }
 
+void abort_solve(solver s) { return get_solver(s)->abort(); }
+
 void reset(solver s) {
   phage::solver_data* sd = get_solver(s)->data;
   if(sd->infer.trail_lim.size() > 0)
@@ -124,6 +126,9 @@ int assume(solver s, atom at) {
 }
 void retract(solver s) {
   get_solver(s)->retract();
+}
+void retract_all(solver s) {
+  get_solver(s)->clear_assumptions();
 }
 
 void get_conflict(solver s, atom** at, int* out_sz) {

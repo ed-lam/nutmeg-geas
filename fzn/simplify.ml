@@ -180,7 +180,7 @@ let simp_irel_reif rel st args anns =
         apply_def st b def
       | Pr.Iv_var x, Pr.Iv_var y ->
         Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) (Pr.Ivar x) (Pr.Ivar y))
-      | _, _ -> Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) args.(0) args.(1))
+      (* | _, _ -> Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) args.(0) args.(1)) *)
     end
 
 let simp_bool_eq st args anns =

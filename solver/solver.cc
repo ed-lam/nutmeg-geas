@@ -34,11 +34,11 @@ options default_options = {
 namespace phage {
 
 /* This flag controls early solver termination */
-volatile sig_atomic_t abort = 0;
+volatile static sig_atomic_t global_abort = 0;
 
 /* The signal handler just sets the flag and re-enables itself. */
 void catch_int (int sig) {
-  abort = 1;
+  global_abort = 1;
   signal (sig, catch_int);
 }
 void set_handlers(void) {
@@ -1003,10 +1003,16 @@ void save_touched(solver_data& s, int touched_start) {
   }
 }
 
+void solver::abort(void) {
+  data->abort_solve = 1;
+}
+
 // Solving
 solver::result solver::solve(void) {
+
   // Top-level failure
   sdata& s(*data);
+  s.abort_solve = 0;
   int confl_num = 0;
 
   /* Establish a handler for SIGINT and SIGTERM signals. */
@@ -1048,8 +1054,10 @@ solver::result solver::solve(void) {
 
   while(true) {
     // Signal handler
-    if(abort) {
-      abort = 0;
+    if(global_abort || s.abort_solve) {
+      global_abort = 0;
+      s.abort_solve = 0;
+
       clear_handlers();
       s.stats.conflicts += confl_num;
       return UNKNOWN;
@@ -1227,7 +1235,7 @@ solver::result solver::solve(void) {
 
         // Found an atom to branch on
         dec = at;
-        ++idx;
+        // ++idx;
         break;
       }
 

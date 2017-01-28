@@ -34,6 +34,9 @@
 %
 %
 
+%% New annotations
+annotation assume(array[int] of var bool: b);
+
 % Sums over Boolean variables
 %predicate bool_lin_eq(array[int] of int: a, array[int] of var bool: x,
 %                      var int: c);

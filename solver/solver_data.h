@@ -89,6 +89,8 @@ public:
   double pred_act_inc;
   int learnt_dbmax;
   int restart_limit;
+
+  volatile sig_atomic_t abort_solve; 
 };
 
 inline int num_preds(solver_data* s) { return s->pred_callbacks.size(); }

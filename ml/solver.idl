@@ -57,6 +57,7 @@ brancher limit_brancher([in] brancher base);
 void add_brancher([in] solver s, [in] brancher b);
 
 result solve([in] solver s, int clim);
+[mlname(abort)] void abort_solve([in] solver s);
 
 boolean post_atom([in] solver s, atom at);
 
@@ -64,6 +65,7 @@ boolean post_clause([in] solver s, [in,size_is(sz)] atom cl[], int sz);
 
 boolean assume([in] solver s, atom at);
 void retract([in] solver s);
+void retract_all([in] solver s);
 quote(mlmli, "external get_conflict : solver -> Atom.t array = \"ml_get_conflict\"");
 
 intvar new_intvar([in] solver s, int lb, int ub);
