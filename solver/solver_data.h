@@ -25,6 +25,9 @@ struct act_cmp {
   vec<double>& act;
 };
 
+enum ConflKind { C_Infer, C_Assump };
+struct confl_info { ConflKind kind; int assump_idx; };
+
 class solver_data {
 public:
   solver_data(const options& _opts);
@@ -50,7 +53,6 @@ public:
 
   Queue<pid_t> pred_queue;
   vec<bool> pred_queued;
-  
 
   vec<pid_t> wake_queue;
   vec<bool> wake_queued;
@@ -80,6 +82,8 @@ public:
   vec<event_callback> on_solution;
 
   vec<bool> polarity;
+
+  confl_info last_confl;
 
   double learnt_act_inc;
   double pred_act_inc;

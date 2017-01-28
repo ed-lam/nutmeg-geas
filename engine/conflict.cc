@@ -521,6 +521,9 @@ static inline void aconfl_add(solver_data* s, clause_elt elt) {
   pid_t pid = elt.atom.pid^1;
   pval_t val = pval_max - elt.atom.val + 1;
   assert(s->state.is_entailed(patom_t(pid, val)));
+  if(s->state.is_entailed_l0(patom_t(pid, val)))
+    return;
+
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
 
@@ -604,6 +607,7 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
       }
       break;
     case reason::R_NIL:
+      ERROR;
       break;
     default:
       NOT_YET;
@@ -613,34 +617,55 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
 void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
   // Propagation shouldn't be running when this is called, so
   // we'll abuse s.pred_queued and s.wake_vals to hold the assump values
-  for(int ai = 0; ai < s->assump_end; ai++)
+  confl.clear();
+
+  unsigned int end = s->last_confl.assump_idx;
+  for(int ai = 0; ai < end; ai++) {
+    /*
+    patom_t at = s->assumptions[ai];
+    if(at.pid&1) {
+      fprintf(stderr, "assump: p%d <= %lld;", at.pid>>1, to_int(pval_inv(at.val)));
+    } else {
+      fprintf(stderr, "assump: p%d >= %lld;", at.pid>>1, to_int(at.val));
+    }
+    */
     register_assump(*s, s->assumptions[ai]);
-   
-  for(clause_elt& e : s->infer.confl) {
-    aconfl_add(s, e);
   }
+   
+  switch(s->last_confl.kind) {
+    case C_Infer:
+      for(clause_elt& e : s->infer.confl) {
+        aconfl_add(s, e);
+      }
+      break;
+    case C_Assump:
+      {
+        // Weaken the failed assumption.
+        // patom_t at = s->assumptions[s->last_confl.assump_idx];
+        pid_t pid = s->assumptions[s->last_confl.assump_idx].pid;
+        patom_t at(pid, pval_inv(s->state.p_vals[pid^1]) + 1);
+        aconfl_add(s, at);
+        confl.push(~at);
+      }
+      break;
+    default:
+      ERROR;
+  }
+
 
   unsigned int pos = s->infer.trail.size()-1;
-  infer_info::entry e(s->infer.trail[pos]);
-  while(!aconfl_needed(s, s->infer.trail[pos])) {
-    assert(pos >= 1);
-    pos--;
-  }
-
   while(s->confl.clevel > 0) {
+    while(!aconfl_needed(s, s->infer.trail[pos])) {
+      assert(pos >= 1);
+      pos--;
+    }
+    infer_info::entry e(s->infer.trail[pos]);
+
     pval_t ex_val(s->confl.pred_eval[e.pid]);
     assert(s->state.is_entailed(patom_t(e.pid, ex_val)));
     aconfl_remove(s, e.pid);
 
     aconfl_add_reason(s, pos, ex_val, e.expl);
-    
-    assert(pos >= 1);
-    pos--;
-    while(!aconfl_needed(s, s->infer.trail[pos])) {
-      assert(pos >= 1);
-      pos--;
-    }
-    e = s->infer.trail[pos];
   }
   
   // Now collect the conflict
@@ -660,6 +685,18 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
 
   for(patom_t at : s->assumptions) 
     s->pred_queued[at.pid] = false;
+  
+  /*
+  fprintf(stderr, "retrieved: [|");
+  for(patom_t at : confl) {
+    if(at.pid&1) {
+      fprintf(stderr, "p%d <= %lld;", at.pid>>1, to_int(pval_inv(at.val)));
+    } else {
+      fprintf(stderr, "p%d >= %lld;", at.pid>>1, to_int(at.val));
+    }
+  }
+  fprintf(stderr, "|]\n");
+  */
 }
 
 }

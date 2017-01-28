@@ -295,8 +295,7 @@ static forceinline bool propagate_assumps(solver_data& s) {
       continue;
 
     if(is_inconsistent(s, at)) {
-      s.infer.confl.clear();
-      s.infer.confl.push(at);
+      s.last_confl = { C_Assump, idx };
       return false;
     }
     
@@ -309,8 +308,10 @@ static forceinline bool propagate_assumps(solver_data& s) {
       return false;
     }
 
-    if(!propagate(s))
+    if(!propagate(s)) {
+      s.last_confl = { C_Infer, idx+1 };
       return false;
+    }
   }
 
   return true;
@@ -1074,6 +1075,8 @@ solver::result solver::solve(void) {
 #endif
       if(decision_level(s) == 0) {
         s.stats.conflicts += confl_num;
+        s.infer.confl.clear();
+        s.last_confl = { C_Infer, 0 };
         clear_handlers();
         return UNSAT;
       }
@@ -1217,6 +1220,7 @@ solver::result solver::solve(void) {
           continue;
 
         if(is_inconsistent(s, at)) {
+          s.last_confl = { C_Assump, idx };
           clear_handlers();
           return UNSAT; 
         }
@@ -1259,7 +1263,7 @@ solver::result solver::solve(void) {
   // Unreachable
   clear_handlers();
   return SAT;
-} 
+}
 
  
 // For incremental solving; any constraints
