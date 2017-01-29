@@ -70,6 +70,8 @@ public:
   vec<int> assump_level;
   int assump_end;
 
+  vec<int> assump_ctx_lim;
+
   // Initialization thunks for
   // lazily added predicates.
   // struct pinit_data { int pi; pred_init init; };

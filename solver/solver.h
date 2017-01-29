@@ -40,6 +40,8 @@ public:
   // push/retract assumptions
   bool assume(patom_t p);
   void retract(void);
+  void push_assump_ctx(void);
+  void pop_assump_ctx(void);
   void clear_assumptions(void);
   void get_conflict(vec<patom_t>& atom);
 

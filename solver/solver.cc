@@ -355,11 +355,29 @@ void solver::retract(void) {
   return; 
 }
 
+// Push an assumption context (not a decision level)
+void solver::push_assump_ctx(void) {
+  data->assump_ctx_lim.push(data->assumptions.size());
+}
+
+void solver::pop_assump_ctx(void) {
+  int lim = data->assump_ctx_lim.last(); 
+  data->assump_ctx_lim.pop();
+
+  if(data->assump_end > lim) {
+    bt_to_level(data, data->assump_level[lim]);
+  }
+  assert(data->assump_end <= lim);
+  data->assumptions.shrink_(data->assumptions.size()-lim);
+  data->assump_level.shrink_(data->assump_level.size()-lim);
+}
+
 void solver::clear_assumptions(void) {
   if(decision_level(*data) > 0)
     bt_to_level(data, 0);
   data->assumptions.clear();
   data->assump_level.clear();
+  data->assump_ctx_lim.clear();
   data->assump_end = 0;
 }
 
