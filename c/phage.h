@@ -88,6 +88,7 @@ void destroy_model(model);
 int int_value(model, intvar);
 int atom_value(model, atom);
 
+pid_t ivar_pid(intvar);
 int ivar_lb(intvar);
 int ivar_ub(intvar);
 

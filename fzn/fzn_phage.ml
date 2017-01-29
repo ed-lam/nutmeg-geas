@@ -43,6 +43,35 @@ let make_intvar solver dom =
 
 type env = { ivars : Sol.intvar array ; bvars : Atom.atom array }
 
+let print_atom problem env =
+  (* Build translation table *)
+  let ivar_names = H.create 17 in
+  let atom_names = H.create 17 in
+  Dy.iteri (fun idx info ->
+    H.add ivar_names (Sol.ivar_pid env.ivars.(idx)) info.Pr.id
+  ) problem.Pr.ivals ;
+  Dy.iteri (fun idx (id, _) -> H.add atom_names env.bvars.(idx) id) problem.Pr.bvals ;
+  (* Now, the actual function *)
+  (fun fmt at ->
+    try
+      let id = H.find ivar_names at.At.pid in
+      Format.fprintf fmt "%s >= %s" id (Int64.to_string @@ At.to_int at.At.value)
+    with Not_found -> try
+      let id = H.find ivar_names (Int32.logxor at.At.pid Int32.one) in
+      Format.fprintf fmt "%s <= %s" id (Int64.to_string @@ At.to_int @@ At.inv at.At.value)
+    with Not_found -> try
+      let id = H.find atom_names at in
+      Format.fprintf fmt "%s" id
+    with Not_found -> try
+      let id = H.find atom_names (At.neg at) in
+      Format.fprintf fmt "not %s" id
+    with Not_found -> Format.fprintf fmt "??")
+
+let print_nogood problem env =
+  let pp_atom = print_atom problem env in
+  (fun fmt nogood ->
+    Util.print_array ~pre:"%% @[[" ~post:"]@]@." ~sep:",@ " pp_atom fmt nogood)
+
 (* Replace variable identifiers with the corresponding
  * intvar/atom *)
 let rec resolve_expr env expr =
@@ -322,6 +351,7 @@ let apply_assumps solver assumps =
         else false
   in aux assumps
 
+(*
 let print_nogood fmt nogood =
   let print_atom fmt at =
     if (Int32.to_int at.At.pid) mod 2 == 0 then
@@ -334,8 +364,9 @@ let print_nogood fmt nogood =
         (Int64.to_string (At.to_int @@ At.inv at.At.value))
   in
   Util.print_array ~pre:"%% @[[" ~post:"]@]@." print_atom fmt nogood
+  *)
     
-let solve_satisfy print_model solver assumps =
+let solve_satisfy print_model print_nogood solver assumps =
   let fmt = Format.std_formatter in
   if not (apply_assumps solver assumps) then
     begin
@@ -354,7 +385,7 @@ let solve_satisfy print_model solver assumps =
       Format.fprintf fmt "============@."
     | Sol.SAT -> print_model fmt (Sol.get_model solver)
 
-let solve_findall print_model block_solution solver assumps =
+let solve_findall print_model print_nogood block_solution solver assumps =
   let fmt = Format.std_formatter in
   let rec aux max_sols =
     match Sol.solve solver (-1) with
@@ -384,7 +415,7 @@ let increase_ivar ivar solver model =
   let model_val = Sol.int_value model ivar in
   Sol.post_atom solver (Sol.ivar_gt ivar model_val)
 
-let solve_optimize print_model constrain solver assumps =
+let solve_optimize print_model print_nogood constrain solver assumps =
   assert (List.length assumps = 0) ;
   let fmt = Format.std_formatter in
   let rec aux model =
@@ -492,19 +523,20 @@ let main () =
           print_solution fmt problem env model ;
           Format.fprintf fmt "------------@."
         end) in
+  let print_nogood = print_nogood problem env in
   begin
   match fst problem.Pr.objective with
   | Pr.Satisfy ->
      if !Opts.max_solutions = 1 then
-        solve_satisfy print_model solver assumps
+        solve_satisfy print_model print_nogood solver assumps
      else
        let block = block_solution problem env in
-       solve_findall print_model block solver assumps
+       solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
-     solve_optimize print_model
+     solve_optimize print_model print_nogood
        (decrease_ivar env.ivars.(obj)) solver assumps
   | Pr.Maximize obj ->
-     solve_optimize print_model
+     solve_optimize print_model print_nogood
        (increase_ivar env.ivars.(obj)) solver assumps
   end ;
   print_stats Format.std_formatter (Sol.get_statistics solver)

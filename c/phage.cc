@@ -188,6 +188,8 @@ int int_value(model m, intvar v) {
   return get_intvar(v)->model_val(*get_model(m));
 }
 
+pid_t ivar_pid(intvar v) { return get_intvar(v)->pid; }
+
 int ivar_lb(intvar v) {
   return get_intvar(v)->lb();
 }
