@@ -131,6 +131,7 @@ public:
   pval_t succ_val;
   watch_extra extra;
   watch_node* succ;  
+  vec<patom_t> bin_ws;
   vec<clause_head> ws;
   vec<watch_callback> callbacks;
 };

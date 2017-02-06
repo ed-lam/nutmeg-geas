@@ -450,6 +450,28 @@ static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   return watch->ws;
 }
 
+static vec<patom_t>& find_bin_watchlist(solver_data& s, clause_elt& elt) {
+  // Find the appropriate watch_node.
+#ifdef CACHE_WATCH
+  if(elt.watch) {
+#ifdef DEBUG_WMAP
+    assert(elt.watch->curr_val == ~(elt.atom).val);
+#endif
+    return elt.watch->bin_ws;
+  }
+#endif
+
+  patom_t p(~elt.atom);
+  watch_node* watch = s.infer.get_watch(p.pid, p.val);
+#ifdef DEBUG_WMAP
+  assert(watch->curr_val == ~(elt.atom).val);
+#endif
+#ifdef CACHE_WATCH
+  elt.watch = watch;
+#endif
+  return watch->bin_ws;
+}
+
 forceinline static 
 bool update_watchlist(solver_data& s,
     clause_elt elt, vec<clause_head>& ws) {
@@ -467,6 +489,7 @@ bool update_watchlist(solver_data& s,
       continue;
     }
 
+    /*
     if(!ch.c) {
       // Binary clause.
       if(!enqueue(s, ch.e0, elt.atom)) {
@@ -479,6 +502,7 @@ bool update_watchlist(solver_data& s,
       ws[jj++] = ch;
       continue;
     }
+    */
     // Normal case: look for a new watch
     clause& c(*ch.c);
     if(c[1].atom != elt.atom) {
@@ -522,9 +546,8 @@ bool update_watchlist(solver_data& s,
         c[li] = elt;
         // Modifies c[1].watch in place
         ch.e0 = elt.atom;
+        // ch.e0 = c[0].atom;
         find_watchlist(s, c[1]).push(ch);
-//        assert(c[0].watch);
-//        assert(c[1].watch);
         goto next_clause;
       }
     }
@@ -571,6 +594,11 @@ bool propagate_pred(solver_data& s, pid_t p) {
 
   while(s.state.is_entailed(atom)) {
     curr = curr->succ;
+
+    for(patom_t at : curr->bin_ws) {
+      if(!enqueue(s, at, ~atom))
+        return false;
+    }
 
     if(!update_watchlist(s, ~atom, curr->ws)) {
       return false;
@@ -794,11 +822,15 @@ void add_learnt(solver_data* s, vec<clause_elt>& learnt, bool one_watch) {
   // in the head;
   /*  */ if(learnt.size() == 2) /* / if(0) */ {
     // Add the two watches
+    /*
     clause_head h0(learnt[0].atom);
     clause_head h1(learnt[1].atom);
 
     find_watchlist(*s, learnt[0]).push(h1);
     find_watchlist(*s, learnt[1]).push(h0); 
+    */
+    find_bin_watchlist(*s, learnt[0]).push(learnt[1].atom);
+    find_bin_watchlist(*s, learnt[1]).push(learnt[0].atom);
     enqueue(*s, learnt[0].atom, learnt[1].atom);
   } else {
     // Normal clause
@@ -895,9 +927,14 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
     // c has become a binary clause.
     // Inline the clause body, and free the clause.
     // GKG: Should check if this is locked.
+    detach_clause(s, c);
+    /*
     if(!c->extra.one_watch)
       replace_watch(find_watchlist(s, (*c)[0]), c, (*c)[1].atom);
     replace_watch(find_watchlist(s, (*c)[1]), c, (*c)[0].atom);
+    */
+    find_bin_watchlist(s, (*c)[0]).push((*c)[1].atom);
+    find_bin_watchlist(s, (*c)[1]).push((*c)[0].atom);
     free(c);
     return dest;
   }
@@ -1331,11 +1368,15 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   // Binary clause; embed the -other- literal
   // in the head;
   if(elts.size() == 2) {
+    /*
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
     find_watchlist(s, elts[0]).push(h1);
     find_watchlist(s, elts[1]).push(h0); 
+    */
+    find_bin_watchlist(s, elts[0]).push(elts[1].atom);
+    find_bin_watchlist(s, elts[1]).push(elts[0].atom);
   } else {
     // Normal clause
     clause* c(clause_new(elts));
@@ -1380,11 +1421,15 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
   // Binary clause; embed the -other- literal
   // in the head;
   if(elts.size() == 2) {
+    /*
     clause_head h0(elts[0].atom);
     clause_head h1(elts[1].atom);
 
     find_watchlist(s, elts[0]).push(h1);
     find_watchlist(s, elts[1]).push(h0); 
+    */
+    find_bin_watchlist(s, elts[0]).push(elts[1].atom);
+    find_bin_watchlist(s, elts[1]).push(elts[0].atom);
     return true;
     /*
     if(s.state.is_inconsistent(elts[1].atom))
