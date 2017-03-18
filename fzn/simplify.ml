@@ -1,10 +1,40 @@
 (** Problem simplification *)
+(* Not doing full EUF-style congruence closure -- 
+ * just simple aliasing.
+ * TODO: Add structural hashing. *)
 module H = Hashtbl
 module Dy = DynArray
 
 module Pr = Problem
 
+type val_id = int
+
+type kind = 
+  | Bool
+  | Int of Dom.t
 type irel = Ile | Ieq | Igt | Ine
+
+type def = 
+  | Def_none
+  | Def_blit of bool
+  | Def_ilit of int
+  (* Aliasing *)
+  | Def_eq of val_id
+  (* Boolean functions *)
+  | Def_bne of val_id
+  | Def_at of val_id * irel * int
+  | Def_or of val_id array
+  | Def_and of val_id array
+  (* Arithmetic functions *)
+  | Def_sum of val_id array
+  | Def_prod of val_id array
+  | Def_max of val_id array
+  | Def_min of val_id array
+  | Def_b2i of val_id
+
+(*
+type irel = Ile | Ieq | Igt | Ine
+*)
 let irel_neg = function
   | Ile -> Igt
   | Igt -> Ile
@@ -35,76 +65,96 @@ let fzn_irel_reif rel r x y =
     | Ieq -> (("int_eq_reif", [|x; y; r|]), [])
     | Ine -> (("int_ne_reif", [|x; y; r|]), [])
   
+(*
 type bdef =
   (* | Bconst of bool *)
   | Beq of Problem.bval_id
   | Bneg of Problem.bval_id
   | At of Problem.ival_id * irel * int
+  *)
 
 let bdef_neg = function
   (* | Bconst b -> Bconst (not b) *)
-  | Beq p -> Bneg p
+  | Def_eq p -> Def_bne p
   | Bneg p -> Beq p
   | At (x, r, k) -> At (x, irel_neg r, k)
 
-(* Currently a no-op *)
 type state = {
-  defs : bdef option array ;
+  defs : def array ;
   cons : (Pr.cstr * Pr.ann_expr list) Dy.t
 }
 
 let registry = H.create 17
 
 let init_state pr =
-  { defs = Array.make (Dy.length pr.Pr.bvals) None ;
+  { defs = Array.make (Dy.length pr.Pr.bvals) Def_none ;
     cons = Dy.create () }
 
 let set_bool st x b =
   (* FIXME: Add new definition *)
-  (*
-  if b then
-    Dy.add st.cons (("bool_clause", [| Pr.Arr [|Pr.Bvar x|]; Pr.Arr [| |] |]), [])
-  else
-    Dy.add st.cons (("bool_clause", [| Pr.Arr [| |]; Pr.Arr [|Pr.Bvar x|] |]), [])
-    *)
   Dy.add st.cons (("bool_eq", [| Pr.Bvar x; Pr.Blit b |]), [])
  
 (* Dealing with signed union-find stuff *)
-type rep = Pos of int | Neg of int
+(* Neg should only appear with Bool-kind values *)
+type rep =
+  | Pos of val_id
+  | Neg of val_id
 let neg_rep = function
   | Pos v -> Neg v
   | Neg v -> Pos v
 let def_of_rep = function
-  | Pos v -> Some (Beq v)
-  | Neg v -> Some (Bneg v)
+  | Pos v -> Some (Def_eq v)
+  | Neg v -> Some (Def_bne v)
 
 let rec repr st v =
   match st.defs.(v) with
-  | Some (Beq p) ->
+  | Def_eq p ->
     let d = repr st p in
     (st.defs.(v) <- def_of_rep d ; d)
-  | Some (Bneg p) ->
+  | Def_bne p ->
     let d = neg_rep (repr st p) in
     (st.defs.(v) <- def_of_rep d ; d)
   | _ -> Pos v
     
+let to_ivars xs = Pr.Arr (Array.map (fun y -> Pr.Ivar y) xs)
+
+let fzn_assert_eq st x def =
+  Dy.add st.cons
+    match def with
+    | Def_none -> failwith "fzn_assert_eq called with Def_none"
+    | Def_blit b -> (("bool_eq", [|x ; Pr.Blit b|]), [])
+    | Def_ilit k -> (("int_eq", [|x ; Pr.Ilit k|]), [])
+    (* Aliasing *)
+    | Def_eq y -> failwith "Fixme: need to know kind of x, y"
+    (* Boolean functions *)
+    | Def_bne y -> (("bool_ne", [|x ; Pr.Bvar y|]), [])
+    | Def_at (y, r, k) ->
+      fzn_irel_reif r (Pr.Bvar x) (Pr.Ivar y) (Pr.Ilit k)
+    | Def_or ys ->
+      (("array_bool_or", [| to_ivars ys ; x |]), [])
+    | Def_and ys -> 
+      (("array_bool_and", [| to_ivars ys ; x |]), [])
+    (* Arithmetic functions *)
+    | Def_sum ys -> 
+      (( 
+    | Def_prod of val_id array
+    | Def_max of val_id array
+    | Def_min of val_id array
+    | Def_b2i of val_id
+  
 (* Precondition - v and v' are class reprs. *)
 let merge_reprs st invert v v' =
   if v <> v' then
-    let w, w' = min v v', max v v' in
+    (* Need to handle reordering at instantiation *)
+    let w, w' = v, v' in
+    (* let w, w' = min v v', max v v' in *)
     match st.defs.(w), st.defs.(w') with
-    | (dw, None
-      | None, dw) ->
+    | (dw, Def_none
+      | Def_none, dw) ->
       begin
         st.defs.(w) <- dw ;
-        st.defs.(w') <- Some (if invert then Bneg w else Beq w)
+        st.defs.(w') <- (if invert then Def_bne w else Def_eq w)
       end
-      (*
-        st.defs.(v') <- Some (if invert then Bneg v else Beq v)
-        *)
-      (*
-    | None, dw -> st.defs.(v) <- Some (if invert then Bneg v' else Beq v')
-    *)
     | Some (At _), Some (At (x, r, k)) ->
       begin
         if invert then
@@ -245,52 +295,3 @@ let init () =
   List.iter (fun (id, h) -> H.add registry id h) handlers
 
 let _ = init ()
-(*
-
-(* Simplifier definitions *)
-let array_bool_and solver args anns =
-  let xs = Pr.get_array get_atom args.(0) in
-  let z = get_atom args.(1) in
-  Array.fold_left
-    (fun b x -> b && S.post_clause solver [|At.neg z; x|])
-    (S.post_clause solver
-                   (Array.append [|z|] (Array.map At.neg xs))) xs
-
-*)
-
-(*
-let simp_le pr terms k =
-  let all_bool = ref true in
-  let terms', k' = Array.fold_left (fun (acc, k') (c, x) ->
-    match c, x with
-    | Ilit c, Ilit x -> acc, k - (c*x)
-    | Ilit c, Ivar v ->
-      let d = Pr.dom_of pr x in
-      begin
-      match Dom.size d with
-      | 1 -> acc, k - (c * (Dom.lb d))
-      | 2 -> ((Pr.Ilit c, Pr.Ivar v) :: acc), k'
-      | _ -> (all_bool := false ; ((Ilit c, Ivar v) :: acc))
-      if dom_size d = 1 then
-        acc, k - (c * (Dom.lb pr x))
-      else
-        ((Ilit c, Ivar v) :: acc), k'
-    | _ -> failwith "Expected ilit or ivar") ([], k) terms in
-  List.rev terms', k'
-  *)
-
-(*
-let int_lin_le args anns =
-  let cs = Pr.get_array Pr.get_int args.(0) in
-  let xs = Pr.get_array  args.(1) in
-  let terms = Array.init (Array.length xs)
-                         (fun i -> cs.(i) , xs.(i)) in
-  let k = Pr.get_int args.(2) in
-  match simp_le terms k with
-  | [(1, x) ; (-1, y)], k' -> [("int_diff", [|x; y; Pr.Ilit k'|]), anns]
-  | [(-1, y) ; (1, x)], k' -> [("int_diff", [|x; y; Pr.Ilit k'|]), anns]
-  | terms', k' ->
-    let tarr = Array.of_list terms' in
-    [("int_lin_le", Pr.Arr (Array.map fst terms'), Pr.Arr (Array.map snd terms')]
-  ("int_lin_le", args), anns
-  *)
