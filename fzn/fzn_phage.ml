@@ -119,17 +119,36 @@ let rel_fun = function
   | Simp.Igt -> Sol.ivar_gt
   | Simp.Ine -> Sol.ivar_ne
 
+type 'a var_state =
+  | Pending
+  | Open
+  | Closed of 'a
+
+let rec instantiate_atom s ivars bdefs bvars bi =
+  match bvars.(bi) with
+  | Closed x -> x
+  | Open -> failwith "Cyclic variable definitions."
+  | Pending -> 
+    begin
+      bvars.(bi) <- Open ;
+      let at =
+        match bdefs.(bi) with
+        | None -> Sol.new_boolvar s
+        | Some (Simp.Beq v) ->
+          instantiate_atom s ivars bdefs bvars v
+        | Some (Simp.Bneg v) ->
+          At.neg (instantiate_atom s ivars bdefs bvars v)
+        | Some (Simp.At (iv, rel, k)) ->
+          rel_fun rel ivars.(iv) k
+      in
+      bvars.(bi) <- Closed at ;
+      at
+    end
+
 let make_atoms s ivars bdefs =
-  let bvars = Array.make (Array.length bdefs) At.at_True in
-  Array.iteri (fun i _ ->
-    bvars.(i) <-
-      match bdefs.(i) with
-      | None -> Sol.new_boolvar s
-      | Some (Simp.Beq v) -> bvars.(v)
-      | Some (Simp.Bneg v) -> At.neg bvars.(v)
-      | Some (Simp.At (iv, rel, k)) ->
-        rel_fun rel ivars.(iv) k) bvars ;
-  bvars
+  let bvars = Array.make (Array.length bdefs) Pending in
+  Array.init (Array.length bdefs)
+    (fun v -> instantiate_atom s ivars bdefs bvars v)
 
 let build_problem solver problem bdefs =
   (* Allocate variables *)
