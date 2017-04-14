@@ -7,34 +7,38 @@ module Dy = DynArray
 
 module Pr = Problem
 
-type val_id = int
+type bval_id = int
+type ival_id = int
 
 type kind = 
   | Bool
   | Int of Dom.t
 type irel = Ile | Ieq | Igt | Ine
 
-type def = 
-  | Def_none
-  | Def_blit of bool
-  | Def_ilit of int
+type idef = 
+  | Iv_none
+  | Iv_const of int
   (* Aliasing *)
-  | Def_eq of val_id
-  (* Boolean functions *)
-  | Def_bne of val_id
-  | Def_at of val_id * irel * int
-  | Def_or of val_id array
-  | Def_and of val_id array
+  | Iv_eq of ival_id
+  | Iv_opp of ival_id
   (* Arithmetic functions *)
-  | Def_sum of val_id array
-  | Def_prod of val_id array
-  | Def_max of val_id array
-  | Def_min of val_id array
-  | Def_b2i of val_id
+  | Iv_sum of ival_id array
+  | Iv_prod of ival_id array
+  | Iv_max of ival_id array
+  | Iv_min of ival_id array
+  | Iv_b2i of bval_id
 
-(*
-type irel = Ile | Ieq | Igt | Ine
-*)
+type bdef =
+  | Bv_none
+  | Bv_const of bool
+  | Bv_eq of Problem.bval_id
+  | Bv_neg of Problem.bval_id
+  | At of Problem.ival_id * irel * int
+  | Bv_or of bval_id array
+  | Bv_and of bval_id array
+
+type t = ((idef array) * (bdef array) * Problem.t)
+
 let irel_neg = function
   | Ile -> Igt
   | Igt -> Ile
@@ -73,51 +77,68 @@ type bdef =
   | At of Problem.ival_id * irel * int
   *)
 
+(*
 let bdef_neg = function
   (* | Bconst b -> Bconst (not b) *)
   | Def_eq p -> Def_bne p
   | Bneg p -> Beq p
   | At (x, r, k) -> At (x, irel_neg r, k)
+  *)
 
 type state = {
-  defs : def array ;
+  idefs : idef array ;
+  bdefs : bdef array ;
   cons : (Pr.cstr * Pr.ann_expr list) Dy.t
 }
 
 let registry = H.create 17
 
 let init_state pr =
-  { defs = Array.make (Dy.length pr.Pr.bvals) Def_none ;
+  { idefs = Array.make (Dy.length pr.Pr.ivals) Iv_none ;
+    bdefs = Array.make (Dy.length pr.Pr.bvals) Bv_none ;
     cons = Dy.create () }
 
-let set_bool st x b =
-  (* FIXME: Add new definition *)
-  Dy.add st.cons (("bool_eq", [| Pr.Bvar x; Pr.Blit b |]), [])
- 
+
 (* Dealing with signed union-find stuff *)
 (* Neg should only appear with Bool-kind values *)
-type rep =
-  | Pos of val_id
-  | Neg of val_id
+type 'a rep =
+  | Pos of 'a
+  | Neg of 'a
 let neg_rep = function
   | Pos v -> Neg v
   | Neg v -> Pos v
-let def_of_rep = function
-  | Pos v -> Some (Def_eq v)
-  | Neg v -> Some (Def_bne v)
 
-let rec repr st v =
-  match st.defs.(v) with
-  | Def_eq p ->
-    let d = repr st p in
-    (st.defs.(v) <- def_of_rep d ; d)
-  | Def_bne p ->
-    let d = neg_rep (repr st p) in
-    (st.defs.(v) <- def_of_rep d ; d)
+let bdef_of_rep = function
+  | Pos v -> Bv_eq v
+  | Neg v -> Bv_neg v
+
+let idef_of_rep = function
+  | Pos v -> Iv_eq v
+  | Neg v -> Iv_opp v
+
+let rec brepr st v =
+  match st.bdefs.(v) with
+  | Bv_eq p ->
+    let d = brepr st p in
+    (st.bdefs.(v) <- bdef_of_rep d ; d)
+  | Bv_neg p ->
+    let d = neg_rep (brepr st p) in
+    (st.bdefs.(v) <- bdef_of_rep d ; d)
   | _ -> Pos v
-    
+and irepr st v =
+  match st.idefs.(v) with
+  | Iv_eq p ->
+    let d = irepr st p in
+    (st.idefs.(v) <- idef_of_rep d ; d)
+  | Iv_opp p ->
+    let d = neg_rep (irepr st p) in
+    (st.idefs.(v) <- idef_of_rep d ; d)
+  | _ -> Pos v
+
 let to_ivars xs = Pr.Arr (Array.map (fun y -> Pr.Ivar y) xs)
 
+let fzn_assert_eq st x def = failwith "Implement"
+(*
 let fzn_assert_eq st x def =
   Dy.add st.cons
     match def with
@@ -141,8 +162,10 @@ let fzn_assert_eq st x def =
     | Def_max of val_id array
     | Def_min of val_id array
     | Def_b2i of val_id
+    *)
   
 (* Precondition - v and v' are class reprs. *)
+(*
 let merge_reprs st invert v v' =
   if v <> v' then
     (* Need to handle reordering at instantiation *)
@@ -196,7 +219,17 @@ let apply_def st v (def : bdef) =
       | At (x, rel, k) -> 
         Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar v') (Pr.Ivar x) (Pr.Ilit k))
     end
+ *)
+let bmerge st invert x y = failwith "Implement"
+let imerge st invert x y = failwith "Implement"
 
+let apply_bdef st v def = failwith "Implement"
+let apply_idef st v def = failwith "Implement"
+
+let set_bool st x b = apply_bdef st x (Bv_const b)
+  (* Dy.add st.cons (("bool_eq", [| Pr.Bvar x; Pr.Blit b |]), []) *)
+let set_int st x k = apply_idef st x (Iv_const k)
+ 
 let simp_irel_reif rel st args anns =
   let r = Pr.get_bval args.(2) in
   match r with
@@ -219,7 +252,7 @@ let simp_irel_reif rel st args anns =
           | Ine -> a <> b in
         set_bool st b res
       | Pr.Iv_var x, Pr.Iv_int k ->
-        apply_def st b (At (x, rel, k))
+        apply_bdef st b (At (x, rel, k))
       | Pr.Iv_int k, Pr.Iv_var x ->
         let def = match rel with
           | Ile -> At (x, Igt, k-1)
@@ -227,7 +260,7 @@ let simp_irel_reif rel st args anns =
           | Igt -> At (x, Ile, k-1)
           | Ine -> At (x, Ine, k)
         in
-        apply_def st b def
+        apply_bdef st b def
       | Pr.Iv_var x, Pr.Iv_var y ->
         Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) (Pr.Ivar x) (Pr.Ivar y))
       (* | _, _ -> Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) args.(0) args.(1)) *)
@@ -239,7 +272,7 @@ let simp_bool_eq st args anns =
   | (Pr.Bv_bool b, Pr.Bv_var x
   |  Pr.Bv_var x, Pr.Bv_bool b) ->
     Dy.add st.cons (("bool_eq", [|Pr.Bvar x ; Pr.Blit b|]), anns)
-  | Pr.Bv_var x, Pr.Bv_var y -> merge st false x y 
+  | Pr.Bv_var x, Pr.Bv_var y -> bmerge st false x y 
   (*
   | Pr.Bv_var x, Pr.Bv_var y -> 
     Dy.add st.cons (("bool_eq", [|Pr.Bvar x; Pr.Bvar y|]), anns)
@@ -251,7 +284,7 @@ let simp_bool_eq st args anns =
   | (Pr.Bv_bool b, Pr.Bv_var x
   |  Pr.Bv_var x, Pr.Bv_bool b) ->
     Dy.add st.cons (("bool_ne", [|Pr.Bvar x ; Pr.Blit (not b)|]), anns)
-  | Pr.Bv_var x, Pr.Bv_var y -> merge st true x y
+  | Pr.Bv_var x, Pr.Bv_var y -> bmerge st true x y
 
 let simplify_constraint state id args anns =
   try
@@ -259,15 +292,18 @@ let simplify_constraint state id args anns =
     simplifier state args anns
   with Not_found -> Dy.add state.cons ((id, args), anns)
 
-let log_reprs defs =
+let log_reprs idefs bdefs =
   if !Opts.verbosity > 0 then
+    (*
     Util.print_array ~post:"|]@." (fun fmt def ->
       match def with
       | None -> Format.fprintf fmt "_"
-      | Some (Beq b) -> Format.fprintf fmt "%d" b
-      | Some (Bneg b) -> Format.fprintf fmt "~%d" b
+      | Some (Bv_eq b) -> Format.fprintf fmt "%d" b
+      | Some (Bv_neg b) -> Format.fprintf fmt "~%d" b
       | Some (At (x, r, k)) -> Format.fprintf fmt "x%d %s %d" x (rel_str r) k
     ) Format.std_formatter defs
+    *)
+    ()
   else ()
 
 let simplify problem =
@@ -279,8 +315,8 @@ let simplify problem =
   Dy.iter
     (fun ((id, args), anns) -> simplify_constraint state id args anns)
     problem.Pr.constraints ;
-  log_reprs state.defs ;
-  (state.defs, { problem with Pr.constraints = state.cons })
+  log_reprs state.idefs state.bdefs ;
+  (state.idefs, state.bdefs, { problem with Pr.constraints = state.cons })
 
 (* Register all the simplifiers. *)
 let init () = 
