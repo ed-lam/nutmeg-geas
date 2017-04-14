@@ -24,6 +24,7 @@ MLMODULES=\
 	 opts \
    util dom token problem \
 	 polarity half_reify \
+	 termsys \
 	 simplify \
    registry check \
    lexer parser

@@ -119,39 +119,59 @@ let rel_fun = function
   | Simp.Igt -> Sol.ivar_gt
   | Simp.Ine -> Sol.ivar_ne
 
-type 'a var_state =
+type 'a val_inst =
   | Pending
   | Open
   | Closed of 'a
 
-let rec instantiate_atom s ivars bdefs bvars bi =
-  match bvars.(bi) with
-  | Closed x -> x
-  | Open -> failwith "Cyclic variable definitions."
-  | Pending -> 
-    begin
-      bvars.(bi) <- Open ;
-      let at =
-        match bdefs.(bi) with
-        | None -> Sol.new_boolvar s
-        | Some (Simp.Beq v) ->
-          instantiate_atom s ivars bdefs bvars v
-        | Some (Simp.Bneg v) ->
-          At.neg (instantiate_atom s ivars bdefs bvars v)
-        | Some (Simp.At (iv, rel, k)) ->
-          rel_fun rel ivars.(iv) k
-      in
-      bvars.(bi) <- Closed at ;
-      at
-    end
+let build_idef s make_ivar make_bvar def = failwith "Implement"
+let build_bdef s make_ivar make_bvar def = failwith "Implement"
 
-let make_atoms s ivars bdefs =
+let make_vars s idefs bdefs =
+  let ivars = Array.make (Array.length idefs) Pending in
   let bvars = Array.make (Array.length bdefs) Pending in
-  Array.init (Array.length bdefs)
-    (fun v -> instantiate_atom s ivars bdefs bvars v)
+  let rec make_ivar iv =
+    match ivars.(iv) with
+    | Closed v -> v
+    | Open -> failwith "Error: cyclic definitions."
+    | Pending ->
+      begin
+        ivars.(iv) <- Open ;
+        let v = build_idef s make_ivar make_bvar idefs.(iv) in
+        ivars.(iv) <- Closed v ;
+        v
+      end
+  and make_bvar bv =
+    match bvars.(bv) with
+    | Closed v -> v
+    | Open -> failwith "Error: cyclic definitions." 
+    | Pending ->
+      begin
+        bvars.(bv) <- Open ;
+        let v = build_bdef s make_ivar make_bvar bdefs.(bv) in
+        bvars.(bv) <- Closed v ;
+        v
+      end
+  in
+  (Array.init (Array.length idefs) make_ivar,
+   Array.init (Array.length bdefs) make_bvar)
+(*
+let make_atoms s ivars bdefs =
+  let bvars = Array.make (Array.length bdefs) At.at_True in
+  Array.iteri (fun i _ ->
+    bvars.(i) <-
+      match bdefs.(i) with
+      | None -> Sol.new_boolvar s
+      | Some (Simp.Bv_eq v) -> bvars.(v)
+      | Some (Simp.Bv_neg v) -> At.neg bvars.(v)
+      | Some (Simp.At (iv, rel, k)) ->
+        rel_fun rel ivars.(iv) k) bvars ;
+  bvars
+  *)
 
-let build_problem solver problem bdefs =
+let build_problem solver problem idefs bdefs =
   (* Allocate variables *)
+  (*
   let ivars =
     Array.init
       (Dy.length problem.Pr.ivals)
@@ -160,6 +180,8 @@ let build_problem solver problem bdefs =
        make_intvar solver vinfo.Pr.dom)
   in
   let bvars = make_atoms solver ivars bdefs in
+  *)
+  let ivars, bvars = make_vars solver idefs bdefs in
   let env = { ivars = ivars; bvars = bvars } in
   (* Process constraints *)
   Dy.iteri (fun id ((ident, expr), anns) ->
@@ -509,16 +531,18 @@ let main () =
   in
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
-  let pol_ctxs = Polarity.polarity orig_problem in
-  let (bdefs, problem) = Simplify.simplify orig_problem in
+  (* let pol_ctxs = Polarity.polarity orig_problem in *)
+  let (idefs, bdefs, problem) = Simplify.simplify orig_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
   (* Construct the problem *)
+  (*
   let problem =
     if !Opts.half_reify then
       Half_reify.half_reify ~ctxs:pol_ctxs problem 
     else problem in
-  let env = build_problem solver problem bdefs in
+  *)
+  let env = build_problem solver problem idefs bdefs in
   (* Perform polarity analysis, to set branching *)
   let _ = if !Opts.pol then
     set_polarity solver env (Polarity.polarity orig_problem) in
