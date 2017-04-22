@@ -14,32 +14,27 @@ module Pol = Polarity
 module Sol = Solver
 module At = Atom
 
+module B = Builtins
+
 exception Unknown_constraint of string
 
 let put = Format.fprintf
+
+let get_idom model x =
+ let vinfo = Dy.get model.Pr.ivals x in
+ vinfo.Pr.dom
 
 let make_intvar solver dom =
   let lb, ub = Dom.bounds dom in
   (* Create the var *)
   let v = Sol.new_intvar solver lb ub in
   (* Punch any holes. post_clause should never fail here. *)
-  (* FIXME: export bindings for sparse vars. *)
-  (*
-  List.iter
-    (fun (hl, hu) ->
-     ignore @@
-       Sol.post_clause solver
-                       [|Sol.ivar_lt v hl ; Sol.ivar_gt v hu|]) (Dom.holes dom)  ;
-                       *)
   let _ =
     match dom with
     | Dom.Set ks -> ignore (Sol.make_sparse v (Array.of_list ks))
     | _ -> () in
   (* Then return the constructed variable *)
   v
-
-(* Constraint registry. FIXME: Maybe move to a separate module. *)
-(* let registry = H.create 17 *)
 
 type env = { ivars : Sol.intvar array ; bvars : Atom.atom array }
 
@@ -124,10 +119,62 @@ type 'a val_inst =
   | Open
   | Closed of 'a
 
-let build_idef s make_ivar make_bvar def = failwith "Implement"
-let build_bdef s make_ivar make_bvar def = failwith "Implement"
+let linterm k x = { B.ic = k ; B.ix = x }
+let neg_coeff t = { B.ic = -t.B.ic; B.ix = t.B.ix }
 
-let make_vars s idefs bdefs =
+let apply_lindef s ctx z ts =
+  let terms =
+    Array.append
+      [| linterm (-1) z |]
+      (Array.map (fun (k, x) -> linterm k x) ts) in
+  if ctx.Pol.neg then
+    ignore @@ B.linear_le s At.at_True terms 0 ;
+  if ctx.Pol.pos then
+    ignore @@ B.linear_le s At.at_True (Array.map neg_coeff terms) 0
+
+let apply_max s ctx z xs =
+  match ctx with
+  | { Pol.pos = true ; Pol.neg = _ } ->
+    (* TODO: Add one-sided max propagator. *)
+    ignore @@ B.int_max s At.at_True z xs
+  | { Pol.pos = false ; Pol.neg = true } ->
+    Array.iter (fun x -> ignore @@ B.int_le s At.at_True x z 0) xs
+  | _ -> ()
+
+let apply_min s ctx z xs =
+  match ctx with
+  | { Pol.pos = _; Pol.neg = true } ->
+    failwith "TODO: Implement min propagator."
+  | { Pol.pos = true; Pol.neg = false } ->
+    Array.iter (fun x -> ignore @@ B.int_le s At.at_True z x 0) xs
+  | _ -> ()
+
+let build_idef s make_ivar make_bvar dom ctx def =
+  let z =
+    match def with
+    | Simp.Iv_eq x -> make_ivar x
+    | _ -> make_intvar s dom in
+  let _ = match Simp.map_idef make_bvar make_ivar def with
+    (* Should instead resolve const references *)
+    | ( Simp.Iv_none
+      | Simp.Iv_const _
+      | Simp.Iv_eq _ ) -> ()
+    | Simp.Iv_opp x -> apply_lindef s ctx z [| (-1, x) |]
+    (* Arithmetic functions *)
+    | Simp.Iv_lin ts -> apply_lindef s ctx z ts
+    | Simp.Iv_prod ys -> failwith "Implement"
+    | Simp.Iv_b2i b -> 
+      ignore @@ 
+      (Sol.post_clause s [| Sol.ivar_ge z 1 ; At.neg b |] &&
+       Sol.post_clause s [| Sol.ivar_le z 0 ; b |])
+    | Simp.Iv_max xs -> apply_max s ctx z xs
+    | Simp.Iv_min xs -> apply_min s ctx z xs
+  in
+  z
+
+let build_bdef s make_ivar make_bvar ctx def = failwith "Implement build_bdef"
+
+let make_vars s model ctxs idefs bdefs =
   let ivars = Array.make (Array.length idefs) Pending in
   let bvars = Array.make (Array.length bdefs) Pending in
   let rec make_ivar iv =
@@ -137,7 +184,10 @@ let make_vars s idefs bdefs =
     | Pending ->
       begin
         ivars.(iv) <- Open ;
-        let v = build_idef s make_ivar make_bvar idefs.(iv) in
+        let dom = get_idom model iv in
+        let ctx = ctxs.Pol.ivars.(iv) in
+        let def = idefs.(iv) in
+        let v = build_idef s make_ivar make_bvar dom ctx def in
         ivars.(iv) <- Closed v ;
         v
       end
@@ -148,7 +198,8 @@ let make_vars s idefs bdefs =
     | Pending ->
       begin
         bvars.(bv) <- Open ;
-        let v = build_bdef s make_ivar make_bvar bdefs.(bv) in
+        let ctx = ctxs.Pol.bvars.(bv) in
+        let v = build_bdef s make_ivar make_bvar ctx bdefs.(bv) in
         bvars.(bv) <- Closed v ;
         v
       end
@@ -169,7 +220,7 @@ let make_atoms s ivars bdefs =
   bvars
   *)
 
-let build_problem solver problem idefs bdefs =
+let build_problem solver problem ctxs idefs bdefs =
   (* Allocate variables *)
   (*
   let ivars =
@@ -181,7 +232,7 @@ let build_problem solver problem idefs bdefs =
   in
   let bvars = make_atoms solver ivars bdefs in
   *)
-  let ivars, bvars = make_vars solver idefs bdefs in
+  let ivars, bvars = make_vars solver problem ctxs idefs bdefs in
   let env = { ivars = ivars; bvars = bvars } in
   (* Process constraints *)
   Dy.iteri (fun id ((ident, expr), anns) ->
@@ -532,7 +583,9 @@ let main () =
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
   (* let pol_ctxs = Polarity.polarity orig_problem in *)
-  let (idefs, bdefs, problem) = Simplify.simplify orig_problem in
+  let s_problem = Simplify.simplify orig_problem in
+  let ctxs = Polarity.polarity s_problem in
+  let (idefs, bdefs, problem) = s_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
   (* Construct the problem *)
@@ -542,10 +595,10 @@ let main () =
       Half_reify.half_reify ~ctxs:pol_ctxs problem 
     else problem in
   *)
-  let env = build_problem solver problem idefs bdefs in
+  let env = build_problem solver problem ctxs idefs bdefs in
   (* Perform polarity analysis, to set branching *)
   let _ = if !Opts.pol then
-    set_polarity solver env (Polarity.polarity orig_problem) in
+    set_polarity solver env ctxs in
   let assumps =
     match get_ann_assumps problem env (snd problem.Pr.objective) with
     | None -> [ At.neg At.at_True ]

@@ -34,11 +34,12 @@ let transform_constraint ctxs rs ((id, args), ann) =
     with Not_found -> default_handler in
   List.append (handler ctxs id args ann) rs
 
-let half_reify ?ctxs:opt_ctxs model =
+let half_reify ?ctxs:opt_ctxs s_model =
+  let (idefs, bdefs, model) = s_model in
   (* Identify variables of interest *)
   let ctxs =
     match opt_ctxs with
-    | None -> Polarity.polarity model
+    | None -> Polarity.polarity s_model
     | Some ctxs -> ctxs in
   begin
     if !Opts.verbosity > 0 then
@@ -60,11 +61,13 @@ let half_reify ?ctxs:opt_ctxs model =
   done ;
   let repl_constraints = Dy.fold_left (transform_constraint ctxs) [] model.Pr.constraints
         |> List.rev |> Dy.of_list in
+  let model =
   { Pr.symbols = H.copy model.Pr.symbols ;
     Pr.ivals = Dy.copy model.Pr.ivals ;
     Pr.bvals = Dy.copy model.Pr.bvals ;
     Pr.constraints = repl_constraints ;
-    Pr.objective = model.Pr.objective }
+    Pr.objective = model.Pr.objective } in
+  (idefs, bdefs, model)
 
 let rewrite_and ctxs id args ann =
   let rvar = U.array_last args in

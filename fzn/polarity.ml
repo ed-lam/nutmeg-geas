@@ -3,7 +3,9 @@ module U = Util
 module H = Hashtbl
 module HS = Util.HashSet
 module Dy = DynArray
+module Ar = Array
 module Pr = Problem
+module S = Simplify
 
 let print_warning = Format.fprintf Format.err_formatter
 
@@ -176,7 +178,48 @@ let polarity_rules model ((id, args), ann) =
 let update_polarity model state cstr =
   List.iter (add_rule state) (polarity_rules model cstr)
 
-let polarity model =
+let add_mono rs x y = Rule (Pos x, Pos y) :: Rule (Neg x, Neg y) :: rs
+let add_anti rs x y = Rule (Pos x, Neg y) :: Rule (Neg x, Pos y) :: rs
+let add_mix rs x y = add_mono (add_anti rs x y) x y
+
+let handle_idef x def =
+  let bx = Int x in
+  match def with
+  | S.Iv_none -> []
+  | S.Iv_const _ -> []
+  (* Aliasing *)
+  | S.Iv_eq y -> add_mono [] bx (Int y)
+  | S.Iv_opp y -> add_anti [] bx (Int y)
+  (* Arithmetic functions *)
+  | S.Iv_lin ys -> Ar.fold_left (fun rs (c, y) ->
+      if c < 0 then
+        add_anti rs bx (Int y)
+      else
+        add_mono rs bx (Int y)) [] ys
+  | S.Iv_prod ys -> Ar.fold_left (fun rs y -> add_mix rs bx (Int y)) [] ys
+  | S.Iv_max ys -> Ar.fold_left (fun rs y -> add_mono rs bx (Int y)) [] ys
+  | S.Iv_min ys -> Ar.fold_left (fun rs y -> add_mono rs bx (Int y)) [] ys
+  | S.Iv_b2i b -> add_mono [] bx (Bool b)
+
+let handle_bdef x def =
+  let bx = Bool x in
+  match def with
+  | S.Bv_none -> []
+  | S.Bv_const _ -> []
+  | S.Bv_eq y -> add_mono [] bx (Bool y)
+  | S.Bv_neg y -> add_anti [] bx (Bool y)
+  | S.At (y, r, k) ->
+    begin
+      match r with
+      | S.Ile -> add_anti [] bx (Int y)
+      | S.Ieq -> add_mix [] bx (Int y)
+      | S.Igt -> add_mono [] bx (Int y)
+      | S.Ine -> add_mix [] bx (Int y)
+    end
+  | S.Bv_or ys -> Ar.fold_left (fun rs y -> add_mono rs bx (Bool y)) [] ys
+  | S.Bv_and ys -> Ar.fold_left (fun rs y -> add_mono rs bx (Bool y)) [] ys
+
+let polarity (bdefs, idefs, model) =
   (* let pol = Array.init (Array.length vars) (fun _ -> { pos = true ; neg = true }) in *)
   (* pol[2i] = pos[i], pol[2i+1] = neg[i] *)
   let state = empty_state model in

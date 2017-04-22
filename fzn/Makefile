@@ -23,9 +23,8 @@ MLMODULES=\
    dynArray \
 	 opts \
    util dom token problem \
-	 polarity half_reify \
-	 termsys \
 	 simplify \
+	 polarity half_reify \
    registry check \
    lexer parser
 
