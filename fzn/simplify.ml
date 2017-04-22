@@ -248,7 +248,7 @@ let rec resolve_bdefs st v d d' =
   | Bv_neg v', def
   | def, Bv_neg v' -> 
     if v = v' then 
-      failwith "Top-level failure: x = ~x."
+      failwith "Top-level failure: x = ~x (var)."
     else
       begin match negate_bdef def with
         | Some def' ->
@@ -259,7 +259,7 @@ let rec resolve_bdefs st v d d' =
   (* First priority to constants *)
   | Bv_const b, Bv_const b' ->
     if b <> b' then
-      failwith "Top-level failure: x = ~x"
+      failwith "Top-level failure: x = ~x (const)"
     else
       st.bdefs.(v) <- Bv_const b
   | ((Bv_const _) as d1), d2 
@@ -326,14 +326,14 @@ let simp_irel_reif rel st args anns =
     let y = Pr.get_ival args.(1) in
     begin
       match x, y with
-      | Pr.Iv_int a, Pr.Iv_int b ->
+      | Pr.Iv_int u, Pr.Iv_int v ->
         let res = match rel with
           | Ile ->
-            (Format.fprintf Format.err_formatter "{r} <-> %d <= %d@." a b ;
-            a <= b)
-          | Ieq -> a = b
-          | Igt -> a > b
-          | Ine -> a <> b in
+            ( (*Format.fprintf Format.err_formatter "{r} <-> %d <= %d@." u v ; *)
+            u <= v)
+          | Ieq -> u = v
+          | Igt -> u > v
+          | Ine -> u <> v in
         set_bool st b res
       | Pr.Iv_var x, Pr.Iv_int k ->
         apply_bdef st b (At (x, rel, k))
