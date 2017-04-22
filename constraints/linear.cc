@@ -742,7 +742,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     char status;
 };
 
-
 // MDD-style decomposition.
 // Introduce partial-sum variables, but coalesce ranges which
 // are equivalent.

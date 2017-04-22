@@ -45,6 +45,9 @@ public:
     return *this;
   }
 
+  val_t lb(const vec<pval_t>& ctx) const;
+  val_t ub(const vec<pval_t>& ctx) const;
+
   val_t lb(void) const;
   val_t ub(void) const;
   bool is_fixed(void) const;
@@ -164,6 +167,13 @@ inline int_itv var_range(intvar x) {
 }
 
 // forceinline
+inline intvar::val_t intvar::lb(const vec<pval_t>& ctx) const {
+  return to_int(ctx[pid]);
+}
+inline intvar::val_t intvar::ub(const vec<pval_t>& ctx) const {
+  return to_int(pval_max - s->state.p_vals[pid^1]);
+}
+
 inline intvar::val_t intvar::lb(void) const {
   return to_int(s->state.p_vals[pid]);
 }

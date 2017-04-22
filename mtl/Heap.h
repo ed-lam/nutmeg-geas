@@ -28,7 +28,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 template<class Comp>
 class Heap {
+  public:
     Comp     lt;
+  protected:
     vec<int> heap;     // heap of ints
     vec<int> indices;  // int -> index in heap
 
