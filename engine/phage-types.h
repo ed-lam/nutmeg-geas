@@ -68,6 +68,13 @@ public:
     return patom_t(pid^1, pval_max - val + 1);
   }
 
+  inline bool lb(const vec<pval_t>& ctx) const {
+    return ctx[pid] >= val;
+  }
+  inline bool ub(const vec<pval_t>& ctx) const {
+    return ctx[pid^1] <= pval_max - val;
+  }
+
   pid_t pid;
   pval_t val;
 };
