@@ -154,11 +154,11 @@ let parse_anns toks =
 
 (* Ignore predicate declarations *)
 let parse_pred model toks =
-  debug_printf "Pred@." ;
+  (* debug_printf "Pred@." ; *)
   junk_upto toks (Kwd Semi)
 
 let read_constraint model toks =
-  debug_printf "Cstr@." ;
+  (* debug_printf "Cstr@." ; *)
   chomp toks (Kwd Constraint) ;
   let id = parse_ident toks in
   let args =
@@ -187,7 +187,7 @@ let parse_obj model toks =
   | _ -> failwith "Objective must resolve to var int."
 
 let read_solve model toks =
-  debug_printf "Solve@." ;
+  (* debug_printf "Solve@." ; *)
   chomp toks (Kwd Solve) ;
   let anns = parse_anns toks in
   let goal =
@@ -284,7 +284,7 @@ let read_var_decl model toks =
 *)
 
 let read_decl model toks =
-  debug_printf "Decl@." ;
+  (* debug_printf "Decl@." ; *)
   match must_peek toks with
   | Kwd Var -> read_var_decl model toks
   | _ ->

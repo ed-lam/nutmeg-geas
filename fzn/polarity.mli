@@ -17,6 +17,6 @@ type ctx = { pos : bool ; neg : bool }
 
 type t = { ivars : ctx array ; bvars : ctx array }
 
-val polarity : Problem.t -> t
+val polarity : Simplify.t -> t
 
 val ctx_string : ctx -> string

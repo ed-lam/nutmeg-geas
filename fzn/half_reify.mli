@@ -4,4 +4,4 @@
 val initialize : unit -> unit
 
 (** Rewrite a problem *)
-val half_reify : ?ctxs:Polarity.t -> Problem.t -> Problem.t
+val half_reify : ?ctxs:Polarity.t -> Simplify.t -> Simplify.t

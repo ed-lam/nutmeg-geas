@@ -8,28 +8,34 @@ type kind =
 
 type irel = Ile | Ieq | Igt | Ine
 
-type idef = 
+type ('b, 'i) idef = 
   | Iv_none
   | Iv_const of int
   (* Aliasing *)
-  | Iv_eq of ival_id
-  | Iv_opp of ival_id
+  | Iv_eq of 'i
+  | Iv_opp of 'i
   (* Arithmetic functions *)
-  | Iv_sum of ival_id array
-  | Iv_prod of ival_id array
-  | Iv_max of ival_id array
-  | Iv_min of ival_id array
-  | Iv_b2i of bval_id
+  | Iv_lin of (int * 'i) array
+  | Iv_prod of 'i array
+  | Iv_max of 'i array
+  | Iv_min of 'i array
+  | Iv_b2i of 'b
 
-type bdef =
+type ('b, 'i) bdef =
   | Bv_none
   | Bv_const of bool
-  | Bv_eq of Problem.bval_id
-  | Bv_neg of Problem.bval_id
-  | At of Problem.ival_id * irel * int
-  | Bv_or of bval_id array
-  | Bv_and of bval_id array
+  | Bv_eq of 'b
+  | Bv_neg of 'b
+  | At of 'i * irel * int
+  | Bv_or of 'b array
+  | Bv_and of 'b array
 
-type t = ((idef array) * (bdef array) * Problem.t)
+type idefn = (bval_id, ival_id) idef
+type bdefn = (bval_id, ival_id) bdef
+
+type t = ((idefn array) * (bdefn array) * Problem.t)
 
 val simplify : Problem.t -> t
+
+val map_idef : ('b -> 'fb) -> ('i -> 'fi) -> ('b, 'i) idef -> ('fb, 'fi) idef
+val map_bdef : ('b -> 'fb) -> ('i -> 'fi) -> ('b, 'i) bdef -> ('fb, 'fi) bdef
