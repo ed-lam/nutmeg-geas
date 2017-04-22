@@ -4,6 +4,8 @@
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 
+#include "engine/propagator_ext.h"
+
 // #define SKIP_L0
 // #define EXPL_EAGER
 // #define EXPL_NAIVE
@@ -382,7 +384,8 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     if(slack < new_threshold) {
       queue_prop();
     } else {
-      trail_change(s->persist, threshold, new_threshold);
+//      trail_change(s->persist, threshold, new_threshold);
+      set(threshold, new_threshold);
     }
     return Wt_Keep;
   }
@@ -560,13 +563,15 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           int x_ub = e.x.lb() + slack/e.c;
           if(x_ub < e.x.ub())
             e.x.set_ub(x_ub, reason());
-          threshold = std::max(threshold, (int) (e.c * (e.x.ub() - e.x.lb_prev())));
+          // threshold = std::max(threshold, (int) (e.c * (e.x.ub() - e.x.lb_prev())));
+          threshold.x = std::max(threshold.x, (int) (e.c * (e.x.ub() - e.x.lb_prev())));
         }
         for(elt& e : ys) {
           int y_lb = e.x.ub() - slack/e.c;
           if(y_lb > e.x.lb())
             e.x.set_lb(y_lb, reason());
-          threshold = std::max(threshold, (int) (e.c * (e.x.ub_prev() - e.x.lb())));
+          // threshold = std::max(threshold, (int) (e.c * (e.x.ub_prev() - e.x.lb())));
+          threshold.x = std::max(threshold.x, (int) (e.c * (e.x.ub_prev() - e.x.lb())));
         }
         assert(slack >= k - compute_lb());
       } else {
@@ -580,7 +585,8 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           if(y_lb > e.x.lb())
             add_clause(s, ~r, e.x >= y_lb);
         }
-        threshold = 0;
+        // threshold = 0;
+        threshold.x = 0;
       }
     }
 
@@ -727,7 +733,8 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         }
         new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub() - e.x.lb())));
       }
-      trail_change(s->persist, threshold, new_threshold);
+      // trail_change(s->persist, threshold, new_threshold);
+      set(threshold, new_threshold);
       return true;
     }
 
@@ -738,7 +745,8 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 
     // Persistent state
     int slack;
-    int threshold;
+    // int threshold;
+    Tint threshold;
     char status;
 };
 

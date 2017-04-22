@@ -147,6 +147,24 @@ inline void trail_save(persistence& p, T& elt, char& flag) {
   flag = true;
 }
 
+template<class T>
+struct trailed {
+  trailed(T _x) : x(_x), saved(0) { }
+
+  inline void set(persistence& p, T val) {
+    trail_save(p, x, saved);
+    x = val;
+  }
+  
+  operator T() const { return x; }
+
+  T x; 
+  char saved;
+};
+typedef trailed<int> Tint;
+typedef trailed<char> Tbool;
+typedef trailed<double> Tdouble;
+
 void check_at_fixpoint(solver_data* s);
 
 }

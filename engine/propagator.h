@@ -1,6 +1,7 @@
 #ifndef PHAGE_PROPAGATOR__H
 #define PHAGE_PROPAGATOR__H
 #include "engine/infer-types.h"
+#include "engine/persist.h"
 
 namespace phage {
 class solver_data;
@@ -30,6 +31,9 @@ public:
   virtual void root_simplify(void) { }
   virtual void cleanup(void) { is_queued = false; }
   
+  template<class T>
+  void set(trailed<T>& x, T k);
+
   // execute dispatches between the checker (in a
   // half-reified case) and proapagator (when it's
   // active).
