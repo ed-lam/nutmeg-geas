@@ -172,7 +172,35 @@ let build_idef s make_ivar make_bvar dom ctx def =
   in
   z
 
-let build_bdef s make_ivar make_bvar ctx def = failwith "Implement build_bdef"
+let build_bdef s make_ivar make_bvar ctx def =
+  match Simp.map_bdef make_bvar make_ivar def with
+  | Simp.Bv_none -> Sol.new_boolvar s
+  | Simp.Bv_const b -> if b then At.at_True else (At.neg At.at_True)
+  | Simp.Bv_eq b -> b
+  | Simp.Bv_neg b -> At.neg b
+  | Simp.At (x, r, k) -> rel_fun r x k
+  | Simp.Bv_or xs ->
+    let z = Sol.new_boolvar s in
+    begin
+      if ctx.Pol.pos then
+        ignore @@ Sol.post_clause s (Array.append [|At.neg z|] xs)
+      else () ;
+      if ctx.Pol.neg then
+        Array.iter (fun x -> ignore @@ Sol.post_clause s [|z ; At.neg x|]) xs
+      else () ;
+      z
+    end
+  | Simp.Bv_and xs ->
+    let z = Sol.new_boolvar s in
+    begin
+      if ctx.Pol.pos then
+        Array.iter (fun x -> ignore @@ Sol.post_clause s [|At.neg z ; x|]) xs
+      else () ;
+      if ctx.Pol.neg then
+        ignore @@ Sol.post_clause s (Array.append [|z|] (Array.map At.neg xs))
+      else () ;
+      z
+    end
 
 let make_vars s model ctxs idefs bdefs =
   let ivars = Array.make (Array.length idefs) Pending in
