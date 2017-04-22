@@ -328,9 +328,7 @@ let simp_irel_reif rel st args anns =
       match x, y with
       | Pr.Iv_int u, Pr.Iv_int v ->
         let res = match rel with
-          | Ile ->
-            ( (*Format.fprintf Format.err_formatter "{r} <-> %d <= %d@." u v ; *)
-            u <= v)
+          | Ile -> u <= v
           | Ieq -> u = v
           | Igt -> u > v
           | Ine -> u <> v in
