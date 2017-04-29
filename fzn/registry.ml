@@ -38,6 +38,10 @@ let is_int expr =
   match expr with
   | Pr.Ilit k -> true
   | _ -> false
+let is_bool expr =
+  match expr with
+  | Pr.Blit b -> true
+  | _ -> false
 
 let force_ivar solver expr =
   match expr with
@@ -46,6 +50,18 @@ let force_ivar solver expr =
   | _ -> failwith "Expected int-sorted value."
 
 let ignore_constraint _ _ _ = true
+
+(* Helper functions *)
+let post_clauses s cs =
+  let rec aux cs =
+    match cs with
+    | [] -> true
+    | c :: cs' -> if S.post_clause s c then aux cs' else false
+  in aux cs
+
+ let bool_iff solver x y =
+  S.post_clause solver [|x ; At.neg y|]
+  && S.post_clause solver [|At.neg x ; y|]
 
 let bool_clause solver args anns =
   let pos = Pr.get_array get_atom args.(0) in
@@ -308,9 +324,8 @@ let array_var_int_element solver args anns =
           && B.int_le solver At.at_True elt res 0
     end
   | Pr.Iv_var idx, Pr.Iv_int res ->
-    let okay = ref true in
-    Array.iteri (fun i elt ->
-      okay := !okay &&
+    Util.array_everyi 
+      (fun i elt ->
         match Pr.get_ival elt with
         | Pr.Iv_int k ->
           if res = k then
@@ -319,8 +334,7 @@ let array_var_int_element solver args anns =
             S.post_atom solver (S.ivar_ne idx (i+1))
         | Pr.Iv_var v ->
           S.post_clause solver [|S.ivar_ne idx (i+1) ; S.ivar_eq v res|]
-          ) (Pr.get_array (fun x -> x) args.(1)) ;
-      !okay
+        ) (Pr.get_array (fun x -> x) args.(1))
   | Pr.Iv_var idx, Pr.Iv_var res ->
     if is_array is_int args.(1) then
       let elts = Pr.get_array Pr.get_int args.(1) in
@@ -328,10 +342,64 @@ let array_var_int_element solver args anns =
     else 
       let elts = Pr.get_array (force_ivar solver) args.(1) in
       B.var_int_element solver At.at_True res idx elts
- 
-let bool_iff solver x y =
-  S.post_clause solver [|x ; At.neg y|]
-  && S.post_clause solver [|At.neg x ; y|]
+
+let atom_iff at b = if b then at else (At.neg at)
+
+let array_bool_element solver args anns =
+  let elts = Pr.get_array Pr.get_bool args.(1) in
+  match Pr.get_ival args.(0), Pr.get_bval args.(2) with
+  | Pr.Iv_int idx, Pr.Bv_bool b -> elts.(idx+1) = b
+  | Pr.Iv_int idx, Pr.Bv_var at -> S.post_atom solver (atom_iff at elts.(idx+1))
+  | Pr.Iv_var idx, Pr.Bv_bool b ->
+    Util.array_everyi (fun i b' ->
+      if b = b' then
+        true
+      else S.post_atom solver (S.ivar_ne idx (i+1))) elts 
+  | Pr.Iv_var idx, Pr.Bv_var at ->
+    Util.array_everyi (fun i b ->
+      S.post_clause solver [| S.ivar_ne idx (i+1) ; atom_iff at b |]) elts
+     
+let array_var_bool_element solver args anns =
+  match Pr.get_ival args.(0), Pr.get_bval args.(2) with
+  | Pr.Iv_int idx, Pr.Bv_bool b ->
+    begin
+      match Pr.get_bval (array_nth args.(1) idx) with
+      | Pr.Bv_bool b' -> b = b'
+      | Pr.Bv_var at -> S.post_atom solver (atom_iff at b)
+    end
+  | Pr.Iv_int idx, Pr.Bv_var at -> 
+    begin
+      match Pr.get_bval (array_nth args.(1) idx) with
+      | Pr.Bv_bool b -> S.post_atom solver (atom_iff at b)
+      | Pr.Bv_var at' ->
+        post_clauses solver
+          [ [|at; At.neg at'|] ;
+            [|At.neg at; at'|] ]
+    end
+  | Pr.Iv_var idx, Pr.Bv_bool b ->
+    Util.array_everyi (fun i elt ->
+        match Pr.get_bval elt with
+        | Pr.Bv_bool b' ->
+          if b = b' then
+            true
+          else
+            S.post_atom solver (S.ivar_ne idx (i+1))
+        | Pr.Bv_var at ->
+          S.post_clause solver [|S.ivar_ne idx (i+1) ; atom_iff at b|]
+    ) (Pr.get_array (fun x -> x) args.(1))
+  | Pr.Iv_var idx, Pr.Bv_var at ->
+    if is_array is_bool args.(1) then
+      let elts = Pr.get_array Pr.get_bool args.(1) in
+      Util.array_everyi (fun i b ->
+          S.post_clause solver [|S.ivar_ne idx (i+1) ; atom_iff at b|]
+      ) elts
+    else 
+      let elts = Pr.get_array get_atom args.(1) in
+      Util.array_everyi (fun i at' ->
+          let ne = S.ivar_ne idx (i+1) in
+          post_clauses solver
+            [ [| ne; at; At.neg at' |] ;
+              [| ne; At.neg at; at' |] ]) elts
 
 let int_eq solver args anns =
   match args.(0), args.(1) with
@@ -535,6 +603,8 @@ let initialize () =
      (* "bool_sum_le", bool_sum_le ; *)
      "array_int_element", array_int_element ; 
      "array_var_int_element", array_var_int_element ;
+     "array_bool_element", array_bool_element ;
+     "array_var_bool_element", array_var_bool_element ;
      "bool_lin_le", bool_lin_le ;
       ] in
   List.iter (fun (id, handler) ->

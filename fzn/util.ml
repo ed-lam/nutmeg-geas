@@ -98,6 +98,26 @@ let array_fold2 f r0 a b =
     else r
   in aux 0 r0
 
+let array_foldi f r0 xs =
+  let sz = Array.length xs in
+  let rec aux k r =
+    if k < sz then
+      aux (k+1) (f k r xs.(k))
+    else
+      r
+  in aux 0 r0
+
+let array_everyi f xs =
+  let sz = Array.length xs in
+  let rec aux k =
+    if k < sz then
+      if f k xs.(k) then
+        aux (k+1)
+      else
+        false
+    else true in
+  aux 0
+
 let array_combine a b =
   let sz = min (Array.length a) (Array.length b) in
   Array.init sz (fun i -> a.(i), b.(i))

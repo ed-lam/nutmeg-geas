@@ -46,6 +46,8 @@ val print_list : (Format.formatter -> 'a -> unit) ->
 val array_last : 'a array -> 'a
 val array_drop : 'a array -> 'a array
 
+val array_everyi : (int -> 'a -> bool) -> 'a array -> bool
+val array_foldi : (int -> 'r -> 'a -> 'r) -> 'r -> 'a array -> 'r
 val array_fold2 : ('r -> 'a -> 'b -> 'r) -> 'r -> 'a array -> 'b array -> 'r
 
 val array_combine : 'a array -> 'b array -> ('a * 'b) array
