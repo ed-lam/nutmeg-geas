@@ -31,8 +31,20 @@ public:
   virtual void root_simplify(void) { }
   virtual void cleanup(void) { is_queued = false; }
   
+  // Convenient syntactic sugar (definitions in propagator_ext.h):
+  // For trailing:
   template<class T>
   void set(trailed<T>& x, T k);
+
+  // And for variables.
+  template<class T> typename T::val_t lb(const T& v) const;
+  template<class T> typename T::val_t ub(const T& v) const;
+  template<class T> typename T::val_t lb_0(const T& v) const;
+  template<class T> typename T::val_t ub_0(const T& v) const;
+  template<class T> typename T::val_t lb_prev(const T& v) const;
+  template<class T> typename T::val_t ub_prev(const T& v) const;
+  template<class T> bool set_lb(T& x, typename T::val_t v, reason r);
+  template<class T> bool set_ub(T& x, typename T::val_t v, reason r);
 
   // execute dispatches between the checker (in a
   // half-reified case) and proapagator (when it's

@@ -25,7 +25,7 @@ class mdd_prop : public propagator {
       int idx = 0;
       for(int ii : num_range(vs.size())) {
         intvar v(vs[ii]);
-        for(intvar::val_t k : v.domain()) {
+        for(intvar::val_t k : v.domain(s)) {
           attach(s, v != k, watch_callback(wake, this, idx));
           valpairs.push( valpair {ii, k} );
           idx++;

@@ -1,6 +1,7 @@
 #include <utility>
 #include <algorithm>
 #include "engine/propagator.h"
+#include "engine/propagator_ext.h"
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 
@@ -14,10 +15,10 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
                    vec<int>& ys, int base) {
   // Also set domain of ys.
   if(s->state.is_entailed_l0(r)) {
-    if(base > x.lb())
-      x.set_lb(base, reason());
-    if(base + ys.size() <= x.ub())
-      x.set_ub(base + ys.size()-1, reason());  
+    if(base > x.lb(s))
+      enqueue(*s, x >= base, reason());
+    if(base + ys.size() <= x.ub(s))
+      enqueue(*s, x <= base + ys.size()-1, reason());
     // z.set_lb(ys_uniq[0], reason()); z.set_ub(ys_uniq.last(), reason());
 
     if(!make_sparse(z, ys))
@@ -60,13 +61,13 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
 class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   // Wakeup and explanation
   static void ex_naive(elem_var_bnd* p, int yi, vec<clause_elt>& expl) {
-    expl.push(p->x < p->x.lb());
-    expl.push(p->x > p->x.ub());
-    expl.push(p->z < p->z.lb());
-    expl.push(p->z > p->z.ub());
+    expl.push(p->x < p->x.lb(p->s));
+    expl.push(p->x > p->x.ub(p->s));
+    expl.push(p->z < p->z.lb(p->s));
+    expl.push(p->z > p->z.ub(p->s));
     for(intvar& y : p->ys) {
-      expl.push(y < y.lb());
-      expl.push(y > y.ub());
+      expl.push(y < y.lb(p->s));
+      expl.push(y > y.ub(p->s));
     }
   }
 
@@ -96,19 +97,19 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   }
 
   void push_hints(int low, int high, vec<clause_elt>& expl) {
-    intvar::val_t z_ub = z.ub();
+    intvar::val_t z_ub = z.ub(s);
 
-    intvar::val_t z_low = z.ub_0()+1;
-    intvar::val_t z_high = z.lb_0()-1;
+    intvar::val_t z_low = ub_0(z)+1;
+    intvar::val_t z_high = lb_0(z)-1;
 
     for(int ii : irange(low, high)) {
       intvar::val_t hint = cut_hint[ii];
       if(z_ub < hint) {
-        assert(ys[ii].lb() >= hint);
+        assert(ys[ii].lb(s) >= hint);
         z_high = std::max(z_high, hint);
         expl.push(ys[ii] < hint);
       } else {
-        assert(z.lb() >= hint);
+        assert(z.lb(s) >= hint);
         expl.push(ys[ii] >= hint);
         z_low = std::min(z_low, hint);
       }
@@ -123,13 +124,13 @@ public:
     z.attach(E_LU, watch_callback(wake_default, this, 0, true));
     for(int ii : irange(ys.size())) {
       ys[ii].attach(E_LU, watch_callback(wake_default, this, ii, true)); 
-      cut_hint.push(ys[ii].lb());
+      cut_hint.push(ys[ii].lb(s));
     }
     // Set initial bounds
-    if(base > x.lb())
-      x.set_lb(base, reason());
-    if(base + ys.size() < x.ub())
-      x.set_ub(base + ys.size(), reason()); 
+    if(base > x.lb(s))
+      set_lb(x,base, reason());
+    if(base + ys.size() < x.ub(s))
+      set_ub(x,base + ys.size(), reason()); 
   }
 
   void root_simplify(void) {
@@ -141,15 +142,15 @@ public:
       std::cout << "[[Running elem_var_bnd]]" << std::endl;
 #endif
        
-      int_itv z_dom { z.lb(), z.ub() };
-      int_itv z_supp { z.ub()+1, z.lb()-1 };
+      int_itv z_dom { z.lb(s), z.ub(s) };
+      int_itv z_supp { z.ub(s)+1, z.lb(s)-1 };
 
       // Run forward, to find the lower bound
-      int vi = x.lb() - base;
-      int vend = x.ub() + 1 - base;
+      int vi = x.lb(s) - base;
+      int vend = x.ub(s) + 1 - base;
 
       for(; vi != vend; ++vi) {
-        int_itv y_dom { ys[vi].lb(), ys[vi].ub() };
+        int_itv y_dom { ys[vi].lb(s), ys[vi].ub(s) };
         int_itv y_supp = z_dom & y_dom;
         if(y_supp.empty()) {
           cut_hint[vi] = std::max(z_dom.lb, y_dom.lb);
@@ -160,15 +161,15 @@ public:
       }
       int low = vi;
 
-      if(low + base > x.lb()) {
-        // if(!x.set_lb(low + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
-        if(!x.set_lb(low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
+      if(low + base > x.lb(s)) {
+        // if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
+        if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
       int high = vi;
       for(++vi; vi != vend; ++vi) {
-        int_itv y_dom { ys[vi].lb(), ys[vi].ub() };
+        int_itv y_dom { ys[vi].lb(s), ys[vi].ub(s) };
         int_itv y_supp = z_dom & y_dom;
         if(y_supp.empty()) {
           cut_hint[vi] = std::max(z_dom.lb, y_dom.lb);
@@ -177,31 +178,31 @@ public:
           high = vi;
         }
       }
-      if(high + base < x.ub()) {
-        // if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
-        if(!x.set_ub(high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
+      if(high + base < x.ub(s)) {
+        // if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
+        if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
-      if(z_supp.lb > z.lb()) {
-        if(!z.set_lb(z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+      if(z_supp.lb > z.lb(s)) {
+        if(!set_lb(z, z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
           return false;
       }
-      if(z_supp.ub < z.ub()) {
-        if(!z.set_ub(z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+      if(z_supp.ub < z.ub(s)) {
+        if(!set_ub(z, z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
       if(low == high) {
         intvar& y = ys[low];
-        if(z_supp.lb > y.lb()) {
+        if(z_supp.lb > y.lb(s)) {
           // if(!y.set_lb(z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
-          if(!y.set_lb(z_supp.lb, ex_thunk(ex_lb<ex_y_lb>, low)))
+          if(!set_lb(y, z_supp.lb, ex_thunk(ex_lb<ex_y_lb>, low)))
             return false;
         }
-        if(z_supp.ub < y.ub()) {
+        if(z_supp.ub < y.ub(s)) {
           // if(!y.set_ub(z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
-          if(!y.set_ub(z_supp.ub, ex_thunk(ex_ub<ex_y_ub>, low)))
+          if(!set_ub(y, z_supp.ub, ex_thunk(ex_ub<ex_y_ub>, low)))
            return false;
         }
       }
@@ -233,7 +234,7 @@ class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
     elem_var_simple* p(static_cast<elem_var_simple*>(ptr));
     
     intvar::val_t hint = p->cut_hint[xi];
-    if(p->z.ub() < hint) {
+    if(p->z.ub(p->s) < hint) {
       expl.push(p->z >= hint);
       expl.push(p->ys[xi] < hint);
     } else {
@@ -270,7 +271,7 @@ public:
      
     // Set initial explanation hints
     for(intvar& y : ys)
-      cut_hint.push(y.lb());
+      cut_hint.push(y.lb(s));
   }
 
   void root_simplify(void) {
@@ -283,7 +284,7 @@ public:
      if(DOM) {
        return x.man->in_domain(x.idx, k);
      } else {
-       return x.lb() <= k && k <= x.ub();
+       return x.lb(s) <= k && k <= x.ub(s);
      }
    }
    */
@@ -293,8 +294,8 @@ public:
       std::cout << "[[Running elem_var_simple]]" << std::endl;
 #endif
        
-      int_itv z_dom { z.lb(), z.ub() };
-      int_itv z_supp { z.ub()+1, z.lb()-1 };
+      int_itv z_dom { z.lb(s), z.ub(s) };
+      int_itv z_supp { z.ub(s)+1, z.lb(s)-1 };
 
       // Run forward, collect supported tuples
       intvar* y = ys.begin();
@@ -305,7 +306,7 @@ public:
         if(!in_domain(x, vv))
           continue;
 
-        int_itv y_supp = z_dom & int_itv {(*y).lb(), (*y).ub()};
+        int_itv y_supp = z_dom & int_itv {(*y).lb(s), (*y).ub(s)};
         if(y_supp.empty()) {
           if(!enqueue(*s, x != vv, expl_thunk { ex_x_ne_xi, this, vv - base }))
             return false;
@@ -323,7 +324,7 @@ public:
 support_found:
       intvar* supp = y;
       for(++y, ++vv; y != end; ++y, ++vv) {
-        int_itv y_supp = z_dom & int_itv {(*y).lb(), (*y).ub()};
+        int_itv y_supp = z_dom & int_itv {(*y).lb(s), (*y).ub(s)};
         if(y_supp.empty()) {
           if(!enqueue(*s, x != vv, expl_thunk { ex_x_ne_xi, this, vv - base }))
             return false;
@@ -333,23 +334,23 @@ support_found:
         }
       }
 
-      if(z_supp.lb > z.lb()) {
-        if(!z.set_lb(z_supp.lb, expl_thunk { ex_lb<ex_z_lb>, this, 0 }))
+      if(z_supp.lb > z.lb(s)) {
+        if(!set_lb(z, z_supp.lb, expl_thunk { ex_lb<ex_z_lb>, this, 0 }))
           return false;
       }
 
-      if(z_supp.ub < z.ub()) {
-        if(!z.set_ub(z_supp.ub, expl_thunk { ex_ub<ex_z_ub>, this, 1}))
+      if(z_supp.ub < z.ub(s)) {
+        if(!set_ub(z, z_supp.ub, expl_thunk { ex_ub<ex_z_ub>, this, 1}))
           return false;
       }
        
       if(supp < end) {
-        if(z_supp.lb > supp->lb()) {
-          if(!supp->set_lb(z_supp.lb, expl_thunk { ex_lb<ex_y_lb>, this, (int) (supp - ys.begin()), expl_thunk::Ex_BTPRED }))
+        if(z_supp.lb > supp->lb(s)) {
+          if(!set_lb(*supp, z_supp.lb, expl_thunk { ex_lb<ex_y_lb>, this, (int) (supp - ys.begin()), expl_thunk::Ex_BTPRED }))
             return false;
         }
-        if(z_supp.ub < supp->ub()) {
-          if(!supp->set_ub(z_supp.ub, expl_thunk { ex_ub<ex_y_ub>, this, (int) (supp - ys.begin()), expl_thunk::Ex_BTPRED }))
+        if(z_supp.ub < supp->ub(s)) {
+          if(!set_ub(*supp, z_supp.ub, expl_thunk { ex_ub<ex_y_ub>, this, (int) (supp - ys.begin()), expl_thunk::Ex_BTPRED }))
             return false;
         }
       }

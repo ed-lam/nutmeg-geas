@@ -6,61 +6,62 @@
 
 
 namespace phage {
-#define intvar_base intvar
 
 typedef intvar::val_t val_t;
 
-intvar_base::intvar_base(solver_data* _s, intvar_manager* _m, int _idx, pid_t _pid)
+/*
+intvar::intvar(solver_data* _s, intvar_manager* _m, int _idx, pid_t _pid)
   : s(_s), man(_m), idx(_idx), pid(_pid)
 { assert(!(pid&1)); }
-
-/*
-val_t intvar_base::lb(void) const {
-  return to_int(s->state.p_vals[pid]);
-}
-
-val_t intvar_base::ub(void) const {
-  return to_int(pval_max - s->state.p_vals[pid^1]);
-}
-*/
 
 bool intvar::is_fixed(void) const {
   return pred_fixed(s, pid);
   // return pval_max - s->state.p_vals[pid^1] == s->state.p_vals[pid];
 }
 
-val_t intvar_base::lb_prev(void) const {
+val_t intvar::lb_prev(void) const {
   return to_int(s->state.p_last[pid]);
 }
 
-val_t intvar_base::ub_prev(void) const {
+val_t intvar::ub_prev(void) const {
   return to_int(pval_max - s->state.p_last[pid^1]);
 }
 
-val_t intvar_base::lb_0(void) const {
+val_t intvar::lb_0(void) const {
   return to_int(s->state.p_root[pid]);
 }
 
-val_t intvar_base::ub_0(void) const {
+val_t intvar::ub_0(void) const {
   return to_int(pval_max - s->state.p_root[pid^1]);
 }
 
-bool intvar_base::set_lb(val_t min, reason r) {
+bool intvar::set_lb(val_t min, reason r) {
   return enqueue(*s, patom_t(pid, from_int(min)), r);
 }
 
-bool intvar_base::set_ub(val_t max, reason r) {
+bool intvar::set_ub(val_t max, reason r) {
   return enqueue(*s, patom_t(pid^1, pval_max - from_int(max)), r);
 }
+*/
 
-val_t intvar_base::model_val(const model& m) const {
-  return to_int(m.get(pid));
+val_t intvar::model_val(const model& m) const {
+  return to_int(m.get(p))+off;
 }
 
-void intvar_base::attach(intvar_event e, watch_callback c) {
-  man->attach(idx, e, c);
+void intvar::attach(intvar_event e, watch_callback c) {
+  // man->attach(idx, e, c);
+  if(e&E_LB) {
+    ext->b_callbacks[p&1].push(c);  
+  }
+  if(e&E_UB) {
+    ext->b_callbacks[(p&1)^1].push(c);
+  }
+  if(e&E_FIX) {
+    ext->fix_callbacks.push(c);
+  }
 }
 
+// Make this a static method of ivar_ext instead.
 static watch_result wakeup(void* ptr, int idx) {
   // This is a bit ugly
   intvar_manager* man = static_cast<intvar_manager*>(ptr);
@@ -68,14 +69,11 @@ static watch_result wakeup(void* ptr, int idx) {
   // Do some stuff
   int vi = idx>>1;
   if(pred_fixed(man->s, man->var_preds[vi])) {
-    run_watches(man->fix_callbacks[vi], origin);
+    // run_watches(man->fix_callbacks[vi], origin);
+    run_watches(man->var_exts[vi]->fix_callbacks, origin);
   }
-  if(idx&1) {
-    run_watches(man->ub_callbacks[vi], origin);
-  } else {
-    run_watches(man->lb_callbacks[vi], origin);
-  }
-//  printf("Ping: %d\n", idx);
+  run_watches(man->var_exts[vi]->b_callbacks[idx&1], origin);
+
   return Wt_Keep;
 }
 
@@ -86,31 +84,40 @@ intvar intvar_manager::new_var(val_t lb, val_t ub) {
   int idx = var_preds.size();
   pid_t p = new_pred(*s);
   var_preds.push(p);
-  eqtable.push_back(std::unordered_map<pval_t, patom_t>());
+  ivar_ext* ext(new ivar_ext(this, idx));
+  var_exts.push(ext);
+  // eqtable.push_back(std::unordered_map<pval_t, patom_t>());
+
   // Register this as a watcher.
   // GKG: Perhaps defer this until something
   // is attached to the var
   s->pred_callbacks[p].push(watch_callback(wakeup, this, idx<<1));
   s->pred_callbacks[p+1].push(watch_callback(wakeup, this, (idx<<1)|1));
 
+  /*
   lb_callbacks.push();
   ub_callbacks.push();
   fix_callbacks.push();
+  */
 
   // fprintf(stdout, "[%lld,%lld] ~~> [%lld, %lld]\n", lb, ub, intvar::from_int(lb), intvar::from_int(ub));
   // Set bounds
-  // intvar v(new intvar_base(s, this, idx, p));
-  intvar v(s, this, idx, p);
-  v.set_lb(lb, reason());
-  v.set_ub(ub, reason());
+  // intvar v(new intvar(s, this, idx, p));
+  intvar v(p, 0, ext);
+  // v.set_lb(lb, reason());
+  // v.set_ub(ub, reason());
   // Also set the p_last and p_root values
+  s->state.p_vals[p] = from_int(lb);
   s->state.p_last[p] = from_int(lb);
   s->state.p_root[p] = from_int(lb);
   s->wake_vals[p] = from_int(lb);
+  queue_pred(s, p);
 
-  s->state.p_last[p^1] = pval_max - from_int(ub);
-  s->state.p_root[p^1] = pval_max - from_int(ub);
-  s->wake_vals[p^1] = pval_max - from_int(ub);
+  s->state.p_vals[p^1] = pval_inv(from_int(ub));
+  s->state.p_last[p^1] = pval_inv(from_int(ub));
+  s->state.p_root[p^1] = pval_inv(from_int(ub));
+  s->wake_vals[p^1] = pval_inv(from_int(ub));
+  queue_pred(s, p^1);
 //  if(ub - lb < 100)
 //    for(int ii : irange(lb, ub+1))  
 //      make_eqatom(idx, ii);
@@ -118,6 +125,7 @@ intvar intvar_manager::new_var(val_t lb, val_t ub) {
   return v;
 }
 
+/*
 void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c) {
   if(e&E_LB) {
     lb_callbacks[v_idx].push(c);  
@@ -129,8 +137,10 @@ void intvar_manager::attach(unsigned int v_idx, intvar_event e, watch_callback c
     fix_callbacks[v_idx].push(c);
   }
 }
+*/
 
 bool intvar_manager::in_domain(unsigned int vid, val_t val) {
+  /*
   pval_t pval = from_int(val);
 
   // If the eq-atom exists, [x = k] != False
@@ -141,9 +151,13 @@ bool intvar_manager::in_domain(unsigned int vid, val_t val) {
   // Otherwise, return lb(x) <= k <= ub(x)
   pid_t pid = var_preds[vid];
   return s->state.p_vals[pid] <= pval && pval <= pval_max - s->state.p_vals[pid^1];
+  */
+  assert(0);
+  return false;
 }
 
 static pval_t init_lb(void* ptr, int ei, vec<pval_t>& vals) {
+  /*
   intvar_manager* man(static_cast<intvar_manager*>(ptr));
   intvar_manager::eq_info info = man->eqinfo[ei];
   if(pred_lb(man->s, info.pid) < info.val)
@@ -151,16 +165,23 @@ static pval_t init_lb(void* ptr, int ei, vec<pval_t>& vals) {
   if(pred_ub(man->s, info.pid) > info.val)
     return from_int(0);
   return from_int(1);
+  */
+  assert(0);
+  return from_int(0);
 }
 static void ex_lb(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
+  /*
   intvar_manager* man(static_cast<intvar_manager*>(ptr));
   intvar_manager::eq_info info = man->eqinfo[ei];
   elts.push(le_atom(info.pid, info.val-1));
   elts.push(ge_atom(info.pid, info.val+1));
+  */
+  assert(0);
 }
 
 
 static pval_t init_ub(void* ptr, int ei, vec<pval_t>& vals) {
+  /*
   intvar_manager* man(static_cast<intvar_manager*>(ptr));
   intvar_manager::eq_info info = man->eqinfo[ei];
   if(pred_lb(man->s, info.pid) > info.val)
@@ -168,9 +189,13 @@ static pval_t init_ub(void* ptr, int ei, vec<pval_t>& vals) {
   if(pred_ub(man->s, info.pid) < info.val)
     return pval_inv(from_int(0));
   return pval_inv(from_int(1));
+  */
+  assert(0);
+  return from_int(0);
 }
 
 static void ex_ub(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
+  /*
   intvar_manager* man(static_cast<intvar_manager*>(ptr));
   intvar_manager::eq_info info = man->eqinfo[ei];
   if(pred_lb(man->s, info.pid) > info.val) {
@@ -179,9 +204,12 @@ static void ex_ub(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
     assert(pred_ub(man->s, info.pid) < info.val);
     elts.push(ge_atom(info.pid, info.val));
   }
+  */
+  assert(0);
 }
 
 patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
+  /*
   // Find the appropriate var/val pair
   pid_t x_pi(var_preds[vid]);
   pval_t val(from_int(ival));
@@ -220,11 +248,15 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
 
   // FIXME: Set up p_val, p_last, p_root and initializer
   return at;
+  */
+  assert(0);
+  return at_False;
 }
 
 // Should only be called at root level
 bool intvar_manager::make_sparse(unsigned int vid, vec<val_t>& ivals) {
    // Find the appropriate var/val pair
+   /*
   pid_t x_pi(var_preds[vid]);
 
   vec<pval_t> vals;
@@ -270,9 +302,13 @@ bool intvar_manager::make_sparse(unsigned int vid, vec<val_t>& ivals) {
   }
 
   return true;
+  */
+  assert(0);
+  return true;
 }
 
 void intvar_manager::make_eager(unsigned int vid) {
+  /*
   // Find the appropriate var/val pair
   pid_t x_pi(var_preds[vid]);
   intvar::val_t lb(to_int(s->state.p_root[x_pi]));
@@ -281,6 +317,8 @@ void intvar_manager::make_eager(unsigned int vid) {
   for(int ii = lb; ii <= ub; ii++) {
     make_eqatom(vid, ii);
   }
+  */
+  assert(0);
 }
 
 

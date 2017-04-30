@@ -20,6 +20,13 @@ let negate_rel = function
   | Ieq -> Ine
   | Ine -> Ieq
 
+let eval_rel r a b =
+  match r with
+  | Ile -> a <= b
+  | Igt -> a > b
+  | Ieq -> a = b
+  | Ine -> a <> b
+
 type ('b, 'i) idef = 
   | Iv_none
   | Iv_const of int
@@ -34,13 +41,24 @@ type ('b, 'i) idef =
   | Iv_min of 'i array
   | Iv_b2i of 'b
 
+let eval_idef z def =
+  match def with
+  | Iv_none -> z
+  | Iv_const k -> k
+  | Iv_eq x -> x
+  | Iv_opp x -> -x
+  | Iv_lin ts -> Array.fold_left (fun s (c, x) -> s + c*x) 0 ts
+  | Iv_prod xs -> Array.fold_left ( * ) 1 xs
+  | Iv_min xs -> Array.fold_left min max_int xs
+  | Iv_max xs -> Array.fold_left max min_int xs
+  | Iv_b2i b -> if b then 1 else 0
+
 let negate_idef = function
   | Iv_const k -> Some (Iv_const (-k))
   | Iv_eq x -> Some (Iv_opp x)
   | Iv_opp x -> Some (Iv_eq x)
   | Iv_lin ts -> Some (Iv_lin (Array.map (fun (k, x) -> (-k, x)) ts))
   | _ -> None
-
 
 type ('b, 'i) bdef =
   | Bv_none
@@ -50,6 +68,16 @@ type ('b, 'i) bdef =
   | At of 'i * irel * int
   | Bv_or of 'b array
   | Bv_and of 'b array
+
+let eval_bdef z def =
+  match def with
+  | Bv_none -> z
+  | Bv_const b -> b
+  | Bv_eq b -> b
+  | Bv_neg b -> not b
+  | At (x, r, k) -> eval_rel r x k
+  | Bv_or xs -> Array.fold_left (||) false xs
+  | Bv_and xs -> Array.fold_left (&&) true xs
 
 type bdefn = (bval_id, ival_id) bdef
 type idefn = (bval_id, ival_id) idef
@@ -203,35 +231,7 @@ let evict_bdef st invert x y =
   let ry = st.bdefs.(y) in 
   (st.bdefs.(y) <- beq_def st invert x ;
    fzn_assert_beq st y ry)
-
-(*
-let rec bmerge st invert x y =
-  match st.bdefs.(x), st.bdefs.(y) with
-  | Bv_none, dy -> st.bdefs.(x) <- beq_def st invert y
-  | dx, Bv_none -> st.bdefs.(y) <- beq_def st invert x
-  | Bv_eq rx, _ -> bmerge st invert rx y
-  | _, Bv_eq ry -> bmerge st invert x ry
-  | Bv_neg rx, _ -> bmerge st (not invert) rx y
-  | _, Bv_neg ry -> bmerge st (not invert) x ry
-  (* Otherwise, we need to choose one of the definitions to evict. *)
-  | Bv_const a, Bv_const b ->
-    if a <> b then
-      (* Conflicting definition *)
-      failwith "Top-level failure."
-    else ()
-  (* If one is a const, keep that. *)
-  | Bv_const a, ry ->
-    (st.bdefs.(y) <- Bv_const (a <> invert) ;
-     fzn_assert_beq st y ry)
-  | rx, Bv_const b ->
-    (st.bdefs.(x) <- Bv_const (b <> invert) ;
-     fzn_assert_beq st x rx)
-  (* Or an atom *)
-  | At _, _ -> evict_bdef st invert x y
-  | _, At _ -> evict_bdef st invert y x
-  | _, _ -> evict_bdef st invert x y
-  *)
-
+ 
 let rec resolve_bdefs st v d d' = 
   match d, d' with
   (* No conflict *)

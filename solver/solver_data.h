@@ -103,6 +103,13 @@ pid_t new_pred(solver_data& s, pred_init init_lb, pred_init init_ub);
 patom_t new_bool(solver_data& s);
 patom_t new_bool(solver_data& s, pred_init init_l, pred_init init_u);
 
+inline void queue_pred(solver_data* s, pid_t p) {
+  if(!s->pred_queued[p]) {
+    s->pred_queue.insert(p);
+    s->pred_queued[p] = true;
+  }
+}
+
 inline pval_t pred_val(solver_data* s, pid_t p) { return s->state.p_vals[p]; }
 inline bool pred_fixed(solver_data* s, pid_t p) { return pval_max - pred_val(s, p) == pred_val(s, p^1); }
 

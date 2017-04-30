@@ -43,7 +43,7 @@ void test1(void) {
   std::cout << "Result: " << r << std::endl;
 
   if(r == solver::SAT) {
-    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
+    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(s.data), y.lb(s.data), z.lb(s.data));
   }
 }
 
@@ -71,7 +71,7 @@ void test2(void) {
   std::cout << "Result: " << r << std::endl;
 
   if(r == solver::SAT) {
-    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
+    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(s.data), y.lb(s.data), z.lb(s.data));
   }
 }
 
@@ -96,7 +96,7 @@ void test3(void) {
   std::cout << "Result: " << r << std::endl;
 
   if(r == solver::SAT) {
-    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
+    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(s.data), y.lb(s.data), z.lb(s.data));
   }
 }
 
@@ -116,7 +116,7 @@ void test4(void) {
   std::cout << "Result: " << r << std::endl;
 
   if(r == solver::SAT) {
-    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(), y.lb(), z.lb());
+    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(s.data), y.lb(s.data), z.lb(s.data));
     model m(s.get_model());
     fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", m[x], m[y], m[z]);
     if(m.value(x >= 3))
@@ -157,7 +157,7 @@ void test5(void) {
 }
 
 int main(int argc, char** argv) {
-  test1();
+//  test1();
   test2();
   test3();
   test4();

@@ -77,7 +77,7 @@ brancher new_int_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) 
   vec<phage::pid_t> vars;
   intvar* end = vs+sz;
   for(; vs != end; ++vs)
-    vars.push(get_intvar(*vs)->pid);
+    vars.push(get_intvar(*vs)->p);
   return ((brancher) phage::basic_brancher(get_varc(varc), get_valc(valc), vars));
 }
 
@@ -165,8 +165,8 @@ void set_bool_polarity(solver s, atom at, int pol) {
 }
 
 void set_int_polarity(intvar x, int pol) {
-  phage::solver_data* d = get_intvar(x)->s;
-  pid_t p = get_intvar(x)->pid;
+  phage::solver_data* d = get_intvar(x)->ext->man->s;
+  pid_t p = get_intvar(x)->p;
 
   d->polarity[p>>1] = pol^(p&1);
   if(p&1)
@@ -188,13 +188,15 @@ int int_value(model m, intvar v) {
   return get_intvar(v)->model_val(*get_model(m));
 }
 
-pid_t ivar_pid(intvar v) { return get_intvar(v)->pid; }
+pid_t ivar_pid(intvar v) { return get_intvar(v)->p; }
 
 int ivar_lb(intvar v) {
-  return get_intvar(v)->lb();
+  phage::solver_data* s = get_intvar(v)->ext->man->s;
+  return get_intvar(v)->lb(s);
 }
 int ivar_ub(intvar v) {
-  return get_intvar(v)->ub();
+  phage::solver_data* s = get_intvar(v)->ext->man->s;
+  return get_intvar(v)->ub(s);
 }
 
 int atom_value(model m, atom at) {

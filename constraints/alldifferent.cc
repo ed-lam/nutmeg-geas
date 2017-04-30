@@ -3,6 +3,7 @@
 
 #include "mtl/bool-set.h"
 #include "engine/propagator.h"
+#include "engine/propagator_ext.h"
 #include "vars/intvar.h"
 
 namespace phage {
@@ -31,8 +32,8 @@ class alldiff_b : public propagator {
         vs[ii].attach(E_UB, watch_callback(wake_ub, this, ii));
         lb_ord.push(ii);
         ub_ord.push(ii);
-        lb.push(vs[ii].lb());
-        ub.push(vs[ii].ub());
+        lbs.push(lb(vs[ii]));
+        ubs.push(lb(vs[ii]));
       }
     }
 
@@ -62,11 +63,11 @@ class alldiff_b : public propagator {
 #endif
       
       for(int ii : irange(vs.size())) {
-        lb[ii] = vs[ii].lb();
-        ub[ii] = vs[ii].ub();           
+        lbs[ii] = lb(vs[ii]);
+        ubs[ii] = ub(vs[ii]);
       }
-      std::sort(lb_ord.begin(), lb_ord.end(), bound_cmp(lb));
-      std::sort(ub_ord.begin(), ub_ord.end(), bound_cmp(ub));
+      std::sort(lb_ord.begin(), lb_ord.end(), bound_cmp(lbs));
+      std::sort(ub_ord.begin(), ub_ord.end(), bound_cmp(ubs));
 
       // Do some stuff here  
 
@@ -80,8 +81,8 @@ class alldiff_b : public propagator {
     vec<int> lb_ord; // Vars orderd by lb
     vec<int> ub_ord; // Vars ordered by ub
 
-    vec<val_t> lb;
-    vec<val_t> ub;
+    vec<val_t> lbs;
+    vec<val_t> ubs;
 
     boolset lb_change;
     boolset ub_change;

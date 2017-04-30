@@ -1,6 +1,7 @@
 #include <algorithm>
 #include "solver/solver_data.h"
 #include "engine/propagator.h"
+#include "engine/propagator_ext.h"
 #include "constraints/builtins.h"
 
 #include "mtl/bool-set.h"
@@ -37,9 +38,9 @@ public:
     // Set up the consumption profile  
     vec<lmark> cprof_lmarks;        
     for(int xi : irange(starts.size())) {
-      if(starts[xi].ub() < starts[xi].lb() + durations[xi]) {
-        cprof_lmarks.push(lmark(xi<<1, starts[xi].ub()));
-        cprof_lmarks.push(lmark((xi<<1)|1, starts[xi].lb() + durations[xi]));
+      if(starts[xi].ub(s) < starts[xi].lb(s) + durations[xi]) {
+        cprof_lmarks.push(lmark(xi<<1, starts[xi].ub(s)));
+        cprof_lmarks.push(lmark((xi<<1)|1, starts[xi].lb(s) + durations[xi]));
       }
     }
     std::sort(cprof_lmarks.begin(), cprof_lmarks.end(), lmark_cmp());
@@ -77,13 +78,13 @@ class cumul_prop : public propagator {
     int var = key>>2;
     switch(kind) {
       case E_Start:
-        return starts[var].lb();
+        return starts[var].lb(s);
       case L_Start:
-        return starts[var].ub();
+        return starts[var].ub(s);
       case E_End:
-        return starts[var].lb() + duration[var];
+        return starts[var].lb(s) + duration[var];
       case L_End:
-        return starts[var].ub() + duration[var];
+        return starts[var].ub(s) + duration[var];
       default:
         ERROR;
         return 0;

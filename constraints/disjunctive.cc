@@ -1,4 +1,5 @@
 #include "engine/propagator.h"
+#include "engine/propagator_ext.h"
 #include "vars/intvar.h"
 namespace phage {
 
@@ -34,8 +35,8 @@ class disj_int : public propagator {
       
       // Timetable reasoning
       for(int ii : irange(st.size())) {
-        est[ii] = st[ii].lb();
-        let[ii] = st[ii].ub() + du[ii];
+        est[ii] = st[ii].lb(s);
+        let[ii] = st[ii].ub(s) + du[ii];
       }
         
       return true;

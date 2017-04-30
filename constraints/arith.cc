@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <climits>
 #include "engine/propagator.h"
+#include "engine/propagator_ext.h"
 #include "solver/solver_data.h"
 #include "vars/intvar.h"
 #include "mtl/bool-set.h"
@@ -14,7 +15,7 @@ namespace phage {
 
 // Deciding whether to decompose
 bool is_small(solver_data* s, intvar x) {
-  return x.ub() - x.lb() < s->opts.eager_threshold;
+  return x.ub(s) - x.lb(s) < s->opts.eager_threshold;
 }
 
 // Propagator:
@@ -62,13 +63,13 @@ public:
 #ifdef LOG_PROP
     std::cerr << "[[Running iprod]]" << std::endl;
 #endif
-    int_itv z_supp(var_unsupp(z));          
-    int_itv x_supp(var_unsupp(x));
-    int_itv y_supp(var_unsupp(y));
+    int_itv z_supp(var_unsupp(s, z));          
+    int_itv x_supp(var_unsupp(s, x));
+    int_itv y_supp(var_unsupp(s, y));
 
-    int_itv z_itv(var_range(z));
-    int_itv x_itv(var_range(x));
-    int_itv y_itv(var_range(y));
+    int_itv z_itv(var_range(s, z));
+    int_itv x_itv(var_range(s, x));
+    int_itv y_itv(var_range(s, y));
     if(z_itv.elem(0)) {
       if(x_itv.elem(0)) {
         z_supp = int_itv { 0, 0 };
@@ -83,10 +84,10 @@ public:
     }
 
     if(x_itv.ub > 0) {
-      int_itv x_pos(pos(var_range(x)));
+      int_itv x_pos(pos(var_range(s, x)));
       if(y_itv.ub > 0) {
         // + * + 
-        int_itv y_pos(pos(var_range(y)));
+        int_itv y_pos(pos(var_range(s, y)));
         int_itv xy { x_pos.lb * y_pos.lb, x_pos.ub * y_pos.ub };
         int_itv z_feas(z_itv & xy);
         if(!z_feas.empty()) {
@@ -100,7 +101,7 @@ public:
       }
       if(y_itv.lb < 0) {
         // + * -  
-        int_itv y_neg(neg(var_range(y)));
+        int_itv y_neg(neg(var_range(s, y)));
         int_itv xy { x_pos.ub * y_neg.lb, x_pos.lb * y_neg.ub };
         int_itv z_feas(z_itv & xy);
         if(!z_feas.empty()) {
@@ -114,10 +115,10 @@ public:
       }
     }
     if(x_itv.lb < 0) {
-      int_itv x_neg(neg(var_range(x)));
+      int_itv x_neg(neg(var_range(s, x)));
       if(y_itv.ub > 0) {
         // - * +  
-        int_itv y_pos(pos(var_range(y)));
+        int_itv y_pos(pos(var_range(s, y)));
         int_itv xy { x_neg.lb * y_pos.lb, x_neg.ub * y_pos.lb };
         int_itv z_feas(z_itv & xy);
         if(!z_feas.empty()) {
@@ -131,7 +132,7 @@ public:
       }
       if(y_itv.lb < 0) {
         // - * - 
-        int_itv y_neg(neg(var_range(y)));
+        int_itv y_neg(neg(var_range(s, y)));
         int_itv xy { x_neg.ub * y_neg.ub, x_neg.lb * y_neg.lb };
         int_itv z_feas(z_itv & xy);
         if(!z_feas.empty()) {
@@ -153,40 +154,40 @@ public:
     assert(x_supp.lb <= x_supp.ub);
     assert(y_supp.lb <= y_supp.ub);
 
-    if(z_supp.lb > z.lb()) {
+    if(z_supp.lb > lb(z)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (z >= z_supp.lb);
-      if(!z.set_lb(z_supp.lb, cl))
+      if(!set_lb(z, z_supp.lb, cl))
         return false;
     }
-    if(z_supp.ub < z.ub()) {
+    if(z_supp.ub < ub(z)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (z <= z_supp.ub);
-      if(!z.set_lb(z_supp.lb, cl))
+      if(!set_lb(z, z_supp.lb, cl))
         return false;
     }
-    if(x_supp.lb > x.lb()) {
+    if(x_supp.lb > lb(x)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (x >= x_supp.lb);
-      if(!x.set_lb(x_supp.lb, cl))
+      if(!set_lb(x, x_supp.lb, cl))
         return false;
     }
-    if(x_supp.ub < x.ub()) {
+    if(x_supp.ub < ub(x)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (x <= x_supp.ub);
-      if(!x.set_ub(x_supp.ub, cl))
+      if(!set_ub(x, x_supp.ub, cl))
         return false;
     }
-    if(y_supp.lb > y.lb()) {
+    if(y_supp.lb > lb(y)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (y >= y_supp.lb);
-      if(!y.set_lb(y_supp.lb, cl))
+      if(!set_lb(y, y_supp.lb, cl))
         return false;
     }
-    if(y_supp.ub < y.ub()) {
+    if(y_supp.ub < ub(y)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (y <= y_supp.ub);
-      if(!y.set_ub(y_supp.ub, cl))
+      if(!set_ub(y, y_supp.ub, cl))
         return false;
     }
 
@@ -225,8 +226,8 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
     if(!xi) {
       // LB
       intvar::val_t v = to_int(pval);
-      intvar::val_t x_lb = x.lb();
-      intvar::val_t y_lb = y.lb();
+      intvar::val_t x_lb = lb(x);
+      intvar::val_t y_lb = lb(y);
 
       // See if we can relax
       if(x.lb_0() * y_lb >= v) { x_lb = x.lb_0(); }
@@ -241,8 +242,8 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
     } else {
       // UB
       intvar::val_t v = to_int(pval_inv(pval));
-      intvar::val_t x_ub = x.ub();
-      intvar::val_t y_ub = y.ub();
+      intvar::val_t x_ub = ub(x);
+      intvar::val_t y_ub = ub(y);
 
       // See if we can relax
       if(x.ub_0() * y_ub <= v) { x_ub = x.ub_0(); }
@@ -263,8 +264,8 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
     if(!(xi&1)) {
       // LB
       intvar::val_t v = to_int(pval);
-      intvar::val_t z_lb = z.lb();
-      intvar::val_t r_ub = r.ub();
+      intvar::val_t z_lb = lb(z);
+      intvar::val_t r_ub = r.ub(s);
 
       // See if we can relax
       if(v * r_ub >= z.lb_0() ) { z_lb = z.lb_0(); }
@@ -282,8 +283,8 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
     } else {
       // UB
       intvar::val_t v = to_int(pval_inv(pval));
-      intvar::val_t z_ub = z.ub();
-      intvar::val_t r_lb = r.lb();
+      intvar::val_t z_ub = ub(z);
+      intvar::val_t r_lb = r.lb(s);
 
       // See if we can relax
       if(v * r_lb <= z.ub_0() ) { z_ub = z.ub_0(); }
@@ -312,28 +313,28 @@ public:
     std::cerr << "[[Running iprod]]" << std::endl;
 #endif
     if(effect&Z_LB) {
-      int z_lb = x.lb() * y.lb();
-      if(z_lb > z.lb()) {
+      int z_lb = lb(x) * lb(y);
+      if(z_lb > lb(z)) {
         if(!z.set_lb(z_lb, ex_thunk<&P::ex_z>(0, expl_thunk::Ex_BTPRED)))
           return false;
       }
     }
     if(effect&Z_UB) {
-      int z_ub = x.ub() * y.ub();
-      if(z_ub < z.ub()) {
+      int z_ub = ub(x) * ub(y);
+      if(z_ub < ub(z)) {
         if(!z.set_ub(z_ub, ex_thunk<&P::ex_z>(1, expl_thunk::Ex_BTPRED)))
           return false;
       }
     }
     
     /*
-    int_itv z_supp(var_unsupp(z));          
-    int_itv x_supp(var_unsupp(x));
-    int_itv y_supp(var_unsupp(y));
+    int_itv z_supp(var_unsupp(s, z));          
+    int_itv x_supp(var_unsupp(s, x));
+    int_itv y_supp(var_unsupp(s, y));
 
-    int_itv z_itv(var_range(z));
-    int_itv x_itv(var_range(x));
-    int_itv y_itv(var_range(y));
+    int_itv z_itv(var_range(s, z));
+    int_itv x_itv(var_range(s, x));
+    int_itv y_itv(var_range(s, y));
     if(z_itv.elem(0)) {
       if(x_itv.elem(0)) {
         z_supp = int_itv { 0, 0 };
@@ -348,10 +349,10 @@ public:
     }
 
     if(x_itv.ub > 0) {
-      int_itv x_pos(pos(var_range(x)));
+      int_itv x_pos(pos(var_range(s, x)));
       if(y_itv.ub > 0) {
         // + * + 
-        int_itv y_pos(pos(var_range(y)));
+        int_itv y_pos(pos(var_range(s, y)));
         int_itv xy { x_pos.lb * y_pos.lb, x_pos.ub * y_pos.ub };
         int_itv z_feas(z_itv & xy);
         if(!z_feas.empty()) {
@@ -418,37 +419,37 @@ public:
     assert(x_supp.lb <= x_supp.ub);
     assert(y_supp.lb <= y_supp.ub);
 
-    if(z_supp.lb > z.lb()) {
+    if(z_supp.lb > lb(z)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (z >= z_supp.lb);
       if(!z.set_lb(z_supp.lb, cl))
         return false;
     }
-    if(z_supp.ub < z.ub()) {
+    if(z_supp.ub < ub(z)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (z <= z_supp.ub);
       if(!z.set_lb(z_supp.lb, cl))
         return false;
     }
-    if(x_supp.lb > x.lb()) {
+    if(x_supp.lb > lb(x)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (x >= x_supp.lb);
       if(!x.set_lb(x_supp.lb, cl))
         return false;
     }
-    if(x_supp.ub < x.ub()) {
+    if(x_supp.ub < ub(x)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (x <= x_supp.ub);
       if(!x.set_ub(x_supp.ub, cl))
         return false;
     }
-    if(y_supp.lb > y.lb()) {
+    if(y_supp.lb > lb(y)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (y >= y_supp.lb);
       if(!y.set_lb(y_supp.lb, cl))
         return false;
     }
-    if(y_supp.ub < y.ub()) {
+    if(y_supp.ub < ub(y)) {
       clause* cl(make_expl(z_itv, x_itv, y_itv));
       (*cl)[0] = (y <= y_supp.ub);
       if(!y.set_ub(y_supp.ub, cl))
@@ -477,27 +478,27 @@ protected:
 #endif
 
 
-irange pos_range(intvar z) { return irange(std::max(1, (int) z.lb()), z.ub()+1); }
-irange neg_range(intvar z) { return irange(z.lb(), std::min(-1, (int) z.ub())); }
+irange pos_range(solver_data* s, intvar z) { return irange(std::max(1, (int) z.lb(s)), z.ub(s)+1); }
+irange neg_range(solver_data* s, intvar z) { return irange(z.lb(s), std::min(-1, (int) z.ub(s))); }
 
 // Decomposition of z = x * y.
 void imul_decomp(solver_data* s, intvar z, intvar x, intvar y) {
   // Establish lower bounds on abs(z).
   // Case splits. x pos:
-  if(x.ub() > 0) {
+  if(x.ub(s) > 0) {
     // y pos
-    if(y.ub() > 0) {
-      for(int kx : pos_range(x)) {
-        for(int ky : pos_range(y)) {
+    if(y.ub(s) > 0) {
+      for(int kx : pos_range(s, x)) {
+        for(int ky : pos_range(s, y)) {
           add_clause(s, x < kx, y < ky, z >= kx*ky);  
           add_clause(s, x > kx, y > ky, x < -kx, y < -ky, z <= kx*ky);
         }
       }
     }
     // y neg
-    if(y.lb() < 0) {
-      for(int kx : pos_range(x)) {
-        for(int ky : neg_range(y)) {
+    if(y.lb(s) < 0) {
+      for(int kx : pos_range(s, x)) {
+        for(int ky : neg_range(s, y)) {
           add_clause(s, x < kx, y > ky, z <= kx*ky);
           add_clause(s, x > kx, y < ky, x < -kx, y > -ky, z >= kx*ky);
         }
@@ -505,18 +506,18 @@ void imul_decomp(solver_data* s, intvar z, intvar x, intvar y) {
     }
   }
   // x neg
-  if(x.lb() < 0) {
-    if(y.ub() > 0) {
-      for(int kx : neg_range(x)) {
-        for(int ky : pos_range(y)) {
+  if(x.lb(s) < 0) {
+    if(y.ub(s) > 0) {
+      for(int kx : neg_range(s, x)) {
+        for(int ky : pos_range(s, y)) {
           add_clause(s, x > kx, y < ky, z <= kx*ky);
           add_clause(s, x < kx, y > ky, x > -kx, y < -ky, z >= kx*ky);
         }
       }
     }
-    if(y.lb() < 0) {
-      for(int kx : neg_range(x)) {
-        for(int ky : neg_range(y)) {
+    if(y.lb(s) < 0) {
+      for(int kx : neg_range(s, x)) {
+        for(int ky : neg_range(s, y)) {
           add_clause(s, x > kx, y > ky, z >= kx*ky);
           add_clause(s, x < kx, y < ky, x > -kx, y > -ky, z <= kx*ky);
         }
@@ -553,7 +554,7 @@ class iabs : public propagator {
     expl.push(p->x < -ival);
   }
 
-  static void ex_x_lb(void* ptr, int sign,
+  static void ex_lb(void* ptr, int sign,
                         pval_t val, vec<clause_elt>& expl) {
     iabs* p(static_cast<iabs*>(ptr));
     intvar::val_t ival(to_int(val));
@@ -565,7 +566,7 @@ class iabs : public propagator {
       expl.push(p->z > -ival);
     }
   }
-  static void ex_x_ub(void* ptr, int sign,
+  static void ex_ub(void* ptr, int sign,
                         pval_t val, vec<clause_elt>& expl) {
     iabs* p(static_cast<iabs*>(ptr));
     intvar::val_t ival(to_int(pval_max - val));
@@ -592,60 +593,60 @@ public:
     std::cerr << "[[Running iabs]]" << std::endl;
 #endif
     // Case split
-    int_itv z_itv { z.ub()+1, z.lb()-1 };
-    int_itv x_itv { x.ub()+1, x.lb()-1 };
-//    int z_min = z.ub()+1;
-//    int z_max = z.lb()-1;
+    int_itv z_itv { ub(z)+1, lb(z)-1 };
+    int_itv x_itv { ub(x)+1, lb(x)-1 };
+//    int z_min = ub(z)+1;
+//    int z_max = lb(z)-1;
 
-//    int x_min = x.ub()+1;
-//    int x_max = x.lb()-1;
+//    int x_min = ub(x)+1;
+//    int x_max = lb(x)-1;
 
-    if(x.lb() < 0) {
-      int_itv neg { std::max(x.lb(), -z.ub()),
-                    std::max(x.ub(), -z.lb()) };
+    if(lb(x) < 0) {
+      int_itv neg { std::max(lb(x), -ub(z)),
+                    std::max(ub(x), -lb(z)) };
       if(!neg.empty()) {
         x_itv |= neg;
         z_itv |= -neg;
       }
     }
-    if(x.ub() >= 0) {
-      int_itv pos { std::max(z.lb(), z.lb()),
-                    std::min(x.ub(), z.ub()) }; 
+    if(ub(x) >= 0) {
+      int_itv pos { std::max(lb(z), lb(z)),
+                    std::min(ub(x), ub(z)) }; 
       if(!pos.empty()) {
         x_itv |= pos;
         z_itv |= pos;
       }
     }
 
-    if(z_itv.ub < z.ub()) {
-      if(!z.set_ub(z_itv.ub, expl_thunk { ex_z_ub, this, 0 }))
+    if(z_itv.ub < ub(z)) {
+      if(!set_ub(z, z_itv.ub, expl_thunk { ex_z_ub, this, 0 }))
         return false;
     }
-    if(z_itv.lb > z.lb()) {
-      if(!z.set_lb(z_itv.lb, expl_thunk { ex_z_lb, this, x_itv.lb >= 0 }))
+    if(z_itv.lb > lb(z)) {
+      if(!set_lb(z, z_itv.lb, expl_thunk { ex_z_lb, this, x_itv.lb >= 0 }))
         return false;
     }
-    if(x_itv.ub < x.ub()) {
-      if(!x.set_ub(x_itv.ub, expl_thunk { ex_x_ub, this, x_itv.ub >= 0 }))
+    if(x_itv.ub < ub(x)) {
+      if(!set_ub(x, x_itv.ub, expl_thunk { ex_ub, this, x_itv.ub >= 0 }))
         return false;
     }
-    if(x_itv.lb > x.lb()) {
-      if(!x.set_lb(x_itv.lb, expl_thunk { ex_x_lb, this, x_itv.lb >= 0}))
+    if(x_itv.lb > lb(x)) {
+      if(!set_lb(x, x_itv.lb, expl_thunk { ex_lb, this, x_itv.lb >= 0}))
         return false;
     }
     return true;
 #if 0
-    int z_min = z.lb();
-    if(x.lb() > -z_min) {
+    int z_min = lb(z);
+    if(lb(x) > -z_min) {
       // z = x
-      if(z_min > x.lb()) {
+      if(z_min > lb(x)) {
         if(!x.set_lb(z_min, expl_thunk ex_x_lb, this, 1))
           return false;
       }
-      if(z.ub() < x.ub()) {
+      if(ub(z) < ub(x)) {
          
       }
-    } else if(x.ub() < z_min) {
+    } else if(ub(x) < z_min) {
       // z = -x
       
     }
@@ -654,15 +655,15 @@ public:
   }
 
   bool check_sat(void) {
-    if(x.lb() <= 0) {
-      int low = std::max((int) z.lb(), std::max(0, (int) -x.ub()));
-      int high = std::min(z.ub(), -x.lb());
+    if(lb(x) <= 0) {
+      int low = std::max((int) lb(z), std::max(0, (int) -ub(x)));
+      int high = std::min(ub(z), -lb(x));
       if(low <= high)
         return true;
     }
-    if(x.ub() >= 0) {
-      int low = std::max((int) z.lb(), std::max(0, (int) x.lb()));
-      int high = std::min(z.ub(), x.ub());
+    if(ub(x) >= 0) {
+      int low = std::max((int) lb(z), std::max(0, (int) lb(x)));
+      int high = std::min(ub(z), ub(x));
       if(low <= high)
         return true;
     }
@@ -679,14 +680,17 @@ protected:
 // Only use for small domains
 void iabs_decomp(solver_data* s, intvar z, intvar x) {
   // Set up initial bounds
-  if(z.lb() < 0)
-    z.set_lb(0, reason());
-  if(x.lb() < -z.ub())
-    x.set_lb(-z.ub(), reason());
-  if(z.ub() < x.ub())
-    x.set_ub(z.ub(), reason());
+  if(z.lb(s) < 0)
+    enqueue(*s, z >= 0, reason());
+//    z.set_lb(0, reason());
+  if(x.lb(s) < -z.ub(s))
+    enqueue(*s, z >= -z.ub(s), reason());
+//    x.set_lb(-ub(z), reason());
+  if(z.ub(s) < x.ub(s))
+    enqueue(*s, x <= z.ub(s), reason());
+//    x.set_ub(ub(z), reason());
 
-  for(intvar::val_t k : z.domain()) {
+  for(intvar::val_t k : z.domain(s)) {
     add_clause(s, x < -k, x > k, z <= k);
     add_clause(s, x > -k, z >= k);
     add_clause(s, x < k, z >= k);
@@ -751,21 +755,21 @@ class imax : public propagator, public prop_inst<imax> {
 public:
   imax(solver_data* s, intvar _z, vec<intvar>& _xs)
     : propagator(s), z(_z), xs(_xs),
-      sep_val(z.lb()), z_change(0), supp_change(0) { 
+      sep_val(lb(z)), z_change(0), supp_change(0) { 
     z.attach(E_LB, watch_callback(wake_z, this, 0, true));
     z.attach(E_UB, watch_callback(wake_z, this, 1, true));
 
     lb_supp = ub_supp = 0;
-    int lb = xs[lb_supp].lb();
-    int ub = xs[ub_supp].ub();
+    int lb = xs[lb_supp].lb(s);
+    int ub = xs[ub_supp].ub(s);
     for(int ii = 0; ii < xs.size(); ii++) {
-      if(xs[ii].lb() < lb) {
+      if(xs[ii].lb(s) < lb) {
         lb_supp = ii;
-        lb = xs[ii].lb();
+        lb = xs[ii].lb(s);
       }
-      if(xs[ii].ub() > ub) {
+      if(xs[ii].ub(s) > ub) {
         ub_supp = ii;
-        ub = xs[ii].ub();
+        ub = xs[ii].ub(s);
       }
       xs[ii].attach(E_LB, watch_callback(wake_x, this, ii<<1, true));
       xs[ii].attach(E_UB, watch_callback(wake_x, this, (ii<<1)|1, true));
@@ -787,23 +791,23 @@ public:
 
   inline bool propagate_z_ub(vec<clause_elt>& confl, bool& mm_trailed) {
     unsigned int seen_var = ub_supp;
-    int seen_ub = xs[ub_supp].ub();
+    int seen_ub = xs[ub_supp].ub(s);
     for(int xi : maybe_max) {
       assert(xi < xs.size());
-      if(seen_ub < xs[xi].ub()) {
+      if(seen_ub < xs[xi].ub(s)) {
         seen_var = xi;
-        seen_ub = xs[xi].ub();
+        seen_ub = xs[xi].ub(s);
       }
     }
 
-    if(seen_ub < z.ub()) {
+    if(seen_ub < ub(z)) {
       /*
       expl_builder e(s->persist.alloc_expl(1 + xs.size()));
       for(intvar x : xs)
         e.push(x > seen_ub);
       if(!z.set_ub(seen_ub, *e))
         */
-      if(!z.set_ub(seen_ub, ex_thunk(ex_ub<expl_z_ub>, 0)))
+      if(!set_ub(z, seen_ub, ex_thunk(ex_ub<expl_z_ub>, 0)))
         return false;
     }
     if(seen_var != ub_supp)
@@ -814,20 +818,20 @@ public:
 
   inline bool propagate_xs_lb(vec<clause_elt>& confl, bool& mm_trailed) {
     unsigned int *xi = maybe_max.begin();
-    int z_lb = z.lb();
+    int z_lb = lb(z);
     while(xi != maybe_max.end()) {
-      if(xs[*xi].ub() < z_lb) {
+      if(xs[*xi].ub(s) < z_lb) {
         // xs[*xi] cannot be the maximum
         if(!mm_trailed) {
           mm_trailed = true;
           trail_push(s->persist, maybe_max.sz);
         }
-        if(sep_val <= xs[*xi].ub())
-          sep_val = xs[*xi].ub()+1;
+        if(sep_val <= xs[*xi].ub(s))
+          sep_val = xs[*xi].ub(s)+1;
         maybe_max.remove(*xi);
       } else {
         // lb(z) won't change anyway
-        if(xs[*xi].lb() == z_lb)
+        if(xs[*xi].lb(s) == z_lb)
           return true;
 
         goto first_lb_found;
@@ -844,13 +848,13 @@ first_lb_found:
     unsigned int supp = *xi;
     ++xi;
     while(xi != maybe_max.end()) {
-      if(xs[*xi].ub() < z_lb) {
+      if(xs[*xi].ub(s) < z_lb) {
         if(!mm_trailed) {
           mm_trailed = true;
           trail_push(s->persist, maybe_max.sz);
         }
-        if(sep_val <= xs[*xi].ub())
-          sep_val = xs[*xi].ub()+1;
+        if(sep_val <= xs[*xi].ub(s))
+          sep_val = xs[*xi].ub(s)+1;
         maybe_max.remove(*xi);
       } else {
         // Second support found
@@ -858,7 +862,7 @@ first_lb_found:
       }
     }
     // Exactly one support found
-    assert(xs[supp].lb() < z_lb);
+    assert(xs[supp].lb(s) < z_lb);
     /*
     expl_builder e(s->persist.alloc_expl(1 + xs.size()));
     e.push(z < z_lb);
@@ -868,9 +872,9 @@ first_lb_found:
     }
     if(!xs[supp].set_lb(z_lb, *e))
     */
-    if(sep_val > z.lb())
-      sep_val = z.lb();
-    if(!xs[supp].set_lb(z_lb, ex_thunk(ex_lb<expl_xi_lb>, supp)))
+    if(sep_val > lb(z))
+      sep_val = lb(z);
+    if(!set_lb(xs[supp], z_lb, ex_thunk(ex_lb<expl_xi_lb>, supp)))
       return false;
 
     return true;
@@ -884,23 +888,23 @@ first_lb_found:
     
     // forall x, ub(x) <= ub(z).
     if(z_change&E_UB) {
-      int z_ub = z.ub();
+      int z_ub = ub(z);
       for(int ii : maybe_max) {
-        if(z_ub < xs[ii].ub()) {
+        if(z_ub < xs[ii].ub(s)) {
           // if(!xs[ii].set_ub(z_ub, z > z_ub))
-          if(!xs[ii].set_ub(z_ub, ex_thunk(ex_ub<expl_xi_ub>, ii)))
+          if(!set_ub(xs[ii], z_ub, ex_thunk(ex_ub<expl_xi_ub>, ii)))
             return false; 
         }
       }
     }
 
     // forall x, lb(z) >= lb(x).
-    int z_lb = z.lb();
+    int z_lb = lb(z);
     for(int xi : lb_change) {
-      if(xs[xi].lb() > z_lb) {
-        z_lb = xs[xi].lb();
+      if(xs[xi].lb(s) > z_lb) {
+        z_lb = xs[xi].lb(s);
         // if(!z.set_lb(z_lb, xs[xi] < z_lb))
-        if(!z.set_lb(z_lb, ex_thunk(ex_lb<expl_z_lb>, xi)))
+        if(!set_lb(z, z_lb, ex_thunk(ex_lb<expl_z_lb>, xi)))
           return false;
       }
     }
@@ -919,13 +923,13 @@ first_lb_found:
   }
 
   bool check_sat(void) {
-    int lb = INT_MIN; 
-    int ub = INT_MIN;
+    int zlb = INT_MIN; 
+    int zub = INT_MIN;
     for(intvar x : xs) {
-      lb = std::max(lb, (int) x.lb());
-      ub = std::max(ub, (int) x.ub());
+      zlb = std::max(zlb, (int) lb(x));
+      zub = std::max(zub, (int) ub(x));
     }
-    return lb <= z.ub() && z.lb() <= ub;
+    return zlb <= ub(z) && lb(z) <= zub;
   }
 
   void root_simplify(void) { }
@@ -999,7 +1003,7 @@ class max_lb : public propagator, public prop_inst<max_lb> {
   }
 
 public:
-  max_lb(solver_data* _s, vec<pid_t>& _xs, pid_t z)
+  malb(xsolver_data* _s, vec<pid_t>& _xs, pid_t z)
     : propagator(_s), xs(_xs), z(_z) {
     for(int ii : irange(2))
       attached[ii] = 0; 
@@ -1052,14 +1056,14 @@ class ine_bound : public propagator, public prop_inst<ine_bound> {
   static void expl(void* ptr, int xi, pval_t v, vec<clause_elt>& ex) {
     ine_bound* p(static_cast<ine_bound*>(ptr));
     if(xi != 0) {
-//      ex.push(p->x != p->x.lb());
-      ex.push(p->x < p->x.lb());
-      ex.push(p->x > p->x.ub());
+//      ex.push(p->x != p->lb(x));
+      ex.push(p->x < p->lb(x));
+      ex.push(p->x > p->ub(x));
     }
     if(xi != 1) {
-      // ex.push(p->z != p->z.lb());
-      ex.push(p->z < p->z.lb());
-      ex.push(p->z > p->z.lb());
+      // ex.push(p->z != p->lb(z));
+      ex.push(p->z < p->lb(z));
+      ex.push(p->z > p->lb(z));
     }
     if(xi != 2)
       ex.push(~p->r);
@@ -1079,12 +1083,12 @@ public:
 
 
   inline bool prop_bound(intvar a, intvar b) {
-    int k = a.lb();
-    if(b.lb() == k) {
+    int k = a.lb(s);
+    if(b.lb(s) == k) {
       if(!b.set_lb(k+1, s->persist.create_expl(a < k, a > k, b < k)))
         return false;
     }
-    if(b.ub() == k) {
+    if(b.ub(s) == k) {
       if(!b.set_ub(k-1, s->persist.create_expl(a < k, a > k, b > k)))
         return false;
     }
@@ -1100,14 +1104,14 @@ public:
     switch(fixed) {
       case Var_X:
         // return prop_bound(x, z);
-        return enqueue(*s, z != x.lb(), ex_thunk(expl, 0));
+        return enqueue(*s, z != lb(x), ex_thunk(expl, 0));
       case Var_Z:
 //        return prop_bound(z, x);
-        return enqueue(*s, x != z.lb(), ex_thunk(expl, 1));
+        return enqueue(*s, x != lb(z), ex_thunk(expl, 1));
       default:
-        if(z.lb() == x.lb()) {
+        if(lb(z) == lb(x)) {
           /*
-          int k = z.lb();
+          int k = lb(z);
           // vec_push(confl, z < k, z > k, x < k, x > k);
           vec_push(confl, z != k, x != k);
           return false;
@@ -1121,8 +1125,8 @@ public:
   }
 
   bool check_sat(void) {
-    int lb = std::min(z.lb(), x.lb());
-    int ub = std::max(z.ub(), x.ub());
+    int lb = std::min(lb(z), lb(x));
+    int ub = std::max(ub(z), ub(x));
     return lb < ub;
   }
 
@@ -1160,7 +1164,7 @@ class ineq : public propagator, public prop_inst<ineq> {
       case T_Atom:
         return s->state.is_entailed(r);
       case T_Var:
-        return pred_fixed(s, vs[t.idx].pid);
+        return pred_fixed(s, vs[t.idx].p);
     }
   }
 
@@ -1197,10 +1201,10 @@ class ineq : public propagator, public prop_inst<ineq> {
 
   inline bool enqueue_trigger(trigger t, int ii, vec<clause_elt>& confl) {
     if(is_active(t)) {
-      assert(vs[0].is_fixed());
-      assert(vs[1].is_fixed());
-      assert(vs[0].lb() == vs[1].lb());
-      intvar::val_t val = vs[0].lb();
+      assert(vs[0].is_fixed(s));
+      assert(vs[1].is_fixed(s));
+      assert(vs[0].lb(s) == vs[1].lb(s));
+      intvar::val_t val = vs[0].lb(s);
       confl.push(~r);
       /*
       confl.push(vs[0] != val);
@@ -1217,14 +1221,14 @@ class ineq : public propagator, public prop_inst<ineq> {
         return enqueue(*s, ~r, ex_thunk(ex_nil<&P::expl>,ii));
       case T_Var:
       {
-        intvar::val_t val = vs[1 - t.idx].lb();
+        intvar::val_t val = vs[1 - t.idx].lb(s);
         prop_val = val;
 
-        if(vs[t.idx].lb() == val) {
-          return vs[t.idx].set_lb(val+1, ex_thunk(ex_nil<&P::expl_lb>, ii));
+        if(vs[t.idx].lb(s) == val) {
+          return set_lb(vs[t.idx], val+1, ex_thunk(ex_nil<&P::expl_lb>, ii));
         }
-        if(vs[t.idx].ub() == val) {
-          return vs[t.idx].set_ub(val-1, ex_thunk(ex_nil<&P::expl_ub>, ii));
+        if(vs[t.idx].ub(s) == val) {
+          return set_ub(vs[t.idx], val-1, ex_thunk(ex_nil<&P::expl_ub>, ii));
         }
         // Otherwise, add LB and UB watches
         ++gen;
@@ -1263,18 +1267,18 @@ class ineq : public propagator, public prop_inst<ineq> {
         ex.push(vs[0] != vs[0].lb());
         ex.push(vs[1] != vs[1].lb());
         */
-        ex.push(vs[0] < vs[0].lb());
-        ex.push(vs[0] > vs[0].ub());
-        ex.push(vs[1] < vs[1].lb());
-        ex.push(vs[1] > vs[1].ub());
+        ex.push(vs[0] < vs[0].lb(s));
+        ex.push(vs[0] > vs[0].ub(s));
+        ex.push(vs[1] < vs[1].lb(s));
+        ex.push(vs[1] > vs[1].ub(s));
         return;
       case T_Var:
         ex.push(~r);
       /*
         ex.push(vs[1 - t.idx] != vs[1 - t.idx].lb());
         */
-        ex.push(vs[1 - t.idx] < vs[1 - t.idx].lb());
-        ex.push(vs[1 - t.idx] > vs[1 - t.idx].ub());
+        ex.push(vs[1 - t.idx] < vs[1 - t.idx].lb(s));
+        ex.push(vs[1 - t.idx] > vs[1 - t.idx].ub(s));
         return;
     }
   }
@@ -1318,7 +1322,7 @@ public:
 #endif
     assert(is_active(trigs[1 - active]));
     assert(is_active(trigs[2]));
-    if(vs[0].ub() < vs[1].lb() || vs[0].lb() > vs[1].ub())
+    if(vs[0].ub(s) < vs[1].lb(s) || vs[0].lb(s) > vs[1].ub(s))
       return true;
     if(s->state.is_inconsistent(r))
       return true;
@@ -1347,7 +1351,7 @@ protected:
 
 void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {
   vec<clause_elt> elts;
-  for(int k : irange(z.lb(), z.ub()+1)) {
+  for(int k : irange(z.lb(s), z.ub(s)+1)) {
     elts.clear();
     elts.push(z <= k);
     for(intvar x : xs) {
@@ -1359,9 +1363,9 @@ void imax_decomp(solver_data* s, intvar z, vec<intvar>& xs) {
   
   elts.clear();
   for(intvar x : xs) {
-    if(x.ub() > z.ub())
-      x.set_ub(z.ub(), reason());
-    elts.push(x >= z.lb());
+    if(x.ub(s) > z.ub(s))
+      enqueue(*s, x <= z.ub(s), reason());
+    elts.push(x >= z.lb(s));
   }
   add_clause(*s, elts);
 }
@@ -1378,8 +1382,8 @@ bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r) {
 
 // Half-reified disequality
 bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
-  intvar::val_t lb = std::max(x.lb(), y.lb());
-  intvar::val_t ub = std::min(x.ub(), y.ub());
+  intvar::val_t lb = std::max(x.lb(s), y.lb(s));
+  intvar::val_t ub = std::min(x.ub(s), y.ub(s));
   if(ub < lb)
     return true;
 
@@ -1641,17 +1645,17 @@ public:
     std::cerr << "[[Running ile]]" << std::endl;
 #endif
     if(state & S_Active) {
-      if(x.lb() > y.lb() + k) {
-        if(!y.set_lb(x.lb() - k, expl_thunk { ex_var, this, 1 }))
+      if(lb(x) > lb(y) + k) {
+        if(!y.set_lb(lb(x) - k, expl_thunk { ex_var, this, 1 }))
           return false;
       }
-      if(y.ub() + k < x.ub()) {
-        if(!x.set_ub(y.ub() + k, expl_thunk { ex_var, this, 0}))
+      if(ub(y) + k < ub(x)) {
+        if(!x.set_ub(ub(y) + k, expl_thunk { ex_var, this, 0}))
           return false;
       }
     } else {
-      if(x.lb() > y.ub() + k) {
-        if(!enqueue(*s, ~r, expl_thunk { ex_r, this, (int) x.lb() }))
+      if(lb(x) > ub(y) + k) {
+        if(!enqueue(*s, ~r, expl_thunk { ex_r, this, (int) lb(x) }))
           return false;
         trail_change(s->persist, state, (char) S_Red);
       }
@@ -1660,7 +1664,7 @@ public:
   }
 
   void root_simplify(void) {
-    if(x.ub() <= y.lb() + k || s->state.is_inconsistent(r)) {
+    if(ub(x) <= lb(y) + k || s->state.is_inconsistent(r)) {
       state = S_Red;
       return;
     }
@@ -1699,14 +1703,14 @@ bool pred_leq(solver_data* s, pid_t x, pid_t y, int k) {
 }
 
 bool int_leq(solver_data* s, intvar x, intvar y, int k) {
-  return pred_leq(s, x.pid, y.pid, k);
+  return pred_leq(s, x.p, y.p, k);
   /*
-  if(y.ub() + k < x.lb())
+  if(ub(y) + k < lb(x))
     return false;
   
-  if(!enqueue(*s, y >= x.lb() - k, reason()))
+  if(!enqueue(*s, y >= lb(x) - k, reason()))
     return false;
-  if(!enqueue(*s, x <= y.ub() + k, reason()))
+  if(!enqueue(*s, x <= ub(y) + k, reason()))
     return false;
 
   pid_t px = x.pid;
@@ -1718,13 +1722,13 @@ bool int_leq(solver_data* s, intvar x, intvar y, int k) {
 }
 
 bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
-  if(s->state.is_entailed(r) && y.ub() + k < x.lb())
+  if(s->state.is_entailed(r) && y.ub(s) + k < x.lb(s))
     return false;
 
   if(s->state.is_entailed(r))
     return int_leq(s, x, y, k);
 
-  new pred_le_hr(s, x.pid, y.pid, k, r);
+  new pred_le_hr(s, x.p, y.p, k, r);
   return true;
 }
 
@@ -1766,12 +1770,12 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   if(!s->state.is_entailed_l0(r))
     WARN("Half-reified int_abs not yet implemented.");
 
-  if(z.lb() < 0) {
-    if(!z.set_lb(0, reason ()))
+  if(z.lb(s) < 0) {
+    if(!enqueue(*s, z >= 0, reason ()))
       return false;
   }
-  if(z.ub() < x.ub()) {
-    if(!x.set_ub(z.ub(), reason ()))
+  if(z.ub(s) < x.ub(s)) {
+    if(!enqueue(*s, x <= z.ub(s), reason ()))
       return false;
   }
 /*
@@ -1782,26 +1786,40 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   pred_le(s, x.pid^1, z.pid, -2, at_True);
   pred_le(s, z.pid, x.pid^1, 2, at_True);
   */
-  pred_le(s, x.pid, z.pid, 0, at_True);
+  pred_le(s, x.p, z.p, 0, at_True);
   // (WARNING: Offsets here are fragile wrt offset changes)
   // (-x) <= z
-  pred_le(s, x.pid^1, z.pid, -2, at_True);
+  pred_le(s, x.p^1, z.p, -2, at_True);
 
   // x >= 0 -> (z <= x)
-  pred_le(s, z.pid, x.pid, 0, x >= 0);
+  pred_le(s, z.p, x.p, 0, x >= 0);
   // x <= 0 -> (z <= -x)
-  pred_le(s, z.pid, x.pid^1, 2, x <= 0);
+  if(!enqueue(*s, x <= z.ub(s), reason ()))
+     return false;
+   /*
+   pred_le(s, x.pid^1, z.pid, -2, at_True);
+   pred_le(s, z.pid, x.pid^1, 2, at_True);
+   */
+  pred_le(s, x.p, z.p, 0, at_True);
+  // (WARNING: Offsets here are fragile wrt offset changes)
+  // (-x) <= z
+  pred_le(s, x.p^1, z.p, -2, at_True);
+
+  // x >= 0 -> (z <= x)
+  pred_le(s, z.p, x.p, 0, x >= 0);
+  // x <= 0 -> (z <= -x)
+  pred_le(s, z.p, x.p^1, 2, x <= 0);
   return true;
 }
 
-bool is_binary(intvar x) { return x.lb() == 0 && x.ub() == 1; }
+bool is_binary(solver_data* s, intvar x) { return x.lb(s) == 0 && x.ub(s) == 1; }
 
 bool mul_bool(solver_data* s, intvar z, intvar x, patom_t y) {
   if(!add_clause(s, y, z == 0))
     return false;
-  
-  return int_le(s, z, x, 0, x.lb() >= 0 ? at_True : y)
-    && int_le(s, x, z, 0, x.ub() <= 0 ? at_True : y);
+
+  return int_le(s, z, x, 0, x.lb(s) >= 0 ? at_True : y)
+    && int_le(s, x, z, 0, x.ub(s) <= 0 ? at_True : y);
 }
 
 #if 0
@@ -1811,27 +1829,27 @@ class isquare : public propagator, public prop_inst<isquare> {
     return  Wt_Keep;
   }
 
-  
+
   isquare(solver_data* _s, intvar _z, intvar _x)
     : s(_s), z(_z), x(_x) {
-      if(z.lb() < 0)
-        z.set_lb(0, reason()); 
-      if(x.lb() >= 0) {
-        if(z.lb() < x.lb() * x.lb()) {
-          z.set_lb(x.lb() * x.lb(), reason());
+      if(lb(z) < 0)
+        set_lb(z, 0, reason());
+      if(lb(x) >= 0) {
+        if(lb(z) < lb(x) * lb(x)) {
+          set_lb(z, lb(x) * lb(x), reason());
         }
-        if(z.ub() > x.ub() * x.ub()) {
-          x.set_ub(
+        if(ub(z) > ub(x) * ub(x)) {
+          set_ub(x, 
   }
-  
+
   void expl_z(int xi, pval_t pval, vec<clause_elt>& expl) {
     if(!xi) {
-      // lb(z)  
+      // lb(z)
       intvar::val_t v = std::max(1, to_int(pval));
     }
   }
   bool propagate(void) {
-    
+
   }
 
   void cleanup(void) { changes = 0; is_queued = false; }
@@ -1841,9 +1859,9 @@ class isquare : public propagator, public prop_inst<isquare> {
 #endif
 
 bool square_decomp(solver_data* s, intvar z, intvar x) {
-  vec<intvar::val_t> abs_vals; 
-  vec<intvar::val_t> z_vals; 
-  for(intvar::val_t v : x.domain()) {
+  vec<intvar::val_t> abs_vals;
+  vec<intvar::val_t> z_vals;
+  for(intvar::val_t v : x.domain(s)) {
     z_vals.push(v*v);
     if(v < 0)
       abs_vals.push(-v);
@@ -1868,14 +1886,14 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   if(!s->state.is_entailed_l0(r))
     WARN("Half-reified int_mul not yet implemented.");
 
-  if(is_binary(x)) {
+  if(is_binary(s, x)) {
     return mul_bool(s, z, y, x >= 1);
-  } else if(is_binary(y)) {
+  } else if(is_binary(s, y)) {
     return mul_bool(s, z, x, y >= 1);
   }
-  
-  if(x.pid == y.pid) {
-    if(x.ub() - x.lb() < s->opts.eager_threshold) {
+
+  if(x.p == y.p) {
+    if(x.ub(s) - x.lb(s) < s->opts.eager_threshold) {
       return square_decomp(s, z, x);
     }
   }

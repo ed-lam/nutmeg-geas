@@ -67,8 +67,8 @@ int main(int argc, char** argv) {
      ERROR;
       
   print_touched(sd);
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   std::cout << "Push" << std::endl;
   push_level(&sd);
@@ -78,8 +78,8 @@ int main(int argc, char** argv) {
   if(!propagate(sd))
     ERROR;  
 
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   print_touched(sd);
 
@@ -92,22 +92,22 @@ int main(int argc, char** argv) {
 
   print_touched(sd);
 
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   std::cout << "Pop" << std::endl;
   bt_to_level(&sd, 1);
 
   print_touched(sd);
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   std::cout << "Pop" << std::endl;
   bt_to_level(&sd, 0);
 
   print_touched(sd);
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   push_level(&sd);
   enqueue(sd, y >= 0, reason());
@@ -119,12 +119,12 @@ int main(int argc, char** argv) {
   if(!propagate(sd))
     ERROR;
 
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   bt_to_level(&sd, 0);
-  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(), x.ub());
-  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(), y.ub());
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 
   return 0;
 }
