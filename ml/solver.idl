@@ -69,6 +69,8 @@ void retract_all([in] solver s);
 quote(mlmli, "external get_conflict : solver -> Atom.t array = \"ml_get_conflict\"");
 
 intvar new_intvar([in] solver s, int lb, int ub);
+intvar intvar_neg([in] intvar x);
+intvar intvar_plus([in] intvar x, [in] int k);
 boolean make_sparse([in] intvar x, [in,size_is(sz)] int vals[], int sz);
 atom new_boolvar([in] solver s);
 

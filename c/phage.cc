@@ -40,6 +40,16 @@ intvar new_intvar(solver s, int lb, int ub) {
   return (intvar) v;
 }
 
+intvar intvar_neg(intvar x) {
+  phage::intvar* v(new phage::intvar(-(*((phage::intvar*) x))));
+  return (intvar) v;
+}
+
+intvar intvar_plus(intvar x, int k) {
+  phage::intvar* v(new phage::intvar(*((phage::intvar*) x) + k));
+  return (intvar) v;
+}
+
 int make_sparse(intvar px, int* vals, int sz) {
   phage::intvar* x((phage::intvar*) px);
   vec<phage::intvar::val_t> vs;

@@ -75,9 +75,14 @@ let int_max solver args anns =
   Builtins.int_max solver At.at_True z [|x; y|]
 
 let array_int_max solver args anns =
-  let xs = Pr.get_array Pr.get_ivar args.(1) in
-  let z = Pr.get_ivar args.(0) in
+  let xs = Pr.get_array (force_ivar solver) args.(1) in
+  let z = force_ivar solver args.(0) in
   Builtins.int_max solver At.at_True z xs
+
+let array_int_min solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(1) in
+  let z = force_ivar solver args.(0) in
+  Builtins.int_max solver At.at_True (Solver.intvar_neg z) (Array.map Solver.intvar_neg xs)
 (*
 let int_min solver args anns =
   let x = Pr.get_ivar args.(0) in
@@ -574,6 +579,7 @@ let initialize () =
     ["bool_clause", bool_clause ;
      "int_max", int_max ;
      "array_int_maximum", array_int_max ;
+     "array_int_minimum", array_int_min ;
      "int_times", int_mul ;
      "int_lin_le", int_lin_le ;
      "int_lin_le_reif", int_lin_le_reif ;

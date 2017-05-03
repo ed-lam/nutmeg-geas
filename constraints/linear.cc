@@ -6,7 +6,7 @@
 
 #include "engine/propagator_ext.h"
 
-// #define SKIP_L0
+#define SKIP_L0
 // #define EXPL_EAGER
 // #define EXPL_NAIVE
 
@@ -401,8 +401,8 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     template<class E>
     void make_expl(int var, int slack, E& ex) {
       assert(slack >= 0);
-      vec<int> xs_pending;
 
+#if 0
       for(int xi = xs.size()-1; xi >= 0; --xi) {
         if(xi == var)
           continue;
@@ -425,9 +425,10 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         }
         ex.push(e.x < x_lb);
       }
+#else
       // First, collect things we can omit entirely, or
       // include at the previous decision level
-      /*
+      vec<int> xs_pending;
       for(int xi : irange(0, xs.size())) {
         if(xi == var)
           continue;
@@ -467,7 +468,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         slack -= e.c * diff;
         assert(slack >= 0);
       }
-      */
+#endif
     }
 
     bool propagate(vec<clause_elt>& confl) {
@@ -704,6 +705,8 @@ public:
     : propagator(s), r(_r), k(_k), status(0) {
     assert(xs.size() >= 2);
     for(unsigned int ii = 0; ii < xs.size(); ii++) {
+      // FIXME
+      make_eager(xs[ii]);
       vs.push(elt { ks[ii], xs[ii] });
       trigs.push(trigger { T_Var, ii });
     }
@@ -750,14 +753,14 @@ public:
       
       // Check if it's already satisfied or propagatable.
       excl_val = sum/vs[vi].c;   
-      /*
+#if 0
       if(vs[vi].x.lb(s) >= excl_val) {
         if(vs[vi].x.lb(s) == excl_val)
-          return vs[vi].x.set_lb(excl_val+1, ex_thunk(ex_nil<&P::expl>, E_LB));
+          return set_lb(vs[vi].x,excl_val+1, ex_thunk(ex_nil<&P::expl>, E_LB));
         return true;
       } else if(vs[vi].x.ub(s) <= excl_val) {
         if(vs[vi].x.ub(s) == excl_val)
-          return vs[vi].x.set_ub(excl_val-1, ex_thunk(ex_nil<&P::expl>, E_UB));
+          return set_lb(vs[vi].x,excl_val-1, ex_thunk(ex_nil<&P::expl>, E_UB));
         return true;
       }
       
@@ -766,12 +769,13 @@ public:
       attach(s, vs[vi].x >= excl_val, watch<&P::wake_bound>(0, Wt_IDEM));
       attach(s, vs[vi].x <= excl_val, watch<&P::wake_bound>(1, Wt_IDEM));
       return true;
-      */
+#else
       if(vs[vi].x.lb(s) > excl_val)
         return true;
       if(vs[vi].x.ub(s) < excl_val)
         return true;
       return enqueue(*s, vs[vi].x != excl_val, ex_thunk(ex_nil<&P::expl>, 0));
+#endif
     }
     return true;
   }

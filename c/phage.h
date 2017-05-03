@@ -56,6 +56,8 @@ void destroy_solver(solver);
 intvar new_intvar(solver, int lb, int ub);
 void destroy_intvar(intvar);
 int make_sparse(intvar, int* vals, int sz);
+intvar intvar_neg(intvar);
+intvar intvar_plus(intvar, int);
 
 atom new_boolvar(solver);
 

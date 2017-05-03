@@ -725,18 +725,20 @@ class imax : public propagator, public prop_inst<imax> {
 
   static void expl_z_lb(imax* p, int xi, intvar::val_t v,
                           vec<clause_elt>& expl) {
-    expl.push(p->xs[xi] < v);
+    expl.push(p->xs[xi] < v+p->xs[xi].off);
   }
 
   static void expl_z_ub(imax* p, int xi, intvar::val_t v,
                           vec<clause_elt>& expl) {
+    v = v + p->z.off;
     for(intvar x : p->xs) {
-      expl.push(x > v);
+      expl.push(x > v + x.off);
     }
   }
 
   static void expl_xi_lb(imax* p, int xi, intvar::val_t v,
                           vec<clause_elt>& expl) {
+    v = v + p->xs[xi].off;
     intvar::val_t sep = std::max(v, p->sep_val);
     expl.push(p->z < sep);
     for(int x : irange(xi)) {
@@ -749,6 +751,7 @@ class imax : public propagator, public prop_inst<imax> {
 
   static void expl_xi_ub(imax* p, int xi, intvar::val_t v,
                           vec<clause_elt>& expl) {
+    v = v + p->xs[xi].off;
     expl.push(p->z > v);
   }
 
