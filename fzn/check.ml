@@ -109,6 +109,16 @@ let bool_clause args =
   Array.fold_left (||) false
     (Array.append pos (Array.map (fun x -> not x) neg))
 
+let array_bool_and args =
+  let xs = Pr.get_array Pr.get_bool args.(0) in
+  let z = Pr.get_bool args.(1) in
+  z = (Array.fold_left (&&) true xs)
+
+let array_bool_or args =
+  let xs = Pr.get_array Pr.get_bool args.(0) in
+  let z = Pr.get_bool args.(1) in
+  z = (Array.fold_left (||) false xs)
+
 let bool_rel rel args =
   rel (Pr.get_bool args.(0)) (Pr.get_bool args.(1))
 
@@ -157,6 +167,8 @@ let check_funs =
        "bool_lin_le", bool_linear_rel (<=) ;
        "array_int_element", array_int_element ; 
        "array_var_int_element", array_int_element ; 
+       "array_bool_and", array_bool_and ; 
+       "array_bool_or", array_bool_or ; 
      ]
 let init () =
   List.iter (fun (id, checker) -> H.add checkers id checker) check_funs

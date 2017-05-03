@@ -67,7 +67,7 @@ public:
   }
 
   intvar operator-(void) const {
-    return intvar(p^1, -off-2, ext);
+    return intvar(p^1, -off+2, ext);
   }
   intvar operator+(int k) const {
     return intvar(p, off+k, ext);
@@ -133,6 +133,8 @@ public:
     }
   }
 
+  int lb_of_pval(pval_t p) const { return to_int(p)+off; }
+  int ub_of_pval(pval_t p) const { return to_int(pval_inv(p))+off; }
   /*
   solver_data* s;
   intvar_manager* man;

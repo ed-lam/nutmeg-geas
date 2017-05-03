@@ -38,14 +38,9 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
   // Requires backtracking
   void ex_naive(int ei, vec<clause_elt>& expl) {
     for(int xi = 0; xi < xs.size(); xi++) {
-      if(2*xi == ei)
+      if(xi == ei)
         continue;
       expl.push(xs[xi].x < xs[xi].x.lb(s));
-    }
-    for(int yi = 0; yi < ys.size(); yi++) {
-      if(2*yi+1 == ei)
-        continue;
-      expl.push(ys[yi].x > ys[yi].x.ub(s));
     }
     /*
     for(elt e : p->xs)
@@ -59,7 +54,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
                        vec<clause_elt>& expl) {
     int_linear_le* p(static_cast<int_linear_le*>(ptr));
 #ifndef EXPL_NAIVE
-    intvar::val_t ival(to_int(pval_inv(pval)));
+    intvar::val_t ival(to_int(pval_inv(pval))+p->xs[xi].x.off);
     intvar::val_t lim(p->k - p->xs[xi].c*(ival+1) + 1);
 
     intvar::val_t sum = 0;
@@ -67,47 +62,12 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       sum += p->xs[xj].c * p->xs[xj].x.lb(p->s);
     for(int xj : irange(xi+1, p->xs.size()))
       sum += p->xs[xj].c * p->xs[xj].x.lb(p->s);
-    for(elt e : p->ys)
-      sum -= e.c * e.x.ub(p->s);
-    p->make_expl(2*xi, sum - lim, expl);
+    p->make_expl(xi, sum - lim, expl);
 #else
     // Naive explanation
     for(elt e : p->xs) {
       assert(p->s->state.is_inconsistent(e.x < e.x.lb(p->s)));
       expl.push(e.x < e.x.lb(p->s));
-    }
-    for(elt e : p->ys) {
-      assert(p->s->state.is_inconsistent(e.x > e.x.ub(p->s)));
-      expl.push(e.x > e.x.ub(p->s));
-    }
-#endif
-  }
-
-  static void ex_y(void* ptr, int yi, pval_t pval,
-                       vec<clause_elt>& expl) {
-    int_linear_le* p(static_cast<int_linear_le*>(ptr));
-
-#ifndef EXPL_NAIVE
-    intvar::val_t ival(to_int(pval));
-    intvar::val_t lim(p->k + p->ys[yi].c*(ival-1) + 1);
-
-    intvar::val_t sum = 0;
-    for(elt e : p->xs)
-      sum += e.c * e.x.lb(p->s);
-    for(int yj : irange(yi))
-      sum -= p->ys[yj].c * p->ys[yj].x.ub(p->s);
-    for(int yj : irange(yi+1, p->ys.size()))
-      sum -= p->ys[yj].c * p->ys[yj].x.ub(p->s);
-
-    p->make_expl(2*yi+1, sum - lim, expl);
-#else
-    for(elt e : p->xs) {
-      assert(p->s->state.is_inconsistent(e.x < e.x.lb(s)));
-      expl.push(e.x < e.x.lb(s));
-    }
-    for(elt e : p->ys) {
-      assert(p->s->state.is_inconsistent(e.x > e.x.ub(s)));
-      expl.push(e.x > e.x.ub(s));
     }
 #endif
   }
@@ -131,15 +91,9 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
     expl.clear();
 
     for(int ii = 0; ii < xs.size(); ii++) {
-      if(ii != 2*var) {
+      if(ii != var) {
         elt e = xs[ii];
         expl.push(e.x < e.x.lb(s));
-      }
-    }
-    for(int ii = 0; ii < ys.size(); ii++) {
-      if(ii != 2*var + 1) {
-        elt e = ys[ii];
-        expl.push(e.x > e.x.ub(s));
       }
     }
     
@@ -155,16 +109,12 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         , expls_sz(0)
 #endif 
       {
+        if(!s->state.is_entailed_l0(_r))
+          assert(0 && "int_linear_le doesn't support reification!");
       for(int ii = 0; ii < vs.size(); ii++) {
-        if(ks[ii] > 0) {
-          // vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size(), true));
-          vs[ii].attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
-          xs.push(elt(ks[ii], vs[ii]));
-        } else if(ks[ii] < 0) {
-          // vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));
-          vs[ii].attach(E_UB, watch<&P::wake_y>(ys.size(), Wt_IDEM));
-          ys.push(elt(-ks[ii], vs[ii]));
-        }
+        elt e = ks[ii] > 0 ? elt(ks[ii], vs[ii]) : elt(-ks[ii], -vs[ii]);
+        e.x.attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
+        xs.push(e);
       }
     }
 
@@ -186,11 +136,10 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       }
 #else
       vec<int> xs_pending;
-      vec<int> ys_pending;
       // First, collect things we can omit entirely, or
       // include at the previous decision level
       for(int xi : irange(0, xs.size())) {
-        if(2*xi == var)
+        if(xi == var)
           continue;
         elt e = xs[xi];
 
@@ -212,28 +161,6 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         }
         xs_pending.push(xi);
       }
-      for(int yi : irange(0, ys.size())) {
-        if(2*yi+1 == var)
-          continue;
-        elt e = ys[yi];
-        int y_ub = e.x.ub(s);
-#ifndef SKIP_L0
-        int y_ub_0 = ub_0(e.x);
-        int diff_0 = e.c * (y_ub_0 - y_ub);
-        if(diff_0 <= slack) {
-          slack -= diff_0;
-          continue;
-        }
-#endif
-        int y_ub_p = ub_prev(e.x);
-        int diff_p = e.c * (y_ub_p - y_ub);
-        if(diff_p <= slack) {
-          slack -= diff_p;
-          ex.push(e.x > y_ub_p);
-          continue;
-        }
-        ys_pending.push(yi);
-      }
 
       // Then, add things at the current level
       assert(slack >= 0);
@@ -241,13 +168,6 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         elt e = xs[xi];
         int diff = slack/e.c;
         ex.push(e.x < e.x.lb(s) - diff);
-        slack -= e.c * diff;
-        assert(slack >= 0);
-      }
-      for(int yi : ys_pending) {
-        elt e = ys[yi];
-        int diff = slack/e.c;
-        ex.push(e.x > e.x.ub(s) + diff);
         slack -= e.c * diff;
         assert(slack >= 0);
       }
@@ -261,15 +181,12 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       int x_lb = 0;
       for(elt e : xs)
         x_lb += e.c * e.x.lb(s);
-      int y_ub = 0;
-      for(elt e : ys)
-        y_ub += e.c * e.x.ub(s);
 
-      if(x_lb - y_ub  > k) {
+      if(x_lb > k) {
         // Collect enough atoms to explain the sum.
         // FIXME: This is kinda weak. We really want to
         // push as much as we can onto the previous level.
-        make_expl(Var_None, x_lb - y_ub - k - 1, confl);
+        make_expl(Var_None, x_lb - k - 1, confl);
         /* /
         for(elt e : xs)
           confl.push(e.x < e.x.lb(s));
@@ -285,7 +202,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
       }
 
       // Otherwise, propagate upper bounds.
-      int slack = k - x_lb + y_ub;
+      int slack = k - x_lb;
       for(int xi : irange(0, xs.size())) {
         elt e = xs[xi];
         int x_diff = slack/e.c;
@@ -299,7 +216,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           */
 #ifdef EXPL_EAGER
           if(!set_ub(e.x, x_ub,
-              expl_thunk { ex_eager, this, make_eager_expl(2*xi) }))
+              expl_thunk { ex_eager, this, make_eager_expl(xi) }))
 #else
           if(!set_ub(e.x, x_ub,
               expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
@@ -310,34 +227,10 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
         }
       }
 
-      for(int yi : irange(0, ys.size())) {
-        elt e = ys[yi];
-        // int y_diff = slack/e.c;
-        int y_diff = slack/e.c;
-        int y_lb = e.x.ub(s) - y_diff;
-        if(e.x.lb(s) < y_lb) {
-          /*
-          expl_builder ex(s->persist.alloc_expl(xs.size()+ys.size()));
-          make_expl(2*yi+1, slack - e.c * y_diff, ex);
-          if(!e.x.set_lb(y_lb, *ex))
-          */
-#ifdef EXPL_EAGER
-          if(!set_lb(e.x, y_lb,
-              expl_thunk { ex_eager, this, make_eager_expl(2*yi + 1) }))
-#else
-          if(!set_lb(e.x, y_lb,
-              expl_thunk { ex_y, this, yi, expl_thunk::Ex_BTPRED }))
-//          if(!e.x.set_lb(y_lb,
-//                ex_thunk(ex_nil<&P::ex_naive>, 2*yi+1, expl_thunk::Ex_BTPRED)))
-#endif
-            return false;
-        }
-      }
       return true;
     }
 
     vec<elt> xs;
-    vec<elt> ys;
     int k;
 
 #ifdef EXPL_EAGER
@@ -367,8 +260,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     int lb = 0;
     for(const elt& e : xs)
       lb += e.c * e.x.lb(s);
-    for(const elt& e : ys)
-      lb -= e.c * e.x.ub(s);
     return lb;
   }
 
@@ -378,8 +269,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     // Compute the threshold
     int new_threshold = 0;
     for(const elt& e : xs)
-      new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub(s) - e.x.lb(s))));
-    for(const elt& e : ys)
       new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub(s) - e.x.lb(s))));
     if(slack < new_threshold) {
       queue_prop();
@@ -404,37 +293,13 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     return Wt_Keep;
   }
 
-  watch_result wake_y(int yi) {
-    if(status&S_Red)
-      return Wt_Keep;
-    trail_change(s->persist, slack, slack - delta(ys[yi].c, ys[yi].x.p^1));
-#ifdef CHECK_STATE
-    // Might not have processed all watches yet
-    assert(slack >= k - compute_lb());
-#endif
-    if(slack < threshold)
-      queue_prop();
-    return Wt_Keep;
-  }
- 
   // Requires backtracking
   void ex_naive(int ei, vec<clause_elt>& expl) {
     for(int xi = 0; xi < xs.size(); xi++) {
-      if(2*xi == ei)
+      if(xi == ei)
         continue;
       expl.push(xs[xi].x < xs[xi].x.lb(s));
     }
-    for(int yi = 0; yi < ys.size(); yi++) {
-      if(2*yi+1 == ei)
-        continue;
-      expl.push(ys[yi].x > ys[yi].x.ub(s));
-    }
-    /*
-    for(elt e : p->xs)
-      expl.push(e.x < e.x.lb(s));
-    for(elt e : p->ys)
-      expl.push(e.x > e.x.ub(s));
-      */
   }
 
   void ex_r(int ex_slack, vec<clause_elt>& expl) {
@@ -443,7 +308,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 
   void ex_x(int xi, pval_t pval, vec<clause_elt>& expl) {
 #ifndef EXPL_NAIVE
-    intvar::val_t ival(to_int(pval_inv(pval)));
+    intvar::val_t ival(xs[xi].x.ub_of_pval(pval));
     intvar::val_t lim(k - xs[xi].c*(ival+1) + 1);
 
     intvar::val_t sum = 0;
@@ -451,48 +316,14 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
       sum += xs[xj].c * xs[xj].x.lb(s);
     for(int xj : irange(xi+1, xs.size()))
       sum += xs[xj].c * xs[xj].x.lb(s);
-    for(elt e : ys)
-      sum -= e.c * e.x.ub(s);
     expl.push(~r);
-    make_expl(2*xi, sum - lim, expl);
+    make_expl(xi, sum - lim, expl);
 #else
     // Naive explanation
     expl.push(~r);
     for(elt e : xs) {
       assert(s->state.is_inconsistent(e.x < e.x.lb(s)));
       expl.push(e.x < e.x.lb(s));
-    }
-    for(elt e : ys) {
-      assert(s->state.is_inconsistent(e.x > e.x.ub(s)));
-      expl.push(e.x > e.x.ub(s));
-    }
-#endif
-  }
-
-  void ex_y(int yi, pval_t pval, vec<clause_elt>& expl) {
-#ifndef EXPL_NAIVE
-    intvar::val_t ival(to_int(pval));
-    intvar::val_t lim(k + ys[yi].c*(ival-1) + 1);
-
-    intvar::val_t sum = 0;
-    for(elt e : xs)
-      sum += e.c * e.x.lb(s);
-    for(int yj : irange(yi))
-      sum -= ys[yj].c * ys[yj].x.ub(s);
-    for(int yj : irange(yi+1, ys.size()))
-      sum -= ys[yj].c * ys[yj].x.ub(s);
-
-    expl.push(~r);
-    make_expl(2*yi+1, sum - lim, expl);
-#else
-    expl.push(~r);
-    for(elt e : xs) {
-      assert(s->state.is_inconsistent(e.x < e.x.lb(s)));
-      expl.push(e.x < e.x.lb(s));
-    }
-    for(elt e : ys) {
-      assert(s->state.is_inconsistent(e.x > e.x.ub(s)));
-      expl.push(e.x > e.x.ub(s));
     }
 #endif
   }
@@ -516,15 +347,9 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     expl.clear();
 
     for(int ii = 0; ii < xs.size(); ii++) {
-      if(ii != 2*var) {
+      if(ii != var) {
         elt e = xs[ii];
         expl.push(e.x < e.x.lb(s));
-      }
-    }
-    for(int ii = 0; ii < ys.size(); ii++) {
-      if(ii != 2*var + 1) {
-        elt e = ys[ii];
-        expl.push(e.x > e.x.ub(s));
       }
     }
     
@@ -541,21 +366,13 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 #endif 
       {
       for(int ii = 0; ii < vs.size(); ii++) {
-        if(ks[ii] > 0) {
-          // vs[ii].attach(E_LB, watch_callback(wake_x, this, xs.size(), true));
-          vs[ii].attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
-          xs.push(elt(ks[ii], vs[ii]));
-        } else if(ks[ii] < 0) {
-          // vs[ii].attach(E_UB, watch_callback(wake_y, this, ys.size(), true));
-          vs[ii].attach(E_UB, watch<&P::wake_y>(ys.size(), Wt_IDEM));
-          ys.push(elt(-ks[ii], vs[ii]));
-        }
+        elt e = ks[ii] > 0 ? elt(ks[ii], vs[ii]) : elt(-ks[ii], -vs[ii]);
+        e.x.attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
+        xs.push(e);
       }
       // Initialize lower bound
       for(const elt& e : xs)
         slack -= e.c * lb_prev(e.x);
-      for(const elt& e : ys)
-        slack += e.c * ub_prev(e.x);
       // Tighten upper bound, and compute threshold? 
       if(s->state.is_entailed(r)) {
         status = S_Active;
@@ -566,13 +383,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           // threshold = std::max(threshold, (int) (e.c * (e.x.ub(s) - e.x.lb_prev())));
           threshold.x = std::max(threshold.x, (int) (e.c * (e.x.ub(s) - lb_prev(e.x))));
         }
-        for(elt& e : ys) {
-          int y_lb = e.x.ub(s) - slack/e.c;
-          if(y_lb > e.x.lb(s))
-            set_lb(e.x, y_lb, reason());
-          // threshold = std::max(threshold, (int) (e.c * (e.x.ub_prev() - e.x.lb(s))));
-          threshold.x = std::max(threshold.x, (int) (e.c * (ub_prev(e.x) - e.x.lb(s))));
-        }
         assert(slack >= k - compute_lb());
       } else {
         for(elt& e : xs) {
@@ -580,12 +390,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           if(x_ub < e.x.ub(s))
             add_clause(s, ~r, e.x <= x_ub);
         }
-        for(elt& e : ys) {
-          int y_lb = e.x.ub(s) - slack/e.c;
-          if(y_lb > e.x.lb(s))
-            add_clause(s, ~r, e.x >= y_lb);
-        }
-        // threshold = 0;
         threshold.x = 0;
       }
     }
@@ -598,11 +402,34 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     void make_expl(int var, int slack, E& ex) {
       assert(slack >= 0);
       vec<int> xs_pending;
-      vec<int> ys_pending;
+
+      for(int xi = xs.size()-1; xi >= 0; --xi) {
+        if(xi == var)
+          continue;
+        elt e = xs[xi];
+
+        int x_lb = lb(e.x);
+        int x_lb_prev = lb_prev(e.x);
+
+        int diff = e.c * (x_lb - x_lb_prev);
+        if(diff <= slack) {
+          slack -= diff;
+
+          diff = e.c * (x_lb_prev - lb_0(e.x));
+          if(diff <= slack) {
+            slack -= diff;
+            continue;
+          }
+          ex.push(e.x < x_lb_prev); 
+          continue;
+        }
+        ex.push(e.x < x_lb);
+      }
       // First, collect things we can omit entirely, or
       // include at the previous decision level
+      /*
       for(int xi : irange(0, xs.size())) {
-        if(2*xi == var)
+        if(xi == var)
           continue;
         elt e = xs[xi];
 
@@ -614,20 +441,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           continue;
         }
         xs_pending.push(xi);
-      }
-
-      for(int yi : irange(0, ys.size())) {
-        if(2*yi+1 == var)
-          continue;
-        elt e = ys[yi];
-        int y_ub = e.x.ub(s);
-        int y_ub_0 = ub_0(e.x);
-        int diff_0 = e.c * (y_ub_0 - y_ub);
-        if(diff_0 <= slack) {
-          slack -= diff_0;
-          continue;
-        }
-        ys_pending.push(yi);
       }
 
       int* xp = xs_pending.begin();
@@ -645,21 +458,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
       }
       xs_pending.shrink_(xs_pending.end() - xp);
 
-      int* yp = ys_pending.begin();
-      for(int yi : ys_pending) {
-        elt e = ys[yi];
-        int y_ub = e.x.ub(s);
-        int y_ub_p = ub_prev(e.x);
-        int diff_p = e.c * (y_ub_p - y_ub);
-        if(diff_p <= slack) {
-          slack -= diff_p;
-          ex.push(e.x > y_ub_p);
-          continue;
-        }
-        *yp = yi; ++yp;
-      }
-      ys_pending.shrink_(ys_pending.end() - yp);
-
       // Then, add things at the current level
       assert(slack >= 0);
       for(int xi : xs_pending) {
@@ -669,13 +467,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         slack -= e.c * diff;
         assert(slack >= 0);
       }
-      for(int yi : ys_pending) {
-        elt e = ys[yi];
-        int diff = slack/e.c;
-        ex.push(e.x > e.x.ub(s) + diff);
-        slack -= e.c * diff;
-        assert(slack >= 0);
-      }
+      */
     }
 
     bool propagate(vec<clause_elt>& confl) {
@@ -721,18 +513,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub(s) - e.x.lb(s))));
       }
 
-      for(int yi : irange(0, ys.size())) {
-        elt e = ys[yi];
-        // int y_diff = slack/e.c;
-        int y_diff = slack/e.c;
-        int y_lb = e.x.ub(s) - y_diff;
-        if(e.x.lb(s) < y_lb) {
-          if(!set_lb(e.x, y_lb,
-              ex_thunk(ex<&P::ex_y>, yi, expl_thunk::Ex_BTPRED)))
-            return false;
-        }
-        new_threshold = std::max(new_threshold, (int) (e.c * (e.x.ub(s) - e.x.lb(s))));
-      }
       // trail_change(s->persist, threshold, new_threshold);
       set(threshold, new_threshold);
       return true;
@@ -740,7 +520,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 
     patom_t r;
     vec<elt> xs;
-    vec<elt> ys;
     int k;
 
     // Persistent state
@@ -1022,7 +801,7 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
     WARN("Half-reification not yet implemented for linear_le.");
   }
   */
-//  new int_linear_le(s, r, ks, vs, k);
+//   new int_linear_le(s, r, ks, vs, k);
   new lin_le_inc(s, r, ks, vs, k);
   return true;
 }
