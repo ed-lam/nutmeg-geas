@@ -1,5 +1,6 @@
 #ifndef PHAGE_SOLVER_IMPL__H
 #define PHAGE_SOLVER_IMPL__H
+#include <signal.h>
 #include "mtl/Vec.h"
 #include "mtl/Heap.h"
 #include "mtl/Queue.h"
