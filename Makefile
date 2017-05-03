@@ -10,6 +10,7 @@ VARS      = ./vars
 CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
 CXXFLAGS += --std=c++11
 CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
+#CXXFLAGS += -pg
 LFLAGS    = -lz -Wall -Wno-deprecated
 #LFLAGS   += -pg
 
@@ -24,7 +25,7 @@ LFLAGS    = -lz -Wall -Wno-deprecated
 #CXXFLAGS += -DLOG_PROP
 #CXXFLAGS += -DCHECK_STATE
 
-COPTIMIZE = -O3 -march=x86-64 -ffast-math -funroll-loops # -freorder-blocks-and-partition
+COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2
 #COPTIMIZE = -O1
 #COPTIMIZE = -O0

@@ -118,7 +118,13 @@ inline pval_t pred_lb(solver_data* s, pid_t p) { return s->state.p_vals[p]; }
 inline pval_t pred_ub(solver_data* s, pid_t p) { return pval_inv(s->state.p_vals[p^1]); }
 
 bool propagate(solver_data& s);
-bool enqueue(solver_data& s, patom_t p, reason r);
+// bool enqueue(solver_data& s, patom_t p, reason r);
+bool _enqueue(solver_data& s, patom_t p, reason r);
+inline bool enqueue(solver_data& s, patom_t p, reason r) {
+  if(s.state.is_entailed(p))
+    return true;
+  return _enqueue(s, p, r);
+}
 
 // Warning: Modifies elts in place.
 bool add_clause(solver_data& s, vec<clause_elt>& elts);

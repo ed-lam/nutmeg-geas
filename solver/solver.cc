@@ -386,15 +386,17 @@ static int num_props = 0;
 #endif
 
 // static 
-bool enqueue(sdata& s, patom_t p, reason r) {
+bool _enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
   std::cout << "|- " << p << "{" << s.infer.trail.size() << "}" << std::endl;
 #endif
 
+  /*
   assert(p.pid < s.pred_queued.size());
   // assert(!s.state.is_entailed(p));
   if(s.state.is_entailed(p))
     return true;
+    */
 
 #ifdef LOG_RESTART
   num_props++;
