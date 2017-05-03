@@ -50,8 +50,14 @@ forceinline inline pval_t pval_inv(pval_t v) { return pval_max - v; }
 forceinline inline pval_t pred_val(const ctx_t& ctx, pid_t p) {
   return ctx[p];
 }
+forceinline inline pval_t pred_lb(const ctx_t& ctx, pid_t p) {
+  return ctx[p];
+}
+forceinline inline pval_t pred_ub(const ctx_t& ctx, pid_t p) {
+  return pval_inv(ctx[p^1]);
+}
 forceinline inline bool pred_fixed(const ctx_t& ctx, pid_t p) {
-  return pval_max - ctx[p] == ctx[p^1];
+  return pval_inv(ctx[p]) == ctx[p^1];
 }
 
 typedef uint32_t pid_t;

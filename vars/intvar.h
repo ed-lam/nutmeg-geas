@@ -15,14 +15,22 @@ enum intvar_event { E_None = 0, E_LB = 1, E_UB = 2, E_LU = 3, E_FIX = 4 };
 
 // Extra bookkeeping for intvars
 struct ivar_ext {
-  ivar_ext(intvar_manager* _man, int _idx)
-    : man(_man), idx(_idx) { }
+  ivar_ext(solver_data* _s, pid_t _p, int _idx)
+    : s(_s), p(_p), idx(_idx) { }
 
-  intvar_manager* man;
+  patom_t get_eqatom(pval_t val);
+  void make_eager(void);
+  bool make_sparse(vec<pval_t>& vs);
+
+  solver_data* s;
+  pid_t p;
   int idx;
 
   vec<watch_callback> b_callbacks[2];
   vec<watch_callback> fix_callbacks;
+
+  std::unordered_map<pval_t, patom_t> eqtable;
+  vec<pval_t> vals;
 };
 
 class intvar {
@@ -109,8 +117,21 @@ public:
   patom_t operator>(val_t v) { return patom_t(p, from_int(v-off+1)); }
   patom_t operator<=(val_t v) { return ~patom_t(p, from_int(v-off+1)); }
   patom_t operator<(val_t v) { return ~patom_t(p, from_int(v-off)); }
-  patom_t operator==(val_t v);
-  patom_t operator!=(val_t v);
+  patom_t operator==(val_t v) {
+    if(p&1) {
+      // CHECK: Do we need to correct for negation here?
+      return ~ext->get_eqatom(pval_inv(from_int(v)-off));
+    } else {
+      return ext->get_eqatom(from_int(v)-off);
+    }
+  }
+  patom_t operator!=(val_t v) {
+    if(p&1) {
+      return ext->get_eqatom(pval_inv(from_int(v)-off));
+    } else {
+      return ~ext->get_eqatom(from_int(v)-off);
+    }
+  }
 
   /*
   solver_data* s;
@@ -156,8 +177,8 @@ public:
 
   bool in_domain(unsigned int vid, val_t val);
   patom_t make_eqatom(unsigned int vid, val_t val);
-  bool make_sparse(unsigned int vid, vec<val_t>& vals);
-  void make_eager(unsigned int vid);
+  // bool make_sparse(unsigned int vid, vec<val_t>& vals);
+  // void make_eager(unsigned int vid);
 
   vec<pid_t> var_preds;
 
@@ -177,6 +198,7 @@ public:
 };
 
 // inline patom_t intvar_base::operator==(int64_t v) {
+/*
 inline patom_t intvar::operator==(val_t v) {
   // return man->make_eqatom(idx, v);
   assert(0);
@@ -189,6 +211,7 @@ inline patom_t intvar::operator!=(val_t v) {
   assert(0);
   return at_True;
 }
+*/
 
 inline bool in_domain(intvar x, int k) {
 //  return x.man->in_domain(x.idx, k);
@@ -199,17 +222,19 @@ inline bool in_domain(intvar x, int k) {
 template<class T>
 // bool intvar_base::make_sparse(vec<T>& vals) {
 bool make_sparse(intvar x, vec<T>& vals) {
-  vec<intvar::val_t> vs;
-  for(const T& v : vals)
-    vs.push((intvar::val_t) v);
-  // return x.man->make_sparse(x.idx, vs);
-  assert(0);
-  return false;
+  vec<pval_t> vs;
+  if(x.p&1) {
+    for(const T& v : vals)
+      vs.push(pval_inv(intvar::from_int(v-x.off)));
+  } else {
+    for(const T& v : vals)
+      vs.push(intvar::from_int(v-x.off));
+  }
+  return x.ext->make_sparse(vs);
 }
 
 inline void make_eager(intvar x) {
-//  x.man->make_eager(x.idx);
-  assert(0);
+  x.ext->make_eager();
 }
 
 inline intvar::val_t to_int(pval_t v) { return intvar::to_int(v); }

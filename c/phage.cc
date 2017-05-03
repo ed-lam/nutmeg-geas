@@ -165,7 +165,7 @@ void set_bool_polarity(solver s, atom at, int pol) {
 }
 
 void set_int_polarity(intvar x, int pol) {
-  phage::solver_data* d = get_intvar(x)->ext->man->s;
+  phage::solver_data* d = get_intvar(x)->ext->s;
   pid_t p = get_intvar(x)->p;
 
   d->polarity[p>>1] = pol^(p&1);
@@ -191,11 +191,11 @@ int int_value(model m, intvar v) {
 pid_t ivar_pid(intvar v) { return get_intvar(v)->p; }
 
 int ivar_lb(intvar v) {
-  phage::solver_data* s = get_intvar(v)->ext->man->s;
+  phage::solver_data* s = get_intvar(v)->ext->s;
   return get_intvar(v)->lb(s);
 }
 int ivar_ub(intvar v) {
-  phage::solver_data* s = get_intvar(v)->ext->man->s;
+  phage::solver_data* s = get_intvar(v)->ext->s;
   return get_intvar(v)->ub(s);
 }
 

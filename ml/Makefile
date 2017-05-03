@@ -5,6 +5,7 @@ PROF =
 #MLPROF = -ccopt "-pg"
 MLPROF = 
 CXX = g++
+#CXX = g++-4.9
 CXXFLAGS = -g -O3 -I .
 CXXFLAGS += -Wall -Wno-non-virtual-dtor -Wno-unused-function -Wno-deprecated -ffast-math # -funroll-loops
 CXXFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml

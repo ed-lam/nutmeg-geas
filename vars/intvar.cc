@@ -84,7 +84,7 @@ intvar intvar_manager::new_var(val_t lb, val_t ub) {
   int idx = var_preds.size();
   pid_t p = new_pred(*s);
   var_preds.push(p);
-  ivar_ext* ext(new ivar_ext(this, idx));
+  ivar_ext* ext(new ivar_ext(s, p, idx));
   var_exts.push(ext);
   // eqtable.push_back(std::unordered_map<pval_t, patom_t>());
 
@@ -254,6 +254,7 @@ patom_t intvar_manager::make_eqatom(unsigned int vid, val_t ival) {
 }
 
 // Should only be called at root level
+#if 0
 bool intvar_manager::make_sparse(unsigned int vid, vec<val_t>& ivals) {
    // Find the appropriate var/val pair
    /*
@@ -306,21 +307,129 @@ bool intvar_manager::make_sparse(unsigned int vid, vec<val_t>& ivals) {
   assert(0);
   return true;
 }
+#endif
 
-void intvar_manager::make_eager(unsigned int vid) {
-  /*
+void ivar_ext::make_eager(void) {
   // Find the appropriate var/val pair
-  pid_t x_pi(var_preds[vid]);
-  intvar::val_t lb(to_int(s->state.p_root[x_pi]));
-  intvar::val_t ub(to_int(pval_inv(s->state.p_root[x_pi+1])));
+  pval_t lb(pred_lb(s, p));
+  pval_t ub(pred_ub(s, p));
 
-  for(int ii = lb; ii <= ub; ii++) {
-    make_eqatom(vid, ii);
+  for(pval_t ii = lb; ii <= ub; ii++) {
+    get_eqatom(ii);
   }
-  */
-  assert(0);
 }
 
+bool ivar_ext::make_sparse(vec<pval_t>& _vs) {
+  vec<pval_t> vs(_vs); 
+  uniq(vs);
+  // Set global bounds and gaps
+
+  if(!enqueue(*s, ge_atom(p, vs[0]), reason()))
+    return false;
+  for(int vi = 1; vi < vs.size(); vi++) {
+    if(vs[vi-1]+1 == vs[vi])
+      continue;
+    if(!add_clause(s, le_atom(p, vs[vi-1]), ge_atom(p, vs[vi])))
+      return false;
+  }
+  if(!enqueue(*s, le_atom(p, vs.last()), reason()))
+    return false;
+
+  // Bind the equality atoms
+  auto it = eqtable.find(vs[0]);
+  if(it == eqtable.end()) {
+    patom_t at = le_atom(p, vs[0]);
+    eqtable.insert(std::make_pair(vs[0], at));
+  }
+  for(int vi = 1; vi < vs.size()-1; vi++) {
+    auto it = eqtable.find(vs[vi]);
+    if(it != eqtable.end())
+      continue;
+
+    patom_t at = new_bool(*s);
+    eqtable.insert(std::make_pair(vs[vi], at));
+    if(!add_clause(s, ~at, le_atom(p, vs[vi])))
+      return false;
+    if(!add_clause(s, ~at, ge_atom(p, vs[vi])))
+      return false;
+    if(!add_clause(s, at, le_atom(p, vs[vi-1]), ge_atom(p, vs[vi+1])))
+      return false;
+  }
+  it = eqtable.find(vs.last());
+  if(it == eqtable.end()) {
+    eqtable.insert(std::make_pair(vs.last(), ge_atom(p, vs.last())));
+  }
+
+  return true;
+}
+
+static pval_t eqat_init_lb(void* ptr, int ei, vec<pval_t>& vals) {
+  ivar_ext* ext(static_cast<ivar_ext*>(ptr));
+  if(pred_lb(vals, ext->p) < ext->vals[ei])
+    return from_int(0);
+  if(pred_ub(vals, ext->p) > ext->vals[ei])
+    return from_int(0);
+  return from_int(1);
+}
+
+static void eqat_ex_lb(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
+  ivar_ext* ext(static_cast<ivar_ext*>(ptr));
+  elts.push(le_atom(ext->p, ext->vals[ei]-1));
+  elts.push(ge_atom(ext->p, ext->vals[ei]+1));
+}
+
+
+static pval_t eqat_init_ub(void* ptr, int ei, vec<pval_t>& vals) {
+  ivar_ext* ext(static_cast<ivar_ext*>(ptr));
+  if(pred_lb(vals, ext->p) > ext->vals[ei])
+    return pval_inv(from_int(0));
+  if(pred_ub(vals, ext->p) < ext->vals[ei])
+    return pval_inv(from_int(0));
+  return pval_inv(from_int(1));
+}
+
+static void eqat_ex_ub(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
+  ivar_ext* ext(static_cast<ivar_ext*>(ptr));
+  if(pred_lb(ext->s, ext->p) > ext->vals[ei]) {
+    elts.push(le_atom(ext->p, ext->vals[ei]));
+  } else {
+    assert(pred_ub(ext->s, ext->p) < ext->vals[ei]);
+    elts.push(ge_atom(ext->p, ext->vals[ei]));
+  }
+}
+
+patom_t ivar_ext::get_eqatom(pval_t val) {
+  int eq_idx = vals.size();
+  vals.push(val);
+  auto it = eqtable.find(val);
+  if(it != eqtable.end())
+    return (*it).second;
+
+  pval_t x_lb = s->state.p_root[p];
+  pval_t x_ub = pval_inv(s->state.p_root[p+1]);
+
+  if(val < x_lb || val > x_ub)
+    return at_False;
+  if(val == x_lb)
+    return ~patom_t(p, val+1);
+  if(val == x_ub)
+    return patom_t(p, val);
+
+  pred_init in_lb(eqat_init_lb, this, eq_idx,
+    expl_thunk {eqat_ex_lb, this, eq_idx});
+  pred_init in_ub(eqat_init_ub, this, eq_idx,
+    expl_thunk {eqat_ex_ub, this, eq_idx});
+
+  patom_t at = new_bool(*s, in_lb, in_ub);
+
+  // Connect it to the corresponding bounds
+  add_clause_(s, ~at, patom_t(p, val));
+  add_clause_(s, ~at, ~patom_t(p, val+1));
+  add_clause_(s, at, ~patom_t(p, val), patom_t(p, val+1));
+
+  eqtable.insert(std::make_pair(val, at));
+  return at;
+}
 
 }
 
