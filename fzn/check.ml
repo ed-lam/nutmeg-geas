@@ -40,7 +40,9 @@ let check prob ivars bvars model =
 
 let check_exn prob ivars bvars model =
   Dy.iter (fun ((id, args), ann) ->
-    let check_fun = H.find checkers id in
+    let check_fun =
+      try H.find checkers id
+      with Not_found -> raise (No_checker id) in
     let vals = Array.map (eval_expr model ivars bvars) args in
     if not (check_fun vals) then
       begin
@@ -56,6 +58,13 @@ let array_int_element args =
   let elts = Pr.get_array Pr.get_int args.(1) in
   let x = Pr.get_int args.(0) in
   let z = Pr.get_int args.(2) in
+  1 <= x && x <= Array.length elts &&
+  z = elts.(x-1)
+
+let array_bool_element args =
+  let elts = Pr.get_array Pr.get_bool args.(1) in
+  let x = Pr.get_int args.(0) in
+  let z = Pr.get_bool args.(2) in
   1 <= x && x <= Array.length elts &&
   z = elts.(x-1)
 
@@ -165,8 +174,10 @@ let check_funs =
        "int_lin_eq_reif", reif (int_linear_rel (=)) ;
        "bool_eq", bool_rel (=) ;
        "bool_lin_le", bool_linear_rel (<=) ;
-       "array_int_element", array_int_element ; 
-       "array_var_int_element", array_int_element ; 
+       "array_int_element", array_int_element ;
+       "array_var_int_element", array_int_element ;
+       "array_bool_element", array_bool_element ;
+       "array_var_bool_element", array_bool_element ;
        "array_bool_and", array_bool_and ; 
        "array_bool_or", array_bool_or ; 
      ]
