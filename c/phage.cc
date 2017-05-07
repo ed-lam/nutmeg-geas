@@ -62,6 +62,16 @@ void destroy_intvar(intvar v) {
   delete get_intvar(v);
 }
 
+fpvar new_floatvar(solver s, float lb, float ub) {
+  phage::solver* ps(get_solver(s));
+  phage::fp::fpvar* v(new phage::fp::fpvar(ps->new_floatvar(lb, ub)));
+  return (fpvar) v;
+}
+
+void destroy_floatvar(fpvar v) {
+  delete get_fpvar(v);
+}
+
 forceinline phage::VarChoice get_varc(var_choice c) {
   switch(c) {
     case VAR_INORDER: return phage::Var_InputOrder;
@@ -197,6 +207,9 @@ void destroy_model(model m) {
 int int_value(model m, intvar v) {
   return get_intvar(v)->model_val(*get_model(m));
 }
+float float_value(model m, fpvar v) {
+  return get_fpvar(v)->model_val(*get_model(m));
+}
 
 pid_t ivar_pid(intvar v) { return get_intvar(v)->p; }
 
@@ -219,6 +232,13 @@ atom ivar_le(intvar v, int k) {
 
 atom ivar_eq(intvar v, int k) {
   return unget_atom( (*get_intvar(v)) == k );
+}
+
+atom fpvar_le(fpvar v, float k) {
+  return unget_atom( (*get_fpvar(v)) <= k );
+}
+atom fpvar_lt(fpvar v, float k) {
+  return unget_atom( (*get_fpvar(v)) < k );
 }
 
 pred_t new_pred(solver s, int lb, int ub) {

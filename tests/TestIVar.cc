@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdio>
 
+#include "utils/cast.h"
 #include "solver/solver.h"
 
 #if 0
@@ -55,8 +56,18 @@ void print_touched(solver_data& sd) {
 int main(int argc, char** argv) {
   solver s;
 
+  /*
+  float f = -15.3;
+  pval_t fp = cast::from_float(f);
+  fprintf(stdout, "conv(%e) = %lld\n", f, fp);
+  fprintf(stdout, "unconv(%lld) = %e\n", fp, cast::to_float(fp));
+  */
+  assert(cast::from_float(-10.0) < cast::from_float(10.0));
+
   intvar x = s.new_intvar(-10, 10);
   intvar y = s.new_intvar(-10, 10);
+  fp::fpvar z = s.new_floatvar(-10.0, 10.0);
+  fprintf(stdout, "z: [%e, %e]\n", z.lb(s.data), z.ub(s.data));
 
   solver_data& sd(*s.data);
 
@@ -69,6 +80,7 @@ int main(int argc, char** argv) {
   print_touched(sd);
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
+  fprintf(stdout, "z: [%e, %e]\n", z.lb(s.data), z.ub(s.data));
 
   std::cout << "Push" << std::endl;
   push_level(&sd);
@@ -121,8 +133,19 @@ int main(int argc, char** argv) {
 
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
+  fprintf(stdout, "z: [%e, %e]\n", z.lb(s.data), z.ub(s.data));
+
+  push_level(&sd);
+  enqueue(sd, z <= 3.0, reason());
+  if(!propagate(sd))
+    ERROR;
+
+  fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
+  fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
+  fprintf(stdout, "z: [%e, %e]\n", z.lb(s.data), z.ub(s.data));
 
   bt_to_level(&sd, 0);
+
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
 

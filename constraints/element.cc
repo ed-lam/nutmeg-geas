@@ -303,7 +303,7 @@ public:
       int vv = base;
 
       for(; y != end; ++y, ++vv) {
-        if(!in_domain(x, vv))
+        if(!in_domain(s, x, vv))
           continue;
 
         int_itv y_supp = z_dom & int_itv {(*y).lb(s), (*y).ub(s)};

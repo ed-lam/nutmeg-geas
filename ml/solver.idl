@@ -7,6 +7,7 @@ import "atom.idl";
 quote(c, "void free_solver(solver* s) { destroy_solver(*s); }");
 quote(c, "void free_model(model* m) { destroy_model(*m); }");
 quote(c, "void free_intvar(intvar* v) { destroy_intvar(*v); }");
+quote(c, "void free_floatvar(fpvar* v) { destroy_floatvar(*v); }");
 
 typedef enum { SAT, UNSAT, UNKNOWN } result;
 typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
@@ -42,6 +43,7 @@ typedef struct {
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
 typedef [abstract,ptr,finalize(free_model)] struct model_s* model;
 typedef [abstract,ptr,finalize(free_intvar)] struct intvar_s* intvar;
+typedef [abstract,ptr,finalize(free_floatvar)] struct fpvar_s* fpvar;
 typedef [abstract,ptr] struct brancher_s* brancher;
 
 quote(mlmli, "type t  = solver");
@@ -74,6 +76,8 @@ intvar intvar_plus([in] intvar x, [in] int k);
 boolean make_sparse([in] intvar x, [in,size_is(sz)] int vals[], int sz);
 atom new_boolvar([in] solver s);
 
+fpvar new_floatvar([in] solver s, float lb, float ub);
+
 void set_bool_polarity([in] solver s, [in] atom at, [in] boolean pol);
 void set_int_polarity([in] intvar x, [in] boolean pol);
 
@@ -83,10 +87,13 @@ int ivar_ub([in] intvar v);
 
 model get_model([in] solver s);
 int int_value([in] model m, [in] intvar v);
+float float_value([in] model m, [in] fpvar v);
 boolean atom_value([in] model m, atom at);
 
 atom ivar_le([in] intvar v, [in] int k);
 atom ivar_eq([in] intvar v, [in] int k);
+atom fpvar_le([in] fpvar v, [in] float k);
+atom fpvar_lt([in] fpvar v, [in] float k);
 
 pred_t new_pred([in] solver s, [in] int lb, [in] int ub);
 atom pred_ge([in] pred_t p, [in] int k);
@@ -99,8 +106,12 @@ quote(mli, "val ivar_lt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ge : intvar -> int -> Atom.t");
 quote(mli, "val ivar_gt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ne : intvar -> int -> Atom.t");
+quote(mli, "val fpvar_gt : fpvar -> float -> Atom.t");
+quote(mli, "val fpvar_ge : fpvar -> float -> Atom.t");
 
 quote(ml, "let ivar_lt v k = ivar_le v (k-1)");
 quote(ml, "let ivar_ge v k = Atom.neg (ivar_lt v k)");
 quote(ml, "let ivar_gt v k = Atom.neg (ivar_le v k)");
 quote(ml, "let ivar_ne v k = Atom.neg (ivar_eq v k)");
+quote(ml, "let fpvar_ge v k = Atom.neg (fpvar_lt v k)");
+quote(ml, "let fpvar_gt v k = Atom.neg (fpvar_le v k)");

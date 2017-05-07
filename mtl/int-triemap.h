@@ -2,6 +2,7 @@
 #define __GREYLIB_BIT_TRIEMAP_H__
 #include <cstdlib>
 #include <cassert>
+#include "utils/cast.h"
 #include "bit-flag.h"
 
 class UIntOps {
@@ -22,7 +23,8 @@ class FloatOps {
 public:
   static unsigned int to_uint(float t)
   {
-    int t_int = *(reinterpret_cast<int*>(&t));
+    int t_int = cast::conv<int, float>(t);
+//    int t_int = *(reinterpret_cast<int*>(&t));
     if(t_int < 0)
       t_int = 0x80000000 - t_int;
     return mask^(t_int);
@@ -33,7 +35,8 @@ public:
     int t_int = (int) (t^mask);
     if(t_int < 0)
       t_int = 0x80000000 - t_int;
-    return *(reinterpret_cast<float*>(&t_int));
+    // return *(reinterpret_cast<float*>(&t_int));
+    return cast::conv<float, int>(t_int);
   }
 };
 

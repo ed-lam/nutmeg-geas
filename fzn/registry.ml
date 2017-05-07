@@ -572,6 +572,14 @@ let bool_eq solver args anns =
     S.post_clause solver [|x ; At.neg y|]
     && S.post_clause solver [|At.neg x ; y |]
 
+let atmost_one solver args anns =
+  let xs = Pr.get_array get_atom args.(0) in
+  B.atmost_1 solver At.at_True xs
+let atmost_k solver args anns =
+  let xs = Pr.get_array get_atom args.(0) in
+  let k = Pr.get_int args.(1) in
+  B.atmost_k solver At.at_True xs k
+
 (* Maybe separate this out into a separate
  * per-solver registrar *)
 let initialize () =
@@ -607,6 +615,8 @@ let initialize () =
      "array_bool_and", array_bool_and ;
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *)
+     "atmost_one", atmost_one ;
+     "atmost_k", atmost_k ;
      "array_int_element", array_int_element ; 
      "array_var_int_element", array_var_int_element ;
      "array_bool_element", array_bool_element ;

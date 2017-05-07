@@ -13,6 +13,8 @@ class intvar_manager;
 
 enum intvar_event { E_None = 0, E_LB = 1, E_UB = 2, E_LU = 3, E_FIX = 4 };
 
+intvar_manager* get_ivar_man(solver_data* s);
+
 // Extra bookkeeping for intvars
 struct ivar_ext {
   ivar_ext(solver_data* _s, pid_t _p, int _idx)
@@ -49,7 +51,6 @@ public:
   static val_t to_int(pval_t v) { return (val_t) (offset + v); }
   static pval_t from_int(val_t v) { return ((pval_t) v) - offset; }
 
-  // intvar_base(solver_data* _s, intvar_manager* _man, int idx, pid_t p);
   intvar(pid_t _p, int _off, ivar_ext* _ext)
     : p(_p), off(_off), ext(_ext) { }
 
@@ -69,34 +70,23 @@ public:
   intvar operator-(void) const {
     return intvar(p^1, -off+2, ext);
   }
+
   intvar operator+(int k) const {
     return intvar(p, off+k, ext);
   }
   intvar operator-(int k) const {
     return intvar(p, off-k, ext);
   }
+  intvar& operator+=(int k) { off += k; return *this; }
+  intvar& operator-=(int k) { off -= k; return *this; }
 
   val_t lb(const vec<pval_t>& ctx) const;
   val_t ub(const vec<pval_t>& ctx) const;
   val_t lb(const solver_data* s) const;
   val_t ub(const solver_data* s) const;
 
-  /*
-  val_t lb(void) const;
-  val_t ub(void) const;
-  */
-
   bool is_fixed(const vec<pval_t>& ctx) const;
   bool is_fixed(const solver_data*) const;
-  /*
-  bool is_fixed(void) const;
-
-  val_t lb_prev(void) const;
-  val_t ub_prev(void) const;
-
-  val_t lb_0(void) const;
-  val_t ub_0(void) const;
-  */
 
   /*
   bool set_lb(val_t min, reason r);
@@ -135,16 +125,13 @@ public:
 
   int lb_of_pval(pval_t p) const { return to_int(p)+off; }
   int ub_of_pval(pval_t p) const { return to_int(pval_inv(p))+off; }
-  /*
-  solver_data* s;
-  intvar_manager* man;
-  int idx;
-  pid_t pid;
-  */
+
   pid_t p;
   val_t off;
   ivar_ext* ext;
 };
+
+intvar new_intvar(solver_data* s, intvar::val_t lb, intvar::val_t ub);
 
 class intvar_manager {
 public:
@@ -152,73 +139,28 @@ public:
 
   enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
 
-  struct eq_elt { val_t val; patom_t atom; };
-  struct eq_info { pid_t pid; pval_t val; };
-
-  /*
-  class var_data {
-  public: 
-    ivar_kind kind;
-    pid_t pred;
-     
-    // In the eager case, it's just an array [with an offset]
-    // In the sparse and lazy case, they're
-    // hash tables.
-    int base;
-    eq_elt* elts;
-    size_t elts_maxsz;
-    size_t elts_count;
-  };
-  */
-
   intvar_manager(solver_data* _s);
-     
   intvar new_var(val_t lb, val_t ub);
 
-//  void attach(unsigned int vid, intvar_event e, watch_callback c);
-
-  bool in_domain(unsigned int vid, val_t val);
-  patom_t make_eqatom(unsigned int vid, val_t val);
-  // bool make_sparse(unsigned int vid, vec<val_t>& vals);
-  // void make_eager(unsigned int vid);
-
   vec<pid_t> var_preds;
-
-
-  /*
-  vec< vec<watch_callback> > lb_callbacks;
-  vec< vec<watch_callback> > ub_callbacks;
-  vec< vec<watch_callback> > fix_callbacks;
-
-  // FIXME: Switch to a lighter-weight data-structure
-  std::vector< std::unordered_map<pval_t, patom_t> > eqtable;
-  vec<eq_info> eqinfo;
-  */
 
   solver_data* s;
   vec<ivar_ext*> var_exts;
 };
 
 // inline patom_t intvar_base::operator==(int64_t v) {
-/*
-inline patom_t intvar::operator==(val_t v) {
-  // return man->make_eqatom(idx, v);
-  assert(0);
-  return at_True;
-}
 
-// inline patom_t intvar_base::operator!=(int64_t v) {
-inline patom_t intvar::operator!=(val_t v) {
-  // return ~man->make_eqatom(idx, v);
-  assert(0);
-  return at_True;
-}
-*/
+inline bool in_domain(ctx_t& ctx, intvar x, int k) {
+  if(x.ub(ctx) < k)
+    return false;
+  if(x.lb(ctx) > k)
+    return false;
 
-inline bool in_domain(intvar x, int k) {
-//  return x.man->in_domain(x.idx, k);
-  assert(0);
-  return false;
+  // FIXME: Deal with equality atoms
+  return true;
+}
+inline bool in_domain(solver_data* s, intvar x, int k) {
+  return in_domain(s->state.p_vals, x, k);
 }
 
 template<class T>

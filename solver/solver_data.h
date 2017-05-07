@@ -29,6 +29,13 @@ struct act_cmp {
 enum ConflKind { C_Infer, C_Assump };
 struct confl_info { ConflKind kind; int assump_idx; };
 
+// So we can easily introduce new variable types
+struct manager_t {
+  void* ptr;  
+  void (*destroy)(void*);
+};
+typedef unsigned int man_id_t;
+
 class solver_data {
 public:
   solver_data(const options& _opts);
@@ -94,7 +101,11 @@ public:
   int restart_limit;
 
   volatile sig_atomic_t abort_solve; 
+
+  vec<manager_t> managers;
 };
+
+man_id_t register_manager(void* (*create)(solver_data* s), void (*destroy)(void*));
 
 inline int num_preds(solver_data* s) { return s->pred_callbacks.size(); }
 

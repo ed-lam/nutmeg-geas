@@ -19,6 +19,8 @@ typedef struct solver_s* solver;
 
 struct intvar_s;
 typedef struct intvar_s* intvar;
+struct fpvar_s;
+typedef struct fpvar_s* fpvar;
 
 struct model_s;
 typedef struct model_s* model;
@@ -59,6 +61,9 @@ int make_sparse(intvar, int* vals, int sz);
 intvar intvar_neg(intvar);
 intvar intvar_plus(intvar, int);
 
+fpvar new_floatvar(solver, float lb, float ub);
+void destroy_floatvar(fpvar);
+
 atom new_boolvar(solver);
 
 void set_int_polarity(intvar, int);
@@ -88,6 +93,7 @@ model get_model(solver);
 void destroy_model(model);
 
 int int_value(model, intvar);
+float float_value(model, fpvar);
 int atom_value(model, atom);
 
 pid_t ivar_pid(intvar);
@@ -96,6 +102,8 @@ int ivar_ub(intvar);
 
 atom ivar_le(intvar, int);
 atom ivar_eq(intvar, int);
+atom fpvar_le(fpvar, float);
+atom fpvar_lt(fpvar, float);
 
 pred_t new_pred(solver, int, int);
 atom pred_ge(pred_t, int);

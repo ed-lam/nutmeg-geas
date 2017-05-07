@@ -11,6 +11,9 @@ inline phage::solver* get_solver(solver s) {
 inline phage::intvar* get_intvar(intvar v) {
   return (phage::intvar*) v;
 }
+inline phage::fp::fpvar* get_fpvar(fpvar v) {
+  return (phage::fp::fpvar*) v;
+}
 inline phage::patom_t get_atom(atom at) {
   return phage::patom_t(at.pid, at.val);
 }

@@ -535,52 +535,23 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 // are equivalent.
 class linear_decomposer {
 public:  
-  linear_decomposer(solver_data* _s, vec<int>& _ks, vec<intvar>& _vs)
-    : s(_s), ks(_ks), vs(_vs) { }
+  linear_decomposer(solver_data* _s, vec<int>& ks, vec<intvar>& vs)
+    : s(_s), shift(0) {
+    for(int ii = 0; ii < vs.size(); ii++) {
+      // Adjust the terms into the range [0, ...]
+      term t = ks[ii] < 0 ? term { -ks[ii], -vs[ii] } : term { ks[ii], vs[ii] };
+      assert(t.x.lb(s) >= 0);
+      int low = t.x.lb(s);
+      t.x -= low;
+      shift += t.k * low;
+      xs.push(t);
+    }
+  }
 
   void operator()(int k) {
-    // Clear temporary state 
-    tbl.clear();
-    red_ubs.clear(); red_ubs.growTo(vs.size());
-    feas_ubs.clear(); feas_ubs.growTo(vs.size());
-
-    // Set up feasible ranges for partial sums
-    int feas_ub = k;
-    int red_ub = k;
-    for(int r_ii : irange(1, vs.size()+1)) {
-      int ii = vs.size() - r_ii;
-
-      if(ks[ii] > 0) {
-        red_ub -= ks[ii] * vs[ii].ub(s);
-        feas_ub -= ks[ii] * vs[ii].lb(s);
-      }
-      if(ks[ii] < 0) {
-        red_ub -= ks[ii] * vs[ii].lb(s);
-        feas_ub -= ks[ii] * vs[ii].ub(s);
-      }
-
-      feas_ubs[ii] = feas_ub;
-      red_ubs[ii] = red_ub;
-    }
+    // Correct for shifted lower bounds
+    k -= shift;
     
-    if(red_ubs[0] < 0) {
-      WARN("WARNING: Linear is satisfied by initial bounds.");
-      return;
-    }
-    if(feas_ubs[0] < 0) {
-      ERROR;
-    }
-
-    // Allocate partial sum predicates
-    // Don't need first (since it's ks[0] * xs[0])
-    // or last variable.
-    /*
-    for(int _ii : irange(vs.size()-2))
-      ps_preds.push(new_pred(*s));
-      */
-
-    NOT_YET_WARN;
-      
     decompose(0, k);
   }
 protected:
@@ -593,19 +564,18 @@ protected:
   };
 
   int decompose(int idx, intvar::val_t lim) {
-    assert(idx < vs.size()); 
-     
+//    auto it = tb.lower_bound(lim);   
     return 0;       
   }
 
+  struct term { int k; intvar x; };
+
   solver_data* s; 
-  vec<int>& ks;
-  vec<intvar>& vs;
+  vec<term> xs;
+  int shift;
 
   std::map<intvar::val_t, entry_t> tbl;
   // Upper bounds for feasibility and redundance
-  vec<intvar::val_t> red_ubs;
-  vec<intvar::val_t> feas_ubs;
   vec<pid_t> ps_preds;
 };
 
@@ -798,6 +768,60 @@ void linear_le_dec(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k) {
   dec(k);
 }
 
+struct term {
+  int k;
+  intvar x;
+
+  int lb(solver_data* s) const { return k * x.lb(s); }
+  int ub(solver_data* s) const { return k * x.ub(s); }
+};
+
+intvar make_ps(solver_data* s, patom_t r, term tx, term ty, int k) {
+  int ub = std::min(k, tx.ub(s) + ty.ub(s));
+  intvar ps = new_intvar(s, 0, ub);
+  vec<int> ks { tx.k, ty.k, -1 };
+  vec<intvar> xs { tx.x, ty.x, ps };
+  new lin_le_inc(s, r, ks, xs, 0);
+  return ps;
+}
+bool linear_le_chain(solver_data* s, patom_t r, vec<int>& ks, vec<intvar>& vs, int k) {
+  if(ks.size() <= 2) {
+    new lin_le_inc(s, r, ks, vs, k);
+    return true;
+  }
+  // Normalize the terms, correcting for lower bounds.
+  vec<term> xs;
+  for(int ii = 0; ii < ks.size(); ii++) {
+    term t = ks[ii] < 0 ? term { -ks[ii], -vs[ii] } : term { ks[ii], vs[ii] }; 
+    int low = t.x.lb(s);
+    t.x -= low;
+    k -= t.k * low;
+    xs.push(t);
+  }
+  if(k < 0)
+    return false;
+  
+  /*
+  if(xs.size() <= 2) {
+    vec<int> o_ks; vec<intvar> o_vs;    
+    for(term t : xs) {
+      o_ks.push(t.k);
+      o_vs.push(t.x);
+    }
+    new lin_le_inc(s, r, o_ks, o_vs, k);
+    return true;
+  }
+  */
+  intvar ps = make_ps(s, r,  xs[0], xs[1], k);
+  for(int ii = 2; ii < xs.size() -1; ii++) {
+    ps = make_ps(s, r, term { 1, ps }, xs[ii], k);
+  }
+  vec<int> o_ks { 1, xs.last().k };
+  vec<intvar> o_xs { ps, xs.last().x };
+  new lin_le_inc(s, r, o_ks, o_xs, k);
+  return true;
+}
+
 bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r) {
   /*
@@ -808,6 +832,7 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
 //   new int_linear_le(s, r, ks, vs, k);
   new lin_le_inc(s, r, ks, vs, k);
   return true;
+//  return linear_le_chain(s, r, ks, vs, k);
 }
 
 bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,

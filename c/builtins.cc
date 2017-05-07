@@ -54,6 +54,19 @@ int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k) {
   }
   return phage::bool_linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
 }
+int atmost_1(solver s, atom r, atom* xs, int sz) {
+  vec<phage::patom_t> ys;
+  for(int ii : irange(sz))
+    ys.push(get_atom(xs[ii]));
+  return phage::atmost_1(get_solver(s)->data, ys, get_atom(r));
+}
+
+int atmost_k(solver s, atom r, atom* xs, int sz, int k) {
+  vec<phage::patom_t> ys;
+  for(int ii : irange(sz))
+    ys.push(get_atom(xs[ii]));
+  return phage::atmost_k(get_solver(s)->data, ys, k, get_atom(r));
+}
 
 int bool_linear_ne(solver s, atom r, at_linterm* ts, int sz, int k) {
   vec<int> ks;

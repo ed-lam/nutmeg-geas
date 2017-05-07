@@ -106,19 +106,22 @@ void test4(void) {
   intvar x = s.new_intvar(-10, 10);
   intvar y = s.new_intvar(-10, 8);
   intvar z = s.new_intvar(-10, 5);
+  fp::fpvar u = s.new_floatvar(-10, 5);
 
   solver_data* sd(s.data);
 
 //  vec<intvar> args = {y, z};
   int_mul(sd, z, x, y);
+  add_clause(sd, u >= 2.5, x >= 3);
+  add_clause(sd, u >= 2.5, x < 3);
 
   solver::result r = s.solve();
   std::cout << "Result: " << r << std::endl;
 
   if(r == solver::SAT) {
-    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", x.lb(s.data), y.lb(s.data), z.lb(s.data));
+    fprintf(stdout, "[x, y, z, u] ~> [%lld, %lld, %lld, %e]\n", x.lb(s.data), y.lb(s.data), z.lb(s.data), u.lb(s.data));
     model m(s.get_model());
-    fprintf(stdout, "[x, y, z] ~> [%lld, %lld, %lld]\n", m[x], m[y], m[z]);
+    fprintf(stdout, "[x, y, z, u] ~> [%lld, %lld, %lld, %e]\n", m[x], m[y], m[z], m[u]);
     if(m.value(x >= 3))
       fprintf(stdout, "x >= 3\n");
     if(m.value(x >= 12))

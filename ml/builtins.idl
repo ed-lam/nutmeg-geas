@@ -20,6 +20,8 @@ typedef struct {
 // For strict versions, call with r = at_True
 boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
 boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
+boolean atmost_1([in] solver s, atom r, [in,size_is(sz)] atom xs[], int sz);
+boolean atmost_k([in] solver s, atom r, [in,size_is(sz)] atom xs[], int sz, int k);
 
 boolean bool_linear_le([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);
 boolean bool_linear_ne([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);

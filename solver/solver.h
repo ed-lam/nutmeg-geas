@@ -7,6 +7,7 @@
 #include "solver/model.h"
 #include "solver/options.h"
 #include "vars/intvar.h"
+#include "vars/fpvar.h"
 
 namespace phage {
 
@@ -23,6 +24,7 @@ public:
   ~solver(void);
 
   intvar new_intvar(intvar::val_t lb, intvar::val_t ub);
+  fp::fpvar new_floatvar(fp::val_t lb, fp::val_t ub);
   patom_t new_boolvar(void);
   // Post a constraint
   // bool post(bexpr& e);
@@ -49,7 +51,7 @@ public:
   void level_pop(void);
   
   solver_data* data;  
-  intvar_manager ivar_man;
+//  intvar_manager ivar_man;
 };
 
 }

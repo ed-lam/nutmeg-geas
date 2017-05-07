@@ -52,9 +52,31 @@ pval_t patom_t::val_max = pval_max;
 
 typedef solver_data sdata;
 
+#define MANAGERS_MAX 10
+struct man_template_t {
+  void* (*create)(solver_data* s);
+  void (*destroy)(void*);
+};
+static man_template_t man_registry[MANAGERS_MAX];
+
+static unsigned int& man_sz(void) {
+  static unsigned int sz = 0;
+  return sz;
+}
+
+man_id_t register_manager(void* (*create)(solver_data* s), void (*destroy)(void*)) {
+  if(man_sz() >= MANAGERS_MAX) {
+    fprintf(stderr, "ERROR: Registering too many managers. Increase MANAGERS_MAX and recompile.\n");
+    ERROR;
+  }
+  man_registry[man_sz()++] = man_template_t { create, destroy };
+  return man_sz()-1;
+}
+
 solver::solver(void)
-  : data(new solver_data(default_options)),
-    ivar_man(data) {
+  : data(new solver_data(default_options))
+//  , ivar_man(data)
+  {
    
 }
 
@@ -64,8 +86,9 @@ solver::~solver(void) {
 }
 
 solver::solver(options& _opts)
-  : data(new solver_data(_opts)),
-    ivar_man(data) {
+  : data(new solver_data(_opts))
+//  , ivar_man(data)
+  {
 
 }
 
@@ -83,6 +106,10 @@ solver_data::solver_data(const options& _opts)
       pred_act_inc(opts.pred_act_inc),
       learnt_dbmax(opts.learnt_dbmax) {
   new_pred(*this, 0, 0);
+  for(auto mi : irange(man_sz())) {
+    man_template_t m = man_registry[mi]; 
+    managers.push(manager_t { m.create(this), m.destroy });
+  }
 }
 
 solver_data::~solver_data(void) {
@@ -90,12 +117,18 @@ solver_data::~solver_data(void) {
     delete p;
   for(brancher* b : branchers)
     delete b;
+  for(auto m : managers)
+    m.destroy(m.ptr);
+
   assert(last_branch);
   delete last_branch;
 }
 
 intvar solver::new_intvar(intvar::val_t lb, intvar::val_t ub) {
-  return ivar_man.new_var(lb, ub);
+  return get_ivar_man(data)->new_var(lb, ub);
+}
+fp::fpvar solver::new_floatvar(fp::val_t lb, fp::val_t ub) {
+  return fp::get_man(data)->new_var(lb, ub);
 }
 
 patom_t solver::new_boolvar(void) { return new_bool(*data); }
@@ -148,6 +181,9 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
 
   s.polarity.push(0);
   
+  queue_pred(&s, pi);
+  queue_pred(&s, pi^1);
+
   return pi;  
 }
 
