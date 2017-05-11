@@ -169,4 +169,7 @@ void uniq(vec<T>& xs) {
   xs.shrink(xs.size() - jj);
 }
 
+// Assumes positive
+inline int iceil(int x, int y) { return (x+y-1)/y; }
+  
 #endif

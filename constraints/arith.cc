@@ -18,6 +18,165 @@ bool is_small(solver_data* s, intvar x) {
   return x.ub(s) - x.lb(s) < s->opts.eager_threshold;
 }
 
+class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
+  // Queueing
+  enum Status { S_Red = 2 };
+
+  watch_result wake(int _xi) {
+    if(status & S_Red)
+      return Wt_Keep;
+
+    queue_prop();
+    return Wt_Keep;
+  }
+
+  // Explanations
+  void ex_z_lb(int _xi, pval_t pval, vec<clause_elt>& expl) {
+    int z_lb = z.lb_of_pval(pval);
+    // Need to pick k <= lb(x), k' <= lb(y) s.t. k * k' >= z_lb.
+    int x_lb = lb(xs[0]); int y_lb = lb(xs[1]);
+
+    // Check if we can get by with just one atom.
+    for(int xi : irange(2)) {
+      int x_lb0 = lb_0(xs[xi]);
+      int y_lb = lb(xs[1 - xi]);
+      if(x_lb0 * y_lb >= z_lb) {
+        expl.push(xs[1 - xi] < iceil(z_lb, x_lb0));
+        return;
+      }
+    }
+
+    int ex = iceil(z_lb, lb(xs[1]));
+    int ey = iceil(z_lb, ex);
+    expl.push(xs[0] < ex);
+    expl.push(xs[1] < ey);
+  }
+
+  void ex_z_ub(int _xi, pval_t pval, vec<clause_elt>& expl) {
+    int z_ub = z.ub_of_pval(pval);
+    int x_ub = ub(xs[0]); int y_ub = ub(xs[1]);
+
+    for(int xi : irange(2)) {
+      int x_ub0 = ub_0(xs[xi]);
+      int y_ub = ub(xs[1 - xi]);
+      if(x_ub0 * y_ub <= z_ub) {
+        expl.push(xs[1 - xi] > iceil(z_ub,x_ub0));
+        return;
+      }
+    }
+
+    int ex = iceil(z_ub,y_ub);
+    int ey = iceil(z_ub,ex);
+    expl.push(xs[0] > ex);
+    expl.push(xs[1] > ey);
+  }
+
+  void ex_x_lb(int xi, pval_t pval, vec<clause_elt>& expl) {
+    int x_lb = xs[xi].lb_of_pval(pval);
+    
+    int yi = 1 - xi; 
+    int y_ub = ub(xs[yi]);
+    int z_lb = lb(z);
+
+    int y_ub0 = ub_0(xs[yi]);
+    if(iceil(z_lb, y_ub0) >= x_lb) {
+      expl.push(z <= (x_lb-1) * y_ub0);
+      return;
+    }
+    int z_lb0 = lb_0(z);
+    if((x_lb-1) * y_ub < z_lb0) {
+      expl.push(xs[yi] > iceil(z_lb0-1, x_lb-1));
+      return;
+    }
+    // Choose largest ey s.t. (x_lb-1) * ey < z_lb.
+    int ey = (z_lb-1)/(x_lb-1);
+    // And smallest ez s.t. (ey * (x_lb-1)) < ez
+    int ez = (x_lb-1) * ey + 1;
+    assert((x_lb-1) * ey <= ez);
+    expl.push(xs[yi] > ey);
+    expl.push(z < ez);
+  }
+
+  void ex_x_ub(int xi, pval_t pval, vec<clause_elt>& expl) {
+    int x_ub = xs[xi].ub_of_pval(pval);
+    
+    int yi = 1 - xi; 
+    int y_lb = lb(xs[yi]);
+    int z_ub = ub(z);
+    
+    int y_lb0 = lb_0(xs[yi]);
+    if(y_lb0 > 0 && (x_ub+1) * y_lb0 > z_ub) {
+      expl.push(z >= (x_ub+1) * y_lb0);
+      return;
+    }
+    int z_ub0 = ub_0(z);
+    if((x_ub+1) * y_lb > z_ub0) {
+      expl.push(xs[yi] < iceil(z_ub0+1, x_ub+1));
+      return;
+    }
+
+    // Pick smallest ey s.t. ((x_ub + 1) * ey) > z_ub.
+    int ey = iceil(z_ub+1, x_ub+1);
+    int ez = ey * (x_ub+1)-1;
+    assert((x_ub+1) * ey > ez);
+    expl.push(xs[yi] < ey);
+    expl.push(z > ez);
+  }
+
+public:
+  iprod_nonneg(solver_data* s, patom_t _r, intvar _z, intvar _x, intvar _y)
+    : propagator(s), r(_r), z(_z), status(0) {
+      assert(s->state.is_entailed_l0(r));
+      xs[0] = _x; xs[1] = _y; 
+
+    fprintf(stderr, "Constructing [iprod_nonneg]\n");
+    z.attach(E_LU, watch_callback(wake_default, this, 2));
+    for(int ii : irange(2))
+      xs[ii].attach(E_LU, watch_callback(wake_default, this, ii));
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_PROP
+    std::cerr << "[[Running iprod(+)]]" << std::endl;
+#endif
+    int z_low = lb(xs[0]) * lb(xs[1]);
+    if(z_low > lb(z)) {
+      if(!set_lb(z, z_low, ex_thunk(ex<&P::ex_z_lb>,0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+    int z_high = ub(xs[0]) * ub(xs[1]);
+    if(z_high < ub(z)) {
+      if(!set_ub(z, z_high, ex_thunk(ex<&P::ex_z_ub>,0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+
+    for(int xi : irange(2)) {
+      if(ub(xs[1 - xi]) <= 0)
+        continue;
+      int x_low = iceil(lb(z), ub(xs[1 - xi]));
+      if(x_low > lb(xs[xi])) {
+        if(!set_lb(xs[xi], x_low, ex_thunk(ex<&P::ex_x_lb>,xi, expl_thunk::Ex_BTPRED)))
+          return false;
+      }
+      int y_lb = lb(xs[1 - xi]);
+      if(y_lb > 0) {
+        int x_high = ub(z)/lb(xs[1 - xi]);
+        if(x_high < ub(xs[xi])) {
+          if(!set_ub(xs[xi], x_high, ex_thunk(ex<&P::ex_x_ub>,xi, expl_thunk::Ex_BTPRED)))
+            return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  patom_t r;
+  intvar z;
+  intvar xs[2];
+
+  char status;
+};
+
 // Propagator:
 // non-incremental, with naive eager explanations
 class iprod : public propagator {
@@ -2044,6 +2203,26 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   }
 
   // imul_decomp(s, z, x, y);
+  if(z.lb(s) >= 0) {
+    if(x.lb(s) >= 0 || y.lb(s) >= 0) {
+      new iprod_nonneg(s, r, z, x, y);
+      return true;
+    } else if(x.ub(s) <= 0) {
+      new iprod_nonneg(s, r, z, -x, y);
+      return true;
+    } else if(y.ub(s) <= 0) {
+      new iprod_nonneg(s, r, z, x, -y);
+      return true;
+    }
+  } else if(z.ub(s) <= 0) {
+    if(x.lb(s) >= 0 || y.ub(s) <= 0) {
+      new iprod_nonneg(s, r, -z, x, -y);
+      return true;
+    }  else if(x.ub(s) <= 0 || y.lb(s) >= 0) {
+      new iprod_nonneg(s, r, -z, -x, y);
+      return true;
+    } 
+  }
   new iprod(s, z, x, y);
   return true;
 }

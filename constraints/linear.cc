@@ -6,6 +6,7 @@
 
 #include "engine/propagator_ext.h"
 
+// #define USE_CHAIN
 #define SKIP_L0
 // #define EXPL_EAGER
 // #define EXPL_NAIVE
@@ -830,9 +831,12 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   }
   */
 //   new int_linear_le(s, r, ks, vs, k);
+#ifndef USE_CHAIN
   new lin_le_inc(s, r, ks, vs, k);
   return true;
-//  return linear_le_chain(s, r, ks, vs, k);
+#else
+  return linear_le_chain(s, r, ks, vs, k);
+#endif
 }
 
 bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
