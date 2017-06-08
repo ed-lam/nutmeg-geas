@@ -26,6 +26,8 @@ rule token = parse
   | comment { token lexbuf }
   | ['\n'] { token lexbuf }
   | (('-'?)digit)+ as lxm { Int (int_of_string lxm) }
+  | '-'? digit+ '.' digit+ (['e' 'E'] digit+)? as lxm
+      { Float (float_of_string lxm) }
   | ident as lxm  { get_ident lxm }
   | "=" { Kwd Eq }
   (*

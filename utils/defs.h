@@ -172,4 +172,11 @@ void uniq(vec<T>& xs) {
 // Assumes positive
 inline int iceil(int x, int y) { return (x+y-1)/y; }
   
+template<class T>
+void vec_init(vec<T>& x, int sz, const T& elt) {
+  x.clear();
+  for(int ii = 0; ii < sz; ++ii)
+    x.push(elt);
+}
+
 #endif

@@ -9,6 +9,7 @@ class brancher {
 public:
   virtual ~brancher(void) { }
   virtual patom_t branch(solver_data* s) = 0;
+  virtual bool is_fixed(solver_data* s) = 0;
 };
 
 // Standard branchers
@@ -22,6 +23,8 @@ brancher* atom_act_branch(solver_data* s);
 brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>& preds);
 brancher* seq_brancher(vec<brancher*>& branchers);
 brancher* limit_brancher(brancher* b);
+
+// brancher* priority_brancher(VarChoice choice, vec<intvar>& sel, vec<brancher*>& br);
   
 patom_t branch(solver_data* s);
 

@@ -54,6 +54,12 @@ solver new_solver([in] options o);
 
 brancher new_int_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);
 brancher new_bool_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] atom vs[], int sz);
+brancher new_bool_priority_brancher(var_choice varc,
+  [in,size_is(xsz)] atom xs[], int xsz,
+  [in,size_is(bsz)] brancher bs[], int bsz);
+brancher new_int_priority_brancher(var_choice varc,
+  [in,size_is(xsz)] intvar xs[], int xsz,
+  [in,size_is(bsz)] brancher bs[], int bsz);
 brancher seq_brancher([in,size_is(sz)] brancher bs[], int sz);
 brancher limit_brancher([in] brancher base);
 void add_brancher([in] solver s, [in] brancher b);

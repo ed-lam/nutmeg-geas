@@ -34,7 +34,7 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
   void ex_z_lb(int _xi, pval_t pval, vec<clause_elt>& expl) {
     int z_lb = z.lb_of_pval(pval);
     // Need to pick k <= lb(x), k' <= lb(y) s.t. k * k' >= z_lb.
-    int x_lb = lb(xs[0]); int y_lb = lb(xs[1]);
+//    int x_lb = lb(xs[0]); int y_lb = lb(xs[1]);
 
     // Check if we can get by with just one atom.
     for(int xi : irange(2)) {
@@ -54,7 +54,7 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
 
   void ex_z_ub(int _xi, pval_t pval, vec<clause_elt>& expl) {
     int z_ub = z.ub_of_pval(pval);
-    int x_ub = ub(xs[0]); int y_ub = ub(xs[1]);
+//    int x_ub = ub(xs[0]); int y_ub = ub(xs[1]);
 
     for(int xi : irange(2)) {
       int x_ub0 = ub_0(xs[xi]);
@@ -64,7 +64,7 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
         return;
       }
     }
-
+    int y_ub = ub(xs[1]);
     int ex = iceil(z_ub,y_ub);
     int ey = iceil(z_ub,ex);
     expl.push(xs[0] > ex);
@@ -129,7 +129,7 @@ public:
       assert(s->state.is_entailed_l0(r));
       xs[0] = _x; xs[1] = _y; 
 
-    fprintf(stderr, "Constructing [iprod_nonneg]\n");
+//    fprintf(stderr, "Constructing [iprod_nonneg]\n");
     z.attach(E_LU, watch_callback(wake_default, this, 2));
     for(int ii : irange(2))
       xs[ii].attach(E_LU, watch_callback(wake_default, this, ii));

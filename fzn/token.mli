@@ -15,6 +15,7 @@ type token =
   Id of string
 | Str of string
 | Int of int
+| Float of float
 | Bool of bool
 | Kwd of kwd
   

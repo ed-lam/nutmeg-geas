@@ -34,6 +34,14 @@ let parse_int toks =
                           "Expected int, got %s."
                           (tok_str tok)))
 
+let parse_float toks =
+  match S.next toks with
+  | Int k -> float_of_int k
+  | Float k -> k
+  | tok -> raise (S.Error (Format.sprintf
+                          "Expected float, got %s."
+                          (tok_str tok)))
+
 let parse_ident toks =
   match S.next toks with
   | Id id -> id

@@ -1,6 +1,7 @@
 #include "mtl/Heap.h"
 #include "solver/solver_data.h"
 #include "solver/branch.h"
+#include "vars/intvar.h"
 
 namespace phage {
 
@@ -8,6 +9,13 @@ class simple_branch : public brancher {
 public:
   simple_branch(void) { }
    
+  bool is_fixed(solver_data* s) {
+    for(pid_t pi = 0; pi < s->state.p_vals.size(); pi+=2) {
+      if(!pred_fixed(s, pi))
+        return false;
+    }
+    return true;
+  }
   patom_t branch(solver_data* s) {
     for(pid_t pi = 0; pi < s->state.p_vals.size(); pi+=2) {
       pval_t lb = s->state.p_vals[pi];
@@ -143,6 +151,24 @@ public:
   inorder_branch(vec<pid_t>& _preds)
     : vars(_preds), start(0) { }
 
+  bool is_fixed(solver_data* s) {
+    pid_t* p = vars.begin() + start;
+    pid_t* end = vars.end();
+
+    if(p != end) {
+      if(!pred_fixed(s, *p))
+        return false;
+      for(++p; p != end; ++p) {
+        if(!pred_fixed(s, *p)) {
+          start.set(s->persist, p - vars.begin());
+          return false;
+        }
+      }
+      start.set(s->persist, p - vars.begin());
+    }
+    return true;
+  }
+
   patom_t branch(solver_data* s) {
     pid_t* p = vars.begin() + start;
     pid_t* end = vars.end();
@@ -161,21 +187,16 @@ public:
         break;
       }
     }
-    trail_change(s->persist, start, (unsigned int) (p - vars.begin()));
+    start.set(s->persist, p - vars.begin());
     return at;
   }
   
   vec<pid_t> vars;
-  unsigned int start;
+  Tint start;
 };
 
-template<int VarC, int ValC>
-class basic_branch : public brancher {
-public:
-  basic_branch(vec<pid_t>& _preds)
-    : vars(_preds), start(0) { }
-
-  forceinline pval_t score(solver_data* s, pid_t p) {
+template<int VarC>
+forceinline pval_t score(solver_data* s, pid_t p) {
     switch(VarC) {
       case Var_Smallest:
         return lb(s, p);
@@ -185,9 +206,34 @@ public:
         return ub(s, p) - lb(s, p); 
       default:
         return 0;
-    }
   }
-   
+}
+
+template<int VarC, int ValC>
+class basic_branch : public brancher {
+public:
+  basic_branch(vec<pid_t>& _preds)
+    : vars(_preds), start(0) { }
+
+  bool is_fixed(solver_data* s) {
+    pid_t* p = vars.begin() + start;
+    pid_t* end = vars.end();  
+
+    if(p != end) {
+      if(!pred_fixed(s, *p))
+        return false;
+
+      for(++p; p != end; ++p) {
+        if(!pred_fixed(s, *p)) {
+          start.set(s->persist, p - vars.begin());
+          return false;
+        }
+      }
+      start.set(s->persist, vars.size());
+    }
+    return true;
+  }
+
   patom_t branch(solver_data* s) {
     pid_t* end = vars.end();
 
@@ -198,7 +244,7 @@ public:
     for(; p != end; ++p) {
       if(lb(s, *p) == ub(s, *p))
         continue;
-      pval_t p_score = score(s, *p);
+      pval_t p_score = score<ValC>(s, *p);
       if(p_score < choice_score) {
         choice = p;
         choice_score = p_score;
@@ -212,13 +258,31 @@ public:
   }
 
   vec<pid_t> vars;
-  unsigned int start;
+  Tint start;
 };
 
 class seq_branch : public brancher {
 public:
   seq_branch(vec<brancher*>& _bs)
     : branchers(_bs), start(0) { }
+
+  bool is_fixed(solver_data* s) {
+    brancher** end = branchers.end();
+    brancher** b = branchers.begin() + start;
+
+    if(b != end) {
+      if(!(*b)->is_fixed(s))
+        return false;
+      for(++b; b != end; ++b) {
+        if(!(*b)->is_fixed(s)) {
+          start.set(s->persist, b - branchers.begin());
+          return false;
+        }
+      }
+      start.set(s->persist, branchers.size());
+    }
+    return true;
+  }
 
   patom_t branch(solver_data* s) {
     brancher** end = branchers.end();
@@ -238,12 +302,12 @@ public:
       }
     }
     
-    trail_change(s->persist, start, ((unsigned int) (b - branchers.begin())));
+    start.set(s->persist, b - branchers.begin());
     return at;
   }
 
   vec<brancher*> branchers;
-  unsigned int start;
+  Tint start;
 };
 
 brancher* seq_brancher(vec<brancher*>& bs) {
@@ -254,6 +318,10 @@ class limit_branch : public brancher {
 public:
   limit_branch(brancher* _b)
     : b(_b) { }
+
+  bool is_fixed(solver_data* s) {
+    return s->stats.restarts || b->is_fixed(s);
+  }
 
   patom_t branch(solver_data* s) {
     if(s->stats.restarts == 0)
@@ -319,6 +387,32 @@ public:
   pred_act_brancher(solver_data* _s)
     : s(_s), /* valb(_s), */ rem_count(0) { }
   
+  bool is_fixed(solver_data* s) {
+    if(s->pred_heap.empty())
+      return true;
+
+    while(!s->pred_heap.empty()) {
+      int pi = s->pred_heap.getMin();
+      
+      // if(!pred_fixed(s, pi))
+      if(!pred_fixed(s, pi<<1))
+      {
+        if(rem_count != removed.size()) {
+          trail_push(s->persist, rem_count);
+          rem_count = removed.size();
+        }
+        return false;
+      }
+
+      s->pred_heap.removeMin();
+      removed.push(pi);
+    }
+    trail_push(s->persist, rem_count);
+    rem_count = removed.size();
+
+    return true;
+  }
+
   patom_t branch(solver_data* s) {
     // Restore not-necessarily-fixed predicates
     // upon backtracking

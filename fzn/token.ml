@@ -15,6 +15,7 @@ type token =
   Id of string
 | Str of string
 | Int of int
+| Float of float
 | Bool of bool
 | Kwd of kwd
   
@@ -53,5 +54,6 @@ let tok_str = function
 | Id s -> s
 | Str s -> "\"" ^ s ^ "\""
 | Int k -> string_of_int k
+| Float k -> string_of_float k
 | Bool b -> if b then "true" else "false"
 | Kwd k -> kwd_str k

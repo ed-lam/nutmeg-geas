@@ -303,6 +303,15 @@ let collect_array_ivars env expr =
     in
     Array.of_list vars
 
+let force_array_ivars env solver expr =
+  match expr with
+  | Pr.Arr es -> Array.map (fun e ->
+    match e with
+    | Pr.Ivar v -> env.ivars.(v)
+    | Pr.Ilit k -> Solver.new_intvar solver k k
+    | _ -> failwith "Expected value of int-kind in force_array_ivars") es
+  | _ -> failwith "Expected array argument to force_array_ivars"
+
 let collect_array_bvars env expr =
   let vars = 
     match expr with
@@ -315,16 +324,26 @@ let collect_array_bvars env expr =
     in
     Array.of_list vars
 
+let force_array_bvars env expr =
+  match expr with
+  | Pr.Arr es -> Array.map (fun e ->
+    match e with
+    | Pr.Bvar v -> env.bvars.(v)
+    | Pr.Blit b -> if b then At.at_True else At.neg At.at_True
+    | _ -> failwith "Expected bool-sorted term in force_array_bvars"
+    ) es
+  | _ -> failwith "Expected array argument to force_array_bvars"
+
 let is_search_ann ann =
   match ann with
-  | Pr.Ann_call (("seq_search"|"int_search"|"bool_search"), _) -> true
+  | Pr.Ann_call (("seq_search"|"int_search"|"bool_search"|"bool_priority"|"int_priority"), _) -> true
   | _ -> false
 
-let rec parse_branching problem env ann =
+let rec parse_branching problem env solver ann =
   match ann with  
   | Pr.Ann_call ("seq_search", args) ->
       let sub = get_ann_array (fun x -> x) args.(0) in
-      Sol.seq_brancher (Array.map (parse_branching problem env) sub)
+      Sol.seq_brancher (Array.map (parse_branching problem env solver) sub)
   | Pr.Ann_call ("int_search", args) ->
       let varb = get_var_branch args.(1) in
       let valb = get_val_branch args.(2) in
@@ -335,15 +354,25 @@ let rec parse_branching problem env ann =
       let valb = get_val_branch args.(2) in
       let vars = collect_array_bvars env (Pr.resolve_ann problem args.(0)) in
       Sol.new_bool_brancher varb valb vars
+  | Pr.Ann_call ("int_priority", args) ->
+    let varb = get_var_branch args.(2) in
+    let sel = force_array_ivars env solver (Pr.resolve_ann problem args.(0)) in
+    let sub = get_ann_array (parse_branching problem env solver) args.(1) in
+    Sol.new_int_priority_brancher varb sel sub
+  | Pr.Ann_call ("bool_priority", args) ->
+    let varb = get_var_branch args.(2) in
+    let sel = force_array_bvars env (Pr.resolve_ann problem args.(0)) in
+    let sub = get_ann_array (parse_branching problem env solver) args.(1) in
+    Sol.new_bool_priority_brancher varb sel sub
   | _ -> failwith "Unknown search annotation"
 
-let rec parse_branchings problem env anns =
+let rec parse_branchings problem env solver anns =
   let rec aux acc anns =
     match anns with
     | [] -> List.rev acc
     | ann :: anns' ->
       if is_search_ann ann  then
-        aux (parse_branching problem env ann :: acc) anns'
+        aux (parse_branching problem env solver ann :: acc) anns'
       else
         aux acc anns'
   in
@@ -382,7 +411,7 @@ let build_branching problem env solver anns =
     else
       b
   in
-  match parse_branchings problem env anns with
+  match parse_branchings problem env solver anns with
   | [] -> ()
   | [b] ->  Sol.add_brancher solver (wrap b)
   | bs ->

@@ -69,9 +69,9 @@ let bool_clause solver args anns =
   Solver.post_clause solver (Array.append pos neg)
 
 let int_max solver args anns =
-  let x = Pr.get_ivar args.(0) in
-  let y = Pr.get_ivar args.(1) in
-  let z = Pr.get_ivar args.(2) in
+  let x = force_ivar solver args.(0) in
+  let y = force_ivar solver args.(1) in
+  let z = force_ivar solver args.(2) in
   Builtins.int_max solver At.at_True z [|x; y|]
 
 let array_int_max solver args anns =

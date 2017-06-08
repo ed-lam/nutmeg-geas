@@ -164,6 +164,7 @@ struct trailed {
 typedef trailed<int> Tint;
 typedef trailed<char> Tbool;
 typedef trailed<double> Tdouble;
+typedef trailed<float> Tfloat;
 
 void check_at_fixpoint(solver_data* s);
 

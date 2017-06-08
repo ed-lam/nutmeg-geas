@@ -1,6 +1,7 @@
 #include "solver/solver.h"
 #include "solver/model.h"
 #include "solver/branch.h"
+#include "solver/priority-branch.h"
 #include "engine/logging.h"
 
 #include "utils/defs.h"
@@ -109,6 +110,34 @@ brancher new_bool_brancher(var_choice varc, val_choice valc, atom* vs, int sz) {
   return ((brancher) phage::basic_brancher(get_varc(varc), get_valc(valc), vars));
 }
 
+brancher new_bool_priority_brancher(var_choice varc,
+  atom* vs, int vsz, brancher* bs, int bsz) {
+  int sz = std::min(vsz, bsz);
+  atom* end = vs + sz;
+  vec<phage::patom_t> sel;
+  vec<phage::brancher*> br;
+
+  for(; vs != end; ++vs, ++bs) {
+    sel.push(get_atom(*vs));
+    br.push((phage::brancher*) (*bs));
+  }
+  return ((brancher) phage::priority_brancher(get_varc(varc), sel, br));
+}
+
+brancher new_int_priority_brancher(var_choice varc,
+  intvar* vs, int vsz, brancher* bs, int bsz) {
+  int sz = std::min(vsz, bsz);
+  intvar* end = vs + sz;
+  vec<phage::intvar> sel;
+  vec<phage::brancher*> br;
+
+  for(; vs != end; ++vs, ++bs) {
+    sel.push(*get_intvar(*vs));
+    br.push((phage::brancher*) (*bs));
+  }
+  return ((brancher) phage::priority_brancher(get_varc(varc), sel, br));
+}
+
 brancher seq_brancher(brancher* bs, int sz) {
   vec<phage::brancher*> branchers;
   brancher* end = bs + sz;
@@ -116,6 +145,7 @@ brancher seq_brancher(brancher* bs, int sz) {
     branchers.push((phage::brancher*) (*bs));
   return ((brancher) phage::seq_brancher(branchers));
 }
+
 
 brancher limit_brancher(brancher b) {
   return (brancher) phage::limit_brancher((phage::brancher*) b);

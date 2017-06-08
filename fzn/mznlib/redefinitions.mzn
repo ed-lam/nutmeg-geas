@@ -36,6 +36,10 @@
 
 %% New annotations
 annotation assume(array[int] of var bool: b);
+annotation int_priority(array[int] of var int: xs,
+  array[int] of ann: br, ann: sel);
+annotation bool_priority(array[int] of var bool: xs,
+  array[int] of ann: br, ann: sel);
 
 % Sums over Boolean variables
 %predicate bool_lin_eq(array[int] of int: a, array[int] of var bool: x,
