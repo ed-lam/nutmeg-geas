@@ -92,15 +92,16 @@ let int_min solver args anns =
  *)
 
 let int_mul solver args anns =
-(*
-  let x = Pr.get_ivar args.(0) in
-  let y = Pr.get_ivar args.(1) in
-  let z = Pr.get_ivar args.(2) in
-  *)
   let x = force_ivar solver args.(0) in
   let y = force_ivar solver args.(1) in
   let z = force_ivar solver args.(2) in
   Builtins.int_mul solver At.at_True z x y
+
+let int_div solver args anns =
+  let x = force_ivar solver args.(0) in
+  let y = force_ivar solver args.(1) in
+  let z = force_ivar solver args.(2) in
+  Builtins.int_div solver At.at_True z x y
 
 (* Specialization of linear inequalities *)
 let simplify_linterms terms k =
@@ -589,6 +590,7 @@ let initialize () =
      "array_int_maximum", array_int_max ;
      "array_int_minimum", array_int_min ;
      "int_times", int_mul ;
+     "int_div", int_div ;
      "int_lin_le", int_lin_le ;
      "int_lin_le_reif", int_lin_le_reif ;
      "int_lin_le_HR", int_lin_le_HR ;

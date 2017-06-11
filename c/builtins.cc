@@ -84,6 +84,11 @@ int int_mul(solver s, atom r, intvar z, intvar x, intvar y) {
                         *get_intvar(z), *get_intvar(x), *get_intvar(y),
                         get_atom(r));
 }
+int int_div(solver s, atom r, intvar z, intvar x, intvar y) {
+  return phage::int_div(get_solver(s)->data,
+                        *get_intvar(z), *get_intvar(x), *get_intvar(y),
+                        get_atom(r));
+}
 
 int int_abs(solver s, atom r, intvar z, intvar x) {
   return phage::int_abs(get_solver(s)->data,

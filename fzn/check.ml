@@ -104,6 +104,12 @@ let int_fun2 f rel args =
   let z = Pr.get_int args.(2) in
   rel (f x y) z
 
+let int_div args =
+  let x = Pr.get_int args.(0) in
+  let y = Pr.get_int args.(1) in
+  let z = Pr.get_int args.(2) in
+  y <> 0 && z = x / y
+
 let reif c args =
   (Pr.get_bool (Util.array_last args)) = c args
 
@@ -156,6 +162,7 @@ let check_funs =
        "int_max", int_fun2 max (=) ;
        "int_min", int_fun2 min (=) ;
        "int_times", int_fun2 ( * ) (=) ;
+       "int_div", int_div ;
        "int_plus", int_fun2 (+) (=) ;
        "maximum", maximum ;
        "minimum", minimum ;

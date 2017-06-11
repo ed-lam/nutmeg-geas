@@ -2227,5 +2227,147 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   return true;
 }
 
+class idiv_nonneg : public propagator, public prop_inst<idiv_nonneg> {
+  // Queueing
+  enum Status { S_Red = 2 };
+
+  watch_result wake(int _xi) {
+    if(status & S_Red)
+      return Wt_Keep;
+
+    queue_prop();
+    return Wt_Keep;
+  }
+
+  // Explanations. Naive for now
+  void ex_z_lb(int _xi, pval_t pval, vec<clause_elt>& expl) {
+    expl.push(x < lb(x));
+    expl.push(y > ub(y)); 
+  }
+
+  void ex_z_ub(int _xi, pval_t pval, vec<clause_elt>& expl) {
+    expl.push(x > ub(x));
+    expl.push(y < lb(y));
+  }
+
+  void ex_x_lb(int xi, pval_t pval, vec<clause_elt>& expl) {
+    expl.push(z < lb(z));
+    expl.push(y < lb(y));
+  }
+  void ex_x_ub(int xi, pval_t pval, vec<clause_elt>& expl) {
+    expl.push(z > ub(z));
+    expl.push(y > ub(y));
+  }
+
+  void ex_y_lb(int xi, pval_t pval, vec<clause_elt>& expl) {
+    expl.push(z > ub(z));
+    expl.push(x < lb(x));
+  }
+  void ex_y_ub(int xi, pval_t pval, vec<clause_elt>& expl) {
+    expl.push(z < lb(z));
+    expl.push(x > ub(x));
+  }
+
+public:
+  idiv_nonneg(solver_data* s, patom_t _r, intvar _z, intvar _x, intvar _y)
+    : propagator(s), r(_r), z(_z), x(_x), y(_y), status(0) {
+      assert(s->state.is_entailed_l0(r));
+    z.attach(E_LU, watch_callback(wake_default, this, 2));
+    x.attach(E_LU, watch_callback(wake_default, this, 0));
+    y.attach(E_LU, watch_callback(wake_default, this, 1));
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_PROP
+    std::cerr << "[[Running idiv(+)]]" << std::endl;
+#endif
+    int z_low = lb(x) / ub(y);
+    if(z_low > lb(z)) {
+      if(!set_lb(z, z_low, ex_thunk(ex<&P::ex_z_lb>,0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+    int z_high = ub(x) / lb(y);
+    if(z_high < ub(z)) {
+      if(!set_ub(z, z_high, ex_thunk(ex<&P::ex_z_ub>,0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+
+    // Now x: smallest x s.t. x / lb(y) >= lb(z)
+    int x_low = lb(z) * lb(y);
+    if(x_low > lb(x)) {
+      if(!set_lb(x, x_low, ex_thunk(ex<&P::ex_x_lb>, 0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+    // Greatest x s.t. x / ub(y) <= ub(z)
+    int x_high = (ub(z)+1) * ub(y) - 1;
+    if(x_high < ub(x)) {
+      if(!set_ub(x, x_high, ex_thunk(ex<&P::ex_x_ub>, 0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+
+    // Same for y: smallest y s.t. lb(x) / y <= ub(z)
+    int y_low = iceil(lb(x), ub(z));
+    if(y_low > lb(y)) {
+      if(!set_lb(y, y_low, ex_thunk(ex<&P::ex_y_lb>, 0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+    int y_high = iceil(ub(x), lb(z));
+    if(y_high < ub(y)) {
+      if(!set_ub(y, y_high, ex_thunk(ex<&P::ex_y_lb>, 0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+
+    return true;
+  }
+
+  patom_t r;
+  intvar z;
+  intvar x;
+  intvar y;
+
+  char status;
+};
+
+bool post_idiv_nonneg(solver_data* s, intvar z, intvar x, intvar y) {
+  // FIXME: Currently using cheapo implementation with imul.
+  intvar x_low(new_intvar(s, z.lb(s) * y.lb(s), z.ub(s) * y.ub(s)));
+  intvar x_high(new_intvar(s, z.lb(s) * y.lb(s) - 1, (z.ub(s)+1) * y.ub(s) - 1));
+  new iprod_nonneg(s, at_True, x_low, z, y);
+  new iprod_nonneg(s, at_True, x_high+1, z+1, y);
+  int_leq(s, x_low, x, 0);
+  int_leq(s, x, x_high, 0);
+  /*
+  if(z.lb(s) < 0 && !enqueue(*s, z >= 0, reason()))
+    return false;
+  new idiv_nonneg(s, at_True, z, x, y);
+  */
+  return true;
+}
+
+bool int_div(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
+  assert(r == at_True);
+
+  if(!enqueue(*s, y != 0, reason()))
+    return false;
+
+  // Check the sign cases.
+  // TODO: This doesn't handle the case when, say, z & x are fixed-sign.
+  if(x.lb(s) >= 0) {
+    if(y.lb(s) >= 0) {
+      return post_idiv_nonneg(s, z, x, y);
+    } else if(y.ub(s) <= 0) {
+      return post_idiv_nonneg(s, -z, x, -y);
+    }
+  } else if(x.ub(s) <= 0) {
+    if(y.lb(s) >= 0) {
+      return post_idiv_nonneg(s, -z, -x, y);
+    } else if(y.ub(s) <= 0) {
+      return post_idiv_nonneg(s, z, -x, -y);
+    }
+  }
+  // TODO: Implement non-sign-fixed case.
+  NOT_YET;
+  return false;
+}
 
 }

@@ -33,6 +33,7 @@ void cumulative(solver_data* s,
 bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r = at_True);
 bool int_abs(solver_data* s, intvar z, intvar x, patom_t r = at_True);
 bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r = at_True);
+bool int_div(solver_data* s, intvar z, intvar x, intvar y, patom_t r = at_True);
 
 // x <= y + k
 // bool int_le(solver_data* s, intvar x, intvar y, intvar::val_t k);

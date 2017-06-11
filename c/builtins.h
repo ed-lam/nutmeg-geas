@@ -35,6 +35,7 @@ int int_le(solver s, atom r, intvar x, intvar y, int k);
 int int_ne(solver s, atom r, intvar x, intvar y);
 
 int int_mul(solver s, atom r, intvar z, intvar x, intvar y);
+int int_div(solver s, atom r, intvar z, intvar x, intvar y);
 int int_abs(solver s, atom r, intvar z, intvar x);
 
 int int_max(solver s, atom r, intvar z, intvar* xs, int sz);
