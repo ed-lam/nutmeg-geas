@@ -2240,32 +2240,62 @@ class idiv_nonneg : public propagator, public prop_inst<idiv_nonneg> {
   }
 
   // Explanations. Naive for now
-  void ex_z_lb(int _xi, pval_t pval, vec<clause_elt>& expl) {
-    expl.push(x < lb(x));
-    expl.push(y > ub(y)); 
+  // z >= ceil[ lb(x)+1, ub(y) ] - 1
+  void ex_z_lb(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int z_lb = z.lb_of_pval(p);
+    int x_lb = (iceil(lb_prev(x)+1, ub(y)) - 1 >= z_lb) ? lb_prev(x) : lb(x);
+    int y_ub = (iceil(x_lb+1, ub_prev(y)) - 1 >= z_lb) ? ub_prev(y) : ub(y);
+    expl.push(x < x_lb);
+    expl.push(y > y_ub);
   }
 
+  // z <= ub(x)/lb(y); 
   void ex_z_ub(int _xi, pval_t pval, vec<clause_elt>& expl) {
-    expl.push(x > ub(x));
-    expl.push(y < lb(y));
+    int z_ub = z.ub_of_pval(pval);
+    
+    int x_ub = (ub_prev(x) / lb(y) <= z_ub) ? ub_prev(x) : ub(x);
+    int y_lb = (x_ub / lb_prev(y) <= z_ub) ? lb_prev(y) : lb(y);
+    // Can probably weaken further
+    expl.push(x > x_ub);
+    expl.push(y < y_lb);
   }
 
-  void ex_x_lb(int xi, pval_t pval, vec<clause_elt>& expl) {
-    expl.push(z < lb(z));
-    expl.push(y < lb(y));
+  // x >= lb(z) * lb(y)
+  void ex_x_lb(int xi, pval_t p, vec<clause_elt>& expl) {
+    int x_lb = x.lb_of_pval(p);
+
+    int z_lb = (lb_prev(z) * lb(y) >= x_lb) ? lb_prev(z) : lb(z);
+    int y_lb = (z_lb * lb_prev(y) >= x_lb) ? lb_prev(y) : lb(y);
+    expl.push(z < z_lb);
+    expl.push(y < y_lb);
   }
-  void ex_x_ub(int xi, pval_t pval, vec<clause_elt>& expl) {
-    expl.push(z > ub(z));
-    expl.push(y > ub(y));
+  // x <= (ub(z)+1) * ub(y) - 1;
+  void ex_x_ub(int xi, pval_t p, vec<clause_elt>& expl) {
+    int x_ub = x.ub_of_pval(p) + 1;
+    
+    int z_ub = ((ub_prev(z)+1) * ub(y) <= x_ub) ? ub_prev(z) : ub(z);
+    int y_ub = ((z_ub+1) * ub_prev(y) <= x_ub) ? ub_prev(y) : ub(y);
+    expl.push(z > z_ub);
+    expl.push(y > y_ub);
   }
 
-  void ex_y_lb(int xi, pval_t pval, vec<clause_elt>& expl) {
-    expl.push(z > ub(z));
-    expl.push(x < lb(x));
+  // y >= iceil(lb(x)+1, ub(z)+1);
+  void ex_y_lb(int xi, pval_t p, vec<clause_elt>& expl) {
+    int y_lb = y.lb_of_pval(p);
+
+    int x_lb = (iceil(lb_prev(x)+1, ub(z)+1) >= y_lb) ? lb_prev(x) : lb(x);
+    int z_ub = (iceil(x_lb+1, ub_prev(z)+1) >= y_lb) ? ub_prev(z) : ub(z);
+    expl.push(z > z_ub);
+    expl.push(x < x_lb);
   }
-  void ex_y_ub(int xi, pval_t pval, vec<clause_elt>& expl) {
-    expl.push(z < lb(z));
-    expl.push(x > ub(x));
+  // y <= ub(x)/lb(z);
+  void ex_y_ub(int xi, pval_t p, vec<clause_elt>& expl) {
+    int y_ub = y.ub_of_pval(p);
+
+    int x_ub = (ub_prev(x)/lb(z) <= y_ub) ? ub_prev(x) : ub(x);
+    int z_lb = (x_ub/lb_prev(z) <= y_ub) ? lb_prev(z) : lb(z);
+    expl.push(z < z_lb);
+    expl.push(x > x_ub);
   }
 
 public:
@@ -2281,6 +2311,38 @@ public:
 #ifdef LOG_PROP
     std::cerr << "[[Running idiv(+)]]" << std::endl;
 #endif
+    // What do the constraints look like?
+    // (1) x >= z * y
+    // (2) x < (z+1) * y
+    // Propagate x
+    int x_low = lb(z) * lb(y);
+    int x_high = (ub(z)+1) * ub(y) - 1;
+    if(x_low > lb(x) && !set_lb(x, x_low, ex_thunk(ex<&P::ex_x_lb>, 0, expl_thunk::Ex_BTPRED)))
+      return false;
+    if(x_high < ub(x) && !set_ub(x, x_high, ex_thunk(ex<&P::ex_x_ub>, 0, expl_thunk::Ex_BTPRED)))
+      return false;
+
+    // ... and y
+    int y_low = iceil(lb(x)+1, ub(z)+1);
+    int y_high = ub(x)/lb(z);
+    if(y_low > lb(y) &&
+      !set_lb(y, y_low, ex_thunk(ex<&P::ex_y_lb>, 0, expl_thunk::Ex_BTPRED)))
+      return false;
+    if(y_high < ub(y) &&
+      !set_ub(y, y_low, ex_thunk(ex<&P::ex_y_ub>, 0, expl_thunk::Ex_BTPRED)))
+      return false;
+
+    // ... and z
+    int z_low = iceil(lb(x)+1, ub(y)) - 1;
+    int z_high = ub(x)/lb(y); 
+    if(z_low > lb(z)
+      && !set_lb(z, z_low, ex_thunk(ex<&P::ex_z_lb>, 0, expl_thunk::Ex_BTPRED)))
+      return false;
+
+    if(z_high > ub(z)
+      && !set_ub(z, z_high, ex_thunk(ex<&P::ex_z_ub>, 0, expl_thunk::Ex_BTPRED)))
+      return false;
+    /*
     int z_low = lb(x) / ub(y);
     if(z_low > lb(z)) {
       if(!set_lb(z, z_low, ex_thunk(ex<&P::ex_z_lb>,0, expl_thunk::Ex_BTPRED)))
@@ -2316,6 +2378,7 @@ public:
       if(!set_ub(y, y_high, ex_thunk(ex<&P::ex_y_lb>, 0, expl_thunk::Ex_BTPRED)))
         return false;
     }
+    */
 
     return true;
   }
@@ -2329,18 +2392,19 @@ public:
 };
 
 bool post_idiv_nonneg(solver_data* s, intvar z, intvar x, intvar y) {
-  // FIXME: Currently using cheapo implementation with imul.
+  // FIXME: Cheapo implementation appears to be wrong
+#if 0
   intvar x_low(new_intvar(s, z.lb(s) * y.lb(s), z.ub(s) * y.ub(s)));
   intvar x_high(new_intvar(s, z.lb(s) * y.lb(s) - 1, (z.ub(s)+1) * y.ub(s) - 1));
   new iprod_nonneg(s, at_True, x_low, z, y);
   new iprod_nonneg(s, at_True, x_high+1, z+1, y);
   int_leq(s, x_low, x, 0);
   int_leq(s, x, x_high, 0);
-  /*
+#else
   if(z.lb(s) < 0 && !enqueue(*s, z >= 0, reason()))
     return false;
   new idiv_nonneg(s, at_True, z, x, y);
-  */
+#endif
   return true;
 }
 
