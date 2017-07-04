@@ -1018,6 +1018,7 @@ inline void simplify_at_root(solver_data& s) {
     watch_node* dest = s.infer.pred_watches[pi];
 
     while(head != dest) {
+      // assert(head->ws.size() == 0);
       s.infer.watch_maps[pi].rem(head_val);
       watch_node* w = head;
       head_val = head->succ_val;
@@ -1423,6 +1424,7 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
 
     find_watchlist(s, (*c)[0]).push(h);
     find_watchlist(s, (*c)[1]).push(h); 
+    s.infer.clauses.push(c);
   }
   return true;
 }
@@ -1484,6 +1486,7 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
     if(s.state.is_inconsistent(elts[1].atom))
       return enqueue(s, elts[0].atom, c);
       */
+    s.infer.clauses.push(c);
     return true;
   }
   return true;

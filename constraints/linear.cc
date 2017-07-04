@@ -673,7 +673,7 @@ public:
   };
   
   int_linear_ne(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& xs, int _k)
-    : propagator(s), r(_r), k(_k), status(0) {
+    : propagator(s), r(_r), k(_k), t_act(0), status(0) {
     assert(xs.size() >= 2);
     for(unsigned int ii = 0; ii < xs.size(); ii++) {
       // FIXME
