@@ -418,13 +418,27 @@ let build_branching problem env solver anns =
     let b = Sol.seq_brancher (Array.of_list bs) in
      Sol.add_brancher solver (wrap b)
 
+(* Helpers for printing arrays *)
+let print_fzn_array p_expr fmt es dims =
+  Format.fprintf fmt "array%dd(@[" (Array.length dims) ;
+  Util.print_array Pr.print_ann ~sep:",@ " ~pre:"@[" ~post:"@]" fmt dims ;
+  Format.fprintf fmt ",@ " ;
+  Util.print_array p_expr ~sep:",@ " ~pre:"[@[" ~post:"@]]" fmt es ;
+  Format.fprintf fmt "@])"
+
 (* Print a variable assignment *)
-let print_binding fmt id expr =
+let get_array_dims e_anns =
+  match Pr.ann_call_args e_anns "output_array" with
+  | Some [| Pr.Ann_arr dims |] -> dims
+  | _ -> failwith "Malformed array dimensions"
+
+let print_binding fmt id expr e_anns =
   let rec aux fmt expr =
     match expr with
     | Pr.Ilit v -> Format.pp_print_int fmt v
     | Pr.Blit b -> Format.pp_print_string fmt (if b then "true" else "false")
-    | Pr.Arr es -> Util.print_array ~sep:"," ~pre:"[@[" ~post:"@]]" aux fmt es
+    | Pr.Arr es -> print_fzn_array aux fmt es (get_array_dims e_anns)
+          (* Util.print_array ~sep:"," ~pre:"[@[" ~post:"@]]" aux fmt es *)
     | _ -> failwith "Expected only literals in solution"
   in
   Format.fprintf fmt "%s = " id ;
@@ -448,7 +462,7 @@ let print_solution fmt problem env model =
   else () ;
   Hashtbl.iter (fun id (expr, anns) ->
                 if is_output problem expr anns then
-                  print_binding fmt id (eval_expr env model expr)
+                  print_binding fmt id (eval_expr env model expr) anns
                 else
                   ()) problem.Pr.symbols
 

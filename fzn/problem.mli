@@ -76,6 +76,7 @@ val dom_of : t -> ival_id -> Dom.t
 
 val ann_has_id : ann_expr list -> ident -> bool
 val ann_has_call : ann_expr list -> ident -> bool
+val ann_call_args : ann_expr list -> ident -> ann_expr array option
 
 (** Bind an identifier to an expression *)
 val bind : t -> ident -> fzn_expr -> ann_expr list -> unit

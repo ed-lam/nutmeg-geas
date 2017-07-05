@@ -159,6 +159,14 @@ let ann_has_call ann id =
                           | Ann_call (id', _) -> id = id'
                           | _ -> false) ann
 
+let rec ann_call_args ann id =
+  let rec aux anns =
+    match ann with
+    | [] -> None
+    | Ann_call (id', args) :: _ when id = id' -> Some args
+    | _ :: ann' -> aux ann'
+  in aux ann
+
 let rec resolve_ann state = function
   | Ann_int k -> Ilit k
   | Ann_bool b -> Blit b
