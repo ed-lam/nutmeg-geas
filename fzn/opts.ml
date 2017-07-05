@@ -11,6 +11,7 @@ let pol = ref true
 let half_reify = ref false
 
 let restart_limit = ref None
+let conflict_limit = ref 0
 
 let check = ref false
 
@@ -75,5 +76,10 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "-r",
       Arg.Int (fun r -> restart_limit := Some r),
       "<int> : initial restart limit"
+     ) ;
+     (
+      "-c",
+      Arg.Int (fun c -> conflict_limit := c),
+      "<int> : maximum number of conflicts"
      ) ;
     ]

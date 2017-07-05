@@ -157,7 +157,7 @@ void add_brancher(solver s, brancher b) {
 
 result solve(solver s, int lim) {
   // Currently ignoring conflict limit
-  return unget_result(get_solver(s)->solve()); 
+  return unget_result(get_solver(s)->solve(lim)); 
 }
 
 void abort_solve(solver s) { return get_solver(s)->abort(); }

@@ -1,5 +1,6 @@
 #ifndef PHAGE_PRIORITY_BRANCH__H
 #define PHAGE_PRIORITY_BRANCH__H
+#include <climits>
 #include "solver/branch.h"
 
 namespace phage {

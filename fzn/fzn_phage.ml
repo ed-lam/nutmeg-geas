@@ -523,7 +523,7 @@ let solve_satisfy print_model print_nogood solver assumps =
       Format.fprintf fmt "============@."
     end
   else
-    match Sol.solve solver (-1) with
+    match Sol.solve solver !Opts.conflict_limit with
     | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
     | Sol.UNSAT ->
       begin
@@ -537,7 +537,7 @@ let solve_satisfy print_model print_nogood solver assumps =
 let solve_findall print_model print_nogood block_solution solver assumps =
   let fmt = Format.std_formatter in
   let rec aux max_sols =
-    match Sol.solve solver (-1) with
+    match Sol.solve solver !Opts.conflict_limit with
     | Sol.UNKNOWN -> ()
     | Sol.UNSAT -> Format.fprintf fmt "============@."
     | Sol.SAT ->
@@ -573,7 +573,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
       ((* print_model fmt model ; *)
        Format.fprintf fmt "============@.")
     else
-      match Sol.solve solver (-1) with
+      match Sol.solve solver !Opts.conflict_limit with
       | Sol.UNKNOWN ->
          ((* print_model fmt model ; *)
           Format.fprintf fmt "INCOMPLETE@.")
@@ -582,7 +582,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
           Format.fprintf fmt "==============@.")
       | Sol.SAT -> aux (Sol.get_model solver)
   in
-  match Sol.solve solver (-1) with
+  match Sol.solve solver !Opts.conflict_limit with
   | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
   | Sol.UNSAT -> Format.fprintf fmt "UNSAT@."
   | Sol.SAT -> aux (Sol.get_model solver)

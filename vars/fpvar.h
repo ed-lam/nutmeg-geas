@@ -22,7 +22,7 @@ struct fpvar_ext {
 };
 
 struct fpvar {
-  typedef val_t val_t;
+  typedef fval val_t;
   inline fval lb(ctx_t& ctx) const {
     return cast::to_float(ctx[p]);
   }

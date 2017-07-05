@@ -1102,7 +1102,7 @@ void solver::abort(void) {
 }
 
 // Solving
-solver::result solver::solve(void) {
+solver::result solver::solve(unsigned int conflict_limit) {
 
   // Top-level failure
   sdata& s(*data);
@@ -1113,7 +1113,7 @@ solver::result solver::solve(void) {
   set_handlers();
 
 //  int max_conflicts = 200000;
-  int max_conflicts = 0;
+  int max_conflicts = conflict_limit;
 
   // Activity stuff
   // FIXME: add persistence to confl_num, so we don't need
@@ -1223,7 +1223,7 @@ solver::result solver::solve(void) {
         next_gc -= confl_num;
 
         if(budget) {
-          std::cout << budget << ", " << confl_num << std::endl;
+          // std::cout << budget << ", " << confl_num << std::endl;
           budget -= confl_num;
           if(!budget) {
             clear_handlers();

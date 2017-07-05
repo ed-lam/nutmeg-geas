@@ -32,7 +32,7 @@ public:
   bool post(patom_t p);
 
   // Solving
-  result solve(void);
+  result solve(unsigned int conflict_limit = 0);
   void abort(void);
 
   // Retrieve a model
