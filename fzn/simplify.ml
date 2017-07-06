@@ -369,6 +369,21 @@ let simp_bool_eq st args anns =
     apply_bdef st x (Bv_const b)
   | Pr.Bv_var x, Pr.Bv_var y -> apply_bdef st x (Bv_eq y)
 
+let simp_bool_eq_reif st args anns =
+  match Pr.get_bval args.(2), Pr.get_bval args.(0), Pr.get_bval args.(1) with
+  | Pr.Bv_bool z, Pr.Bv_bool x, Pr.Bv_bool y ->
+    if z <> (x = y) then failwith "Found toplevel conflict in bool_eq_reif."
+  | Pr.Bv_bool a, Pr.Bv_bool b, Pr.Bv_var x
+  | Pr.Bv_bool a, Pr.Bv_var x, Pr.Bv_bool b
+  | Pr.Bv_var x, Pr.Bv_bool a, Pr.Bv_bool b ->
+    apply_bdef st x (Bv_const (a=b)) 
+  | Pr.Bv_bool a, Pr.Bv_var x, Pr.Bv_var y
+  | Pr.Bv_var x, Pr.Bv_bool a, Pr.Bv_var y
+  | Pr.Bv_var x, Pr.Bv_var y, Pr.Bv_bool a ->
+    apply_bdef st x (if a then (Bv_eq y) else (Bv_neg y))
+  | Pr.Bv_var z, Pr.Bv_var x, Pr.Bv_var y ->
+    Dy.add st.cons (("bool_eq_reif", [|Pr.Bvar x; Pr.Bvar y; Pr.Bvar z|]), anns)
+
 let simp_int_eq st args anns =
   match Pr.get_ival args.(0), Pr.get_ival args.(1) with
   | (Pr.Iv_int x, Pr.Iv_int y) -> if x <> y then failwith "Found toplevel conflict in int_eq."

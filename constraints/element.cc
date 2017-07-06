@@ -84,16 +84,53 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     expl.push(p->z > ub);
   }
    
-  static void ex_x_lb(elem_var_bnd* p, int vi, vec<clause_elt>& expl) {
-    p->push_hints(0, vi, expl);
+  void ex_x_lb(int vi, pval_t p, vec<clause_elt>& expl) {
+    push_hints(0, vi, expl);
   }
 
-  static void ex_x_ub(elem_var_bnd* p, int vi, vec<clause_elt>& expl) {
-    p->push_hints(vi+1, p->ys.size(), expl);
+  void ex_x_ub(int vi, pval_t _p, vec<clause_elt>& expl) {
+    push_hints(vi+1, ys.size(), expl);
   }
 
+  /*
   static void ex_z(void* ptr, int pos, pval_t pval, vec<clause_elt>& expl) {
     NOT_YET;
+  }
+  */
+  void ex_z_lb(int _vi, pval_t p, vec<clause_elt>& expl) {
+    // fprintf(stderr, "elem_bnd::ex::lb(z)\n");
+    intvar::val_t z_lb = z.lb_of_pval(p);
+
+    expl.push(x < lb(x));
+    expl.push(x > ub(x));
+
+    intvar::val_t z_step = lb_0(z);
+    for(int yi = lb(x) - base; yi <= ub(x) - base; yi++) {
+      if(ub(ys[yi]) < z_lb)
+        z_step = std::max(z_step, ub(ys[yi]));
+      else
+        expl.push(ys[yi] < z_lb);
+    }
+    if(z_step > lb_0(z))
+      expl.push(z <= z_step);
+  }
+
+  void ex_z_ub(int _vi, pval_t p, vec<clause_elt>& expl) {
+    // fprintf(stderr, "elem_bnd::ex::ub(z)\n");
+    int z_ub = z.ub_of_pval(p); 
+
+    expl.push(x < lb(x));
+    expl.push(x > ub(x));
+
+    intvar::val_t z_step = ub_0(z);
+    for(int yi = lb(x) - base; yi <= ub(x) - base; yi++) {
+      if(lb(ys[yi]) > z_ub)
+        z_step = std::min(lb(ys[yi]), z_step);
+      else
+        expl.push(ys[yi] > z_ub);
+    }
+    if(z_step < ub_0(z))
+      expl.push(z >= z_step);
   }
 
   void push_hints(int low, int high, vec<clause_elt>& expl) {
@@ -162,8 +199,8 @@ public:
       int low = vi;
 
       if(low + base > x.lb(s)) {
-        // if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_x_lb>, vi)))
         if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
+        // if(!set_lb(x,low + base, ex_thunk(ex<&P::ex_x_lb>, vi, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -179,17 +216,19 @@ public:
         }
       }
       if(high + base < x.ub(s)) {
-        // if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_x_ub>, high)))
         if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
+        // if(!set_ub(x,high + base, ex_thunk(ex<&P::ex_x_ub>, high, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
       if(z_supp.lb > z.lb(s)) {
-        if(!set_lb(z, z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+        // if(!set_lb(z, z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+        if(!set_lb(z, z_supp.lb, ex_thunk(ex<&P::ex_z_lb>, 0, expl_thunk::Ex_BTPRED)))
           return false;
       }
       if(z_supp.ub < z.ub(s)) {
-        if(!set_ub(z, z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+        // if(!set_ub(z, z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
+        if(!set_ub(z, z_supp.ub, ex_thunk(ex<&P::ex_z_ub>, 0, expl_thunk::Ex_BTPRED)))
           return false;
       }
 

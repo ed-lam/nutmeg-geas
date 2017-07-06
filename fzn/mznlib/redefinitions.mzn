@@ -99,8 +99,8 @@ predicate int_lin_eq_reif(
 %  /\ int_lin_le_reif(cs, xs, k, a)
 %  /\ int_lin_le_reif([-c | c in cs], xs, -k, b);
 
-predicate bool_eq_reif(var bool: x, var bool: y, var bool: r) =
-  r <-> (x <-> y);
+%predicate bool_eq_reif(var bool: x, var bool: y, var bool: r) =
+%  r <-> (x <-> y);
 predicate bool_xor(var bool: x, var bool: y, var bool: r) =
      bool_clause([x,y],[r])
   /\ bool_clause([],[x,y,r])
