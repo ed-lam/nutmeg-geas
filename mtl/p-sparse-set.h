@@ -90,7 +90,7 @@ public:
    }
     
    unsigned int operator [] (unsigned int index) {
-      assert(index < sz);
+      assert(index < dom);
       return dense[index];
    }
     

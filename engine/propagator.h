@@ -59,6 +59,7 @@ public:
 #ifdef PROOF_LOG
   int cons_id;
 #endif
+  int prop_id;
 protected:
   solver_data* s;
 };
