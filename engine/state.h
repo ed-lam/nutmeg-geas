@@ -68,10 +68,12 @@ public:
     // return is_entailed(~atom);
   }
 
-  forceinline bool is_entailed_l0(patom_t atom) const {
+  forceinline
+  bool is_entailed_l0(patom_t atom) const {
     return atom.val <= p_root[atom.pid];
   }
-  forceinline bool is_inconsistent_l0(patom_t atom) const {
+  forceinline
+  bool is_inconsistent_l0(patom_t atom) const {
     // return pval_max - p_root[atom.pid^1] < atom.val;
     return is_entailed_l0(~atom);
   }

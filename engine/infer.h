@@ -46,6 +46,13 @@ public:
     return p;
   }
 
+  pid_t new_pred(pval_t lb, pval_t ub) {
+    pid_t p = new_half_pred(lb, ub);
+    new_half_pred(pval_inv(ub), pval_inv(lb));
+    pred_act.push(0.0);
+    return p;
+  }
+
   void growTo(int sz) {
     while(watch_maps.size() <= sz)
       new_pred();
@@ -60,6 +67,7 @@ protected:
   pid_t new_half_pred(void) {
     pid_t pid = watch_maps.size();
     // Create the root watch-node
+#if 0
     watch_node* w(new watch_node); 
     // w->atom = patom_t(pid, 0);
 #ifdef DEBUG_WMAP
@@ -74,13 +82,38 @@ protected:
     pred_ineqs.push();
 
     watch_maps.push();
-    watch_maps.last().add(0, w);
+    // watch_maps.last().add(0, w);
+#else
+    pred_ineqs.push();
+    watch_maps.push();
+    watch_node* w(watch_maps.last().get(0));
+    pred_watches.push(w);
+    pred_watch_heads.push(watch_head {0, w});
+#endif
+    return pid;
+  }
+
+  pid_t new_half_pred(pval_t lb, pval_t ub) {
+    pid_t pid = watch_maps.size();
+    pred_ineqs.push();
+    watch_maps.push(watch_map(lb, ub));
+    watch_node* w(watch_maps.last().get(lb));
+    pred_watches.push(w);
+    pred_watch_heads.push(watch_head {lb, w});
+
     return pid;
   }
 
 public:
   // Find the appropriate watch for an atom.
   watch_node* get_watch(pid_t p, pval_t val) {
+#if 1
+    /*
+    MakeWNode m;
+    return (*(watch_maps[p].find_or_add(m, key))).value;
+    */
+    return watch_maps[p].get(val);
+#else
     uint64_t key = (uint64_t) val;
     watch_map::iterator it = watch_maps[p].find(key);
     if(it != watch_maps[p].end()) 
@@ -102,6 +135,7 @@ public:
     pred->succ_val = val;
     pred->succ = w;
     return w;
+#endif
   }
 
   typedef struct {

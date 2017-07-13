@@ -43,6 +43,12 @@ public:
 template<class Key, class Val, class Ops>
 class uint64_triemap {
   typedef uint64_t elt_t;
+private:
+  uint64_triemap(uint64_triemap<Key, Val, Ops>& o)
+    : root(nullptr) { }
+  uint64_triemap& operator=(uint64_triemap<Key,Val,Ops>& o) {
+    return *this;
+  }
 protected:
   // Internal and leaf nodes
   typedef struct {
@@ -99,6 +105,19 @@ public:
   uint64_triemap(void)
     : root(NULL), head(NULL), tail(NULL)
   { } 
+
+  uint64_triemap(uint64_triemap<Key, Val, Ops>&& o)
+    : root(o.root), head(o.head), tail(o.tail) {
+      o.root = nullptr;
+      o.head = o.tail = nullptr;
+  }
+
+  uint64_triemap& operator=(uint64_triemap<Key, Val, Ops>&& o) {
+    root = o.root; o.root = nullptr;
+    head = o.head; o.head = nullptr;
+    tail = o.tail; o.tail = nullptr;
+    return *this;
+  }
 
   ~uint64_triemap()
   {
@@ -183,6 +202,84 @@ public:
 
     return fresh_leaf;
   }
+
+  template<class Construct>
+  iterator find_or_add(Construct& construct, const Key& key) {
+    if(!root)
+    {
+      root = make_leaf(key, construct(key), NULL, NULL);
+      head = tail = (leaf_t*) root;
+      return head;
+    }
+
+    elt_t e = Ops::to_uint(key);
+    leaf_t* leaf = locate(e);
+
+    // Already in the set
+    if(leaf->ref.key == key)
+    {
+      return leaf;
+    }
+
+    uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
+    uint64_t out_dir = e&mask;
+    
+    void** p = NULL;
+    void* node = root;
+    node_t* node_ptr = clear_flag((node_t*) node);
+    while(check_flag(node) &&
+        node_ptr->mask > mask)
+    {
+      uint64_t dir = e&node_ptr->mask;
+      p = dir ? &(node_ptr->right) : &(node_ptr->left);
+      node = dir ? node_ptr->right : node_ptr->left;
+      node_ptr = clear_flag((node_t*) node);
+    }
+    
+    leaf_t* prev;
+    leaf_t* next; 
+    if(out_dir)
+    {
+      void* adj_node = node;
+      while(check_flag(adj_node))
+      {
+        adj_node = clear_flag((node_t*) adj_node)->right;
+      }
+      prev = ((leaf_t*) adj_node);
+      next = prev->next;
+    } else {
+      void* adj_node = node; 
+      while(check_flag(adj_node))
+      {
+        adj_node = clear_flag((node_t*) adj_node)->left;
+      }
+      next = ((leaf_t*) adj_node);
+      prev = next->prev;
+    }
+    leaf_t* fresh_leaf = new leaf_t(key, construct(prev->ref.value, key), prev, next);
+
+    // Fix up the linked list
+    if(fresh_leaf->prev)
+      fresh_leaf->prev->next = fresh_leaf;
+    if(fresh_leaf->next)
+      fresh_leaf->next->prev = fresh_leaf;
+
+    if(head == next)
+      head = fresh_leaf;
+    if(tail == prev)
+      tail = fresh_leaf;
+
+    void* fresh_node = make_node(mask,
+      out_dir ? node : (void*) fresh_leaf,
+      out_dir ? (void*) fresh_leaf : node);
+    if(p == NULL)
+      root = fresh_node;
+    else
+      (*p) = fresh_node;
+
+    return fresh_leaf;
+  }
+
 
   void rem(elt_t e)
   {

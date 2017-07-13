@@ -173,7 +173,8 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   s.state.new_pred(lb, ub);
   s.persist.new_pred();
   s.confl.new_pred();
-  pid_t pi = s.infer.new_pred();
+  // pid_t pi = s.infer.new_pred();
+  pid_t pi = s.infer.new_pred(lb, ub);
 
   // s.pred_heap.insert(pi);
   // s.pred_heap.insert(pi+1);
@@ -655,11 +656,6 @@ bool propagate_pred(solver_data& s, pid_t p) {
 
   // Trail head of watches 
   if(curr != s.infer.pred_watches[p]) {
-    // FIXME: This may not be safe.
-    // If new preds are introduced during search, the
-    // pred_watches vector may be resized, invalidating
-    // the previous trail entries.
-    // trail_change(s.persist, s.infer.pred_watches[p], curr);
     s.persist.pwatch_trail.push({p, s.infer.pred_watches[p]});
     s.infer.pred_watches[p] = curr;
   }
@@ -1019,11 +1015,17 @@ inline void simplify_at_root(solver_data& s) {
 
     while(head != dest) {
       // assert(head->ws.size() == 0);
+#if 0
+      // FIXME
       s.infer.watch_maps[pi].rem(head_val);
       watch_node* w = head;
       head_val = head->succ_val;
       head = head->succ;
       delete w;
+#else
+      head_val = head->succ_val;
+      head = head->succ;
+#endif
     }
     s.infer.pred_watch_heads[pi].val = head_val;
     s.infer.pred_watch_heads[pi].ptr = head;
