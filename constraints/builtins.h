@@ -8,6 +8,9 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r = at_True);
 bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r = at_True);
+// linear-ps.cc
+bool linear_le_ps(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
+  patom_t r = at_True);
 
 // bool-linear.cc
 bool atmost_1(solver_data*, vec<patom_t>& xs, patom_t r = at_True);
@@ -44,6 +47,6 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r = at_True);
 bool int_ne(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 
 // alldifferent.cc
-void all_different(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
+bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
 }
 #endif

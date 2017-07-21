@@ -313,6 +313,10 @@ let array_int_element solver args anns =
   | Pr.Iv_var idx, Pr.Iv_var res ->
     B.int_element solver At.at_True res idx elts
 
+let all_different_int solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  B.all_different_int solver xs
+
 let array_var_int_element solver args anns =
   match Pr.get_ival args.(0), Pr.get_ival args.(2) with
   | Pr.Iv_int idx, Pr.Iv_int res ->
@@ -635,6 +639,7 @@ let initialize () =
      "array_bool_element", array_bool_element ;
      "array_var_bool_element", array_var_bool_element ;
      "bool_lin_le", bool_lin_le ;
+     "all_different_int", all_different_int ;
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers

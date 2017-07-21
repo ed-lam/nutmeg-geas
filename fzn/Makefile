@@ -33,8 +33,9 @@ OCAMLINC=-I ../ml
 OCAMLFLAGS+=$(OCAMLINC)
 OCAMLOPTFLAGS+=$(OCAMLINC)
 
-#PROF = -ccopt "-pg"
+#PROF = -ccopt "-pg" -p
 PROF =
+OCAMLOPTFLAGS+=$(PROF)
 
 #---------------------------------------
 # Rules
@@ -81,7 +82,6 @@ libphage_ml.a: ../ml/libphage_ml.a
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
 	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
   -ccopt "-L /opt/local/lib/ocaml" \
-  $(PROF) \
   ../ml/phage.cmxa \
   $@.mli $^ -package $(REQ_PKG) -linkpkg
 

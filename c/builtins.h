@@ -42,6 +42,8 @@ int int_max(solver s, atom r, intvar z, intvar* xs, int sz);
 
 int int_element(solver s, atom r, intvar z, intvar i, int* elts, int sz);
 int var_int_element(solver s, atom r, intvar z, intvar i, intvar* elts, int sz);
+
+int all_different_int(solver s, intvar* xs, int sz);
 #ifdef __cplusplus
 }
 #endif

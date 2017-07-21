@@ -8,6 +8,62 @@
 
 namespace phage {
   
+class alldiff_v : public propagator, public prop_inst<alldiff_v> {
+  watch_result wake(int xi) {
+    fixed.push(xi);
+    queue_prop();
+    return Wt_Keep; 
+  }
+public:
+  alldiff_v(solver_data* s, vec<intvar>& _xs)
+    : propagator(s), xs(_xs) {
+    for(int ii : irange(xs.size())) {
+      if(lb(xs[ii]) == ub(xs[ii])) {
+        // Kill the value in other vars
+        intvar::val_t k(lb(xs[ii]));
+        for(int jj : irange(xs.size())) {
+          if(ii == jj) continue;
+          enqueue(*s, xs[jj] != k, reason());
+        }
+      } else {
+        xs[ii].attach(E_FIX, watch<&P::wake>(ii, Wt_IDEM));
+      }
+    }
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    for(int xi : fixed) {
+      intvar::val_t k(lb(xs[xi]));
+      patom_t r(xs[xi] != k);
+
+      for(int ii : irange(xi)) {
+        if(k < lb(xs[ii]) || ub(xs[ii]) < k)
+          continue;
+        if(!enqueue(*s, xs[ii] != k, r))
+          return false;
+      }
+      for(int ii : irange(xi+1, xs.size())) {
+        if(k < lb(xs[ii]) || ub(xs[ii]) < k)
+          continue;
+        if(!enqueue(*s, xs[ii] != k, r))
+          return false;
+      }
+    }
+    fixed.clear();
+
+    return true;
+  }
+
+  void cleanup(void) {
+    fixed.clear();
+    is_queued = false;
+  }
+
+  vec<intvar> xs;
+
+  vec<int> fixed;
+};
+
 class alldiff_b : public propagator {
   typedef typename intvar::val_t val_t;
 
@@ -87,6 +143,13 @@ class alldiff_b : public propagator {
     boolset lb_change;
     boolset ub_change;
 };
+
+bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True) {
+  assert(r == at_True);
+
+  new alldiff_v(s, xs);
+  return true;
+}
 
 }
 #endif

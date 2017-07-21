@@ -6,6 +6,9 @@
 #include "vars/intvar.h"
 
 #include "utils/interval.h"
+#include "mtl/p-sparse-set.h"
+
+// #define DEBUG_ELEM
 
 namespace phage {
 
@@ -85,11 +88,13 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   }
    
   void ex_x_lb(int vi, pval_t p, vec<clause_elt>& expl) {
-    push_hints(0, vi, expl);
+    expl.push(x < vi+base);
+    push_hints(vi, x.lb_of_pval(p) - base, expl);
   }
 
-  void ex_x_ub(int vi, pval_t _p, vec<clause_elt>& expl) {
-    push_hints(vi+1, ys.size(), expl);
+  void ex_x_ub(int vi, pval_t p, vec<clause_elt>& expl) {
+    expl.push(x > vi+base);
+    push_hints(x.ub_of_pval(p)-base+1, vi+1, expl);
   }
 
   /*
@@ -136,19 +141,19 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   void push_hints(int low, int high, vec<clause_elt>& expl) {
     intvar::val_t z_ub = z.ub(s);
 
-    intvar::val_t z_low = ub_0(z)+1;
-    intvar::val_t z_high = lb_0(z)-1;
+    intvar::val_t z_low = lb_0(z);
+    intvar::val_t z_high = ub_0(z)+1;
 
     for(int ii : irange(low, high)) {
       intvar::val_t hint = cut_hint[ii];
       if(z_ub < hint) {
         assert(ys[ii].lb(s) >= hint);
-        z_high = std::max(z_high, hint);
+        z_high = std::min(z_high, hint);
         expl.push(ys[ii] < hint);
       } else {
         assert(z.lb(s) >= hint);
         expl.push(ys[ii] >= hint);
-        z_low = std::min(z_low, hint);
+        z_low = std::max(z_low, hint);
       }
     }
     expl.push(z < z_low);
@@ -199,8 +204,8 @@ public:
       int low = vi;
 
       if(low + base > x.lb(s)) {
-        if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
-        // if(!set_lb(x,low + base, ex_thunk(ex<&P::ex_x_lb>, vi, expl_thunk::Ex_BTPRED)))
+        // if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
+        if(!set_lb(x,low + base, ex_thunk(ex<&P::ex_x_lb>, lb(x)-base, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -216,8 +221,8 @@ public:
         }
       }
       if(high + base < x.ub(s)) {
-        if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
-        // if(!set_ub(x,high + base, ex_thunk(ex<&P::ex_x_ub>, high, expl_thunk::Ex_BTPRED)))
+        // if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
+        if(!set_ub(x,high + base, ex_thunk(ex<&P::ex_x_ub>, ub(x) - base, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -258,6 +263,421 @@ public:
 
     vec<intvar::val_t> cut_hint;
 };
+
+// Mixed propagator: domain consistent for x, but bounds-consistent for
+// y and z.
+class elem_var_mix : public propagator, public prop_inst<elem_var_mix> {
+  // Wakeup and explanation
+  enum Change { LB_SUPP = 1, UB_SUPP = 2, Z_LB = 4, Z_UB = 8 };
+  enum Mode { E_Free, E_Fix };
+
+  void kill_yi(int yi) {
+    if(!live_yi.elem(yi))
+      return;
+
+    trail_push(s->persist, live_yi.sz);
+    live_yi.remove(yi);
+
+    if(z_lb_supp == yi) {
+      change |= LB_SUPP;
+      queue_prop();
+    }
+    if(z_ub_supp == yi) {
+      change |= UB_SUPP;
+      queue_prop();
+    }
+    if(live_yi.size() == 1) {
+      trail_change(s->persist, mode, (unsigned char) E_Fix);
+      queue_prop();
+    }
+  }
+
+  watch_result wake_z(int evt) {
+    change |= evt;
+    queue_prop();
+    return Wt_Keep;
+  }
+  watch_result wake_xi(int xi) {
+    kill_yi(xi);
+    return Wt_Keep;
+  }
+
+  watch_result wake_y_lb(int yi) {
+    if(!live_yi.elem(yi))
+      return Wt_Keep;
+
+    if(lb(ys[yi]) > ub(z)) {
+      supp[yi] = lb(ys[yi]);
+      dead_yi.push(yi);
+      queue_prop();
+    } else if (z_lb_supp == yi && lb(ys[yi]) > lb(z)) {
+      change |= LB_SUPP;
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+
+  watch_result wake_y_ub(int yi) {
+    assert(yi < live_yi.dom);
+    assert(yi < ys.size());
+    if(!live_yi.elem(yi))
+      return Wt_Keep;
+
+    if(ub(ys[yi]) < lb(z)) {
+      supp[yi] = ub(ys[yi]);
+      dead_yi.push(yi);
+      queue_prop();
+    } else if(z_ub_supp == yi && ub(ys[yi]) < ub(z)) {
+      change |= UB_SUPP;
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+
+  void cleanup(void) {
+    change = 0;
+    dead_yi.clear();
+    is_queued = false;
+  }
+
+  void ex_y_lb(int yi, pval_t p, vec<clause_elt>& expl) {
+    expl.push(x != yi + base);
+    expl.push(z < ys[yi].lb_of_pval(p));
+  }
+
+  void ex_y_ub(int yi, pval_t p, vec<clause_elt>& expl) {
+    expl.push(x != yi+base);
+    expl.push(z > ys[yi].ub_of_pval(p));
+  }
+   
+  void ex_x(int yi, pval_t _p, vec<clause_elt>& expl) {
+    if(ub(z) < supp[yi]) {
+      expl.push(ys[yi] < supp[yi]);
+      expl.push(z >= supp[yi]);
+    } else {
+      assert(supp[yi] < lb(z));
+      assert(ub(ys[yi]) < lb(z));
+      expl.push(ys[yi] > supp[yi]);
+      expl.push(z <= supp[yi]);
+    }
+  }
+
+  void ex_z_lb(int live_end, pval_t p, vec<clause_elt>& expl) {
+    intvar::val_t z_lb = z.lb_of_pval(p);
+
+    for(int ii : irange(live_end)) {
+      int yi = live_yi[ii];
+      expl.push(ys[yi] < z_lb);
+    }
+
+    if(live_end == 1) {
+      expl.push(x != live_yi[0] + base);
+    } else {
+      for(int ii : irange(live_end, ys.size())) {
+        int yi = live_yi[ii];
+        expl.push(x == yi + base);
+      }
+    }
+  }
+
+  void ex_z_ub(int live_end, pval_t p, vec<clause_elt>& expl) {
+    intvar::val_t z_ub = z.ub_of_pval(p);
+
+    for(int ii : irange(live_end)) {
+      int yi = live_yi[ii];
+      expl.push(ys[yi] > z_ub);
+    }
+
+    if(live_end == 1) {
+      expl.push(x != live_yi[0] + base);
+    } else {
+      for(int ii : irange(live_end, ys.size())) {
+        int yi = live_yi[ii];
+        expl.push(x == yi + base);
+      }
+    }
+  }
+
+public:
+  elem_var_mix(solver_data* _s, intvar _z, intvar _x, vec<intvar>& _ys, int _base, patom_t _r)
+    : propagator(_s), base(_base), x(_x), z(_z), ys(_ys), r(_r),
+      mode(E_Free), live_yi(ys.size()), supp(ys.size(), 0),
+      z_lb_supp(0), z_ub_supp(0), change(0) {
+    // Set all y-values as feasible
+    live_yi.sz = ys.size();
+
+    if(lb(x) < base)
+      set_lb(x, base, reason());
+    if(ub(x) > ys.size() + base)
+      set_ub(x, ys.size()+base, reason());
+    // Make sure all [x = k]s are available.
+    make_eager(x);
+    z.attach(E_LB, watch<&P::wake_z>(Z_LB, Wt_IDEM));
+    z.attach(E_UB, watch<&P::wake_z>(Z_UB, Wt_IDEM));
+
+    intvar::val_t z_lb = lb(z);
+    intvar::val_t z_ub = ub(z);
+    
+    intvar::val_t yi_min = INT_MAX;
+    intvar::val_t yi_max = INT_MIN;
+    int low_yi = ys.size();
+    int high_yi = ys.size();
+
+    for(int yi : irange(lb(x) - base)) {
+      live_yi.remove(yi);
+    }
+    for(int yi : irange(ub(x) - base + 1, ys.size())) {
+      live_yi.remove(yi);
+    }
+
+    // Figure out bounds on the consistent y-values.
+    for(int yi : live_yi) {
+      int lb_yi = lb(ys[yi]);
+      int ub_yi = ub(ys[yi]);
+      if(lb_yi <= z_ub && z_lb <= ub_yi) {
+        if(lb_yi < yi_min) {
+          low_yi = yi;
+          yi_min = lb_yi;
+        }
+        if(ub_yi > yi_max) {
+          high_yi = yi;
+          yi_max = ub_yi;
+        }
+      }
+    }
+
+    if(z_lb < low_yi) {
+      set_lb(z, low_yi, reason());
+    }
+    z_lb_supp.x = low_yi;
+
+    if(high_yi < z_ub) {
+      set_ub(z, high_yi, reason());
+    }
+    z_ub_supp.x = high_yi;
+
+    for(int yi : irange(lb(x)-base, ub(x)-base+1)) {
+      assert(yi < ys.size());
+      if(s->state.is_inconsistent(x == yi+base)) {
+        assert(live_yi.elem(yi));
+        live_yi.remove(yi);
+        continue;
+      }
+      if(ub(ys[yi]) < z_lb || z_ub < lb(ys[yi])) {
+        assert(live_yi.elem(yi));
+        enqueue(*s, x != yi+base, reason());
+        live_yi.remove(yi);
+        continue;
+      }
+
+      attach(s, x != yi+base, watch<&P::wake_xi>(yi, Wt_IDEM));
+      ys[yi].attach(E_LB, watch<&P::wake_y_lb>(yi, Wt_IDEM));
+      ys[yi].attach(E_UB, watch<&P::wake_y_ub>(yi, Wt_IDEM));
+      supp[yi] = std::max(lb(z), lb(ys[yi]));
+    }
+    // Set initial bounds
+  }
+
+  void root_simplify(void) {
+    
+  }
+    
+   void check_supps(void) {
+     assert(!s->state.is_inconsistent(x == z_lb_supp + base));
+     assert(!s->state.is_inconsistent(x == z_ub_supp + base));
+
+     assert(lb(ys[z_lb_supp]) <= lb(z) && lb(z) <= ub(ys[z_lb_supp]));
+     assert(ub(z) <= ub(ys[z_ub_supp]) && lb(ys[z_lb_supp]) <= ub(z));
+   }
+
+   void check_live(void) {
+     for(int yi : live_yi) {
+       assert(!s->state.is_inconsistent(x == yi + base));
+       assert(lb(z) <= ub(ys[yi]) && lb(ys[yi]) <= ub(z));
+     }
+
+     for(int ii : irange(live_yi.size(), ys.size())) {
+       assert(s->state.is_inconsistent(x == live_yi[ii] + base));
+     }
+   }
+
+   bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_ALL
+      std::cout << "[[Running elem_var_mix]]" << std::endl;
+#endif
+////      static int count = 0;
+//      fprintf(stderr, "elem_var_mix: #%d\n", ++count);
+
+      // Deal with the dead ys.
+      if(dead_yi.size() > 0) {
+        trail_push(s->persist, live_yi.sz);
+        for(int yi : dead_yi) {
+          // assert(live_yi.elem(yi));
+          // May have been killed again (in the meantime)
+          // by posting x != yi+base.
+          if(!live_yi.elem(yi))
+            continue;
+
+          if(!enqueue(*s, x != yi + base, ex_thunk(ex<&P::ex_x>, yi, expl_thunk::Ex_BTPRED)))
+            return false;
+          live_yi.remove(yi);
+
+          if(yi == z_lb_supp)
+            change |= LB_SUPP;
+          if(yi == z_ub_supp)
+            change |= UB_SUPP;
+        }
+        dead_yi.clear();
+
+        if(live_yi.size() == 1) {
+          trail_change(s->persist, mode, (unsigned char) E_Fix);
+        }
+        // Defer the failure to unit propagation.
+        if(live_yi.size() == 0)
+          return true;
+      }
+      assert(live_yi.size() > 0);
+
+      // x is fixed: z = ys[x].           
+      if(mode == E_Fix) {
+        assert(live_yi.size() == 1);
+        int yi = live_yi[0];
+        if(lb(z) != lb(ys[yi])) {
+          if(lb(z) < lb(ys[yi])) {
+            if(!set_lb(z, lb(ys[yi]), ex_thunk(ex<&P::ex_z_lb>,1)))
+              return false;
+          } else {
+            if(!set_lb(ys[yi], lb(z), ex_thunk(ex<&P::ex_y_lb>,yi)))
+              return false;
+          }
+        }
+        if(ub(z) != ub(ys[yi])) {
+          if(ub(z) > ub(ys[yi])) {
+            if(!set_ub(z, ub(ys[yi]), ex_thunk(ex<&P::ex_z_ub>,1)))
+              return false;
+          } else {
+            if(!set_ub(ys[yi], ub(z), ex_thunk(ex<&P::ex_y_ub>, yi)))
+              return false;
+          }
+        }
+        return true;
+      }
+
+      // Otherwise, deal with LB/UB supports
+      int live_sz = live_yi.size();
+      bool saved = false;
+      if(change&(Z_LB|Z_UB)) {
+        // Removal invalidates iterators and swaps elements;
+        // iterating backwards is safe.
+        // FIXME: Correct way of doing this is using a min-max heap
+        // tracking the support value. Then we only need to look at
+        // vars where support is violated.
+        if(change&Z_LB) {
+          int z_lb = lb(z);
+          for(int ii = live_yi.size()-1; ii >= 0; --ii) {
+            int yi = live_yi[ii];
+            if(ub(ys[yi]) < z_lb) {
+              supp[yi] = ub(ys[yi]);
+              if(!enqueue(*s, x != yi+base, ex_thunk(ex<&P::ex_x>,yi, expl_thunk::Ex_BTPRED)))
+                return false;
+              if(!saved) {
+                trail_push(s->persist, live_yi.sz);
+                saved = true;
+              }
+              live_yi.remove(yi);
+            }
+          }
+        }
+        if(change&Z_UB) {
+          int z_ub = ub(z);
+          for(int ii = live_yi.size()-1; ii >= 0; --ii) {
+            int yi = live_yi[ii];
+            if(z_ub < lb(ys[yi])) {
+              supp[yi] = lb(ys[yi]);
+              if(!enqueue(*s, x != yi+base, ex_thunk(ex<&P::ex_x>,yi, expl_thunk::Ex_BTPRED)))
+                return false;
+              if(!saved) {
+                trail_push(s->persist, live_yi.sz);
+                saved = true;
+              }
+              live_yi.remove(yi);
+            }
+          }
+        }
+        if(!live_yi.elem(z_lb_supp))
+          change |= LB_SUPP;
+        if(!live_yi.elem(z_ub_supp))
+          change |= UB_SUPP;
+      } /* else { */
+        if(change&LB_SUPP) {
+          int z_lb = lb(z);
+          int lb_yi = ys.size();
+          int lb_val = INT_MAX;
+          for(int yi : live_yi) {
+            assert(!s->state.is_inconsistent(x == yi + base));
+            int y_lb = lb(ys[yi]);
+            if(y_lb <= z_lb) {
+              z_lb_supp.set(s->persist, yi);
+              goto z_lb_found;
+            } else if(y_lb < lb_val) {
+              lb_yi = yi;
+              lb_val = y_lb;
+            }
+          }
+          if(!set_lb(z, lb_val, ex_thunk(ex<&P::ex_z_lb>,live_sz)))
+            return false;
+          z_lb_supp.set(s->persist, lb_yi);
+        }
+     z_lb_found:
+        if(change&UB_SUPP) {
+          int z_ub = ub(z);
+          int ub_yi = ys.size();
+          int ub_val = INT_MIN;
+          for(int yi : live_yi) {
+            int y_ub = ub(ys[yi]); 
+            if(y_ub >= z_ub) {
+              z_ub_supp.set(s->persist, yi);
+              goto z_ub_found;
+            } else if(y_ub > ub_val) {
+              ub_yi = yi;
+              ub_val = y_ub;
+            }
+          }
+          if(!set_ub(z, ub_val, ex_thunk(ex<&P::ex_z_ub>,live_sz)))
+            return false;
+          z_ub_supp.set(s->persist, ub_yi);
+        }
+      /* } */
+     z_ub_found:
+#ifdef DEBUG_ELEM
+      check_supps();
+      check_live();
+#endif
+      change = 0;
+
+      return true;
+    }
+
+    int base;
+    intvar x;
+    intvar z;
+    vec<intvar> ys;
+
+    patom_t r;
+
+    // Is x fixed?
+    unsigned char mode;
+
+    p_sparseset live_yi;
+
+    vec<intvar::val_t> supp; // What value shows z & ys[yi] != nil.
+    Tint z_lb_supp; // Which yi supports lb(z)
+    Tint z_ub_supp; // Which yi supports ub(z)
+
+    vec<int> dead_yi;
+    unsigned char change;
+};
+
 
 // Non-incremental interval-based propagation
 class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
@@ -415,6 +835,7 @@ bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
 bool var_int_element(solver_data* s, intvar z, intvar x, vec<intvar>& ys, patom_t r) {
   // new elem_var_simple(s, x, i, ys, 1, r);
   new elem_var_bnd(s, z, x, ys, 1, r);
+  // new elem_var_mix(s, z, x, ys, 1, r);
   return true; 
 }
 }

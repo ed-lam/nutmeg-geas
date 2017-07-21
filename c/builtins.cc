@@ -32,7 +32,15 @@ int linear_le(solver s, atom r, int_linterm* ts, int sz, int k) {
     ks.push(ts[ii].c);
     xs.push(*get_intvar(ts[ii].x));
   }
+#if 1
+  if(xs.size() > 5)
+    return phage::linear_le_ps(get_solver(s)->data, ks, xs,  k, get_atom(r));
+  else
+    return phage::linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
+#else
   return phage::linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
+#endif
+
 }
 
 int linear_ne(solver s, atom r, int_linterm* ts, int sz, int k) {
@@ -131,6 +139,15 @@ int int_ne(solver s, atom r, intvar x, intvar y) {
   return phage::int_ne(get_solver(s)->data,
                     *get_intvar(x), *get_intvar(y), get_atom(r));
 }
+
+int all_different_int(solver s, intvar* xs, int sz) {
+  vec<phage::intvar> p_xs;
+  for(intvar* v = xs; v != xs+sz; ++v) {
+    p_xs.push(*get_intvar(*v));
+  }
+  return phage::all_different_int(get_solver(s)->data, p_xs);
+}
+
 #ifdef __cplusplus
 }
 #endif

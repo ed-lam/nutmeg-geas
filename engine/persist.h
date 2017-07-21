@@ -163,6 +163,7 @@ struct trailed {
 };
 typedef trailed<int> Tint;
 typedef trailed<char> Tbool;
+typedef trailed<char> Tchar;
 typedef trailed<double> Tdouble;
 typedef trailed<float> Tfloat;
 

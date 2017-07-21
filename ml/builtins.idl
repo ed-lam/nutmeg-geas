@@ -39,3 +39,5 @@ boolean int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] int elts[], int sz);
 boolean var_int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] intvar elts[], int sz);
+
+boolean all_different_int([in] solver s, [in,size_is(sz)] intvar elts[], int sz);

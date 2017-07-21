@@ -2,13 +2,14 @@ include ../Makefile.config
 
 #PROF = -pg
 PROF = 
-#MLPROF = -ccopt "-pg"
+#MLPROF = -ccopt "-pg" -p
 MLPROF = 
 CXX = g++
 #CXX = g++-4.9
 CXXFLAGS = -g -O3 -I .
 CXXFLAGS += -Wall -Wno-non-virtual-dtor -Wno-unused-function -Wno-deprecated -ffast-math # -funroll-loops
 CXXFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
+CXXFLAGS += $(PROF)
 CFLAGS = -g -O3 -I .
 CFLAGS += -Wall -Wno-unused-function -Wno-deprecated -ffast-math
 CFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
@@ -17,6 +18,7 @@ CFLAGS += -I ..
 LFLAGS = -lz
 LFLAGS += $(PROF)
 OCAMLINC += -I ..
+OCAMLOPTFLAGS += $(MLPROF)
 
 ## Shared library generation
 SHARED = gcc -shared
@@ -55,12 +57,12 @@ $(STUBS) : $(MLIS)
 phage.cma: $(CMIS) $(CMOS) libphage_ml.a ../libphage.a
 	$(OCAMLC) $(OCAMLFLAGS) $(OCAMLINC) -custom -a -o $@ \
 	$(CMOS) libphage_ml.a ../libphage.a \
-	-ccopt "-L ." $(MLPROF) -cclib "-lcamlidl -lstdc++"
+	-ccopt "-L ." -cclib "-lcamlidl -lstdc++"
 
 phage.cmxa phage.a: $(CMIS) $(CMXS) libphage_ml.a ../libphage.a
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) $(OCAMLINC) -a -o $@ \
 	$(CMXS) libphage_ml.a ../libphage.a \
-	-ccopt "-L ."  $(MLPROF) -cclib "-lcamlidl -lstdc++"
+	-ccopt "-L ."  -cclib "-lcamlidl -lstdc++"
 	$(RANLIB) phage.a
 
 libphage_ml.a: $(OBJS)

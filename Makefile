@@ -1,6 +1,8 @@
 CXX       = g++
 #CXX       = g++-4.9
 #CXX       = clang++
+PROF      = 
+#PROF      = -pg
 MTL       = ./mtl
 ENGINE	  = ./engine
 SOLVER	  = ./solver
@@ -10,9 +12,9 @@ VARS      = ./vars
 CXXFLAGS    = -I . -Wall -Wno-deprecated # -ffloat-store
 CXXFLAGS += --std=c++11
 CXXFLAGS += -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-#CXXFLAGS += -pg
+CXXFLAGS += $(PROF)
 LFLAGS    = -lz -Wall -Wno-deprecated
-#LFLAGS   += -pg
+LFLAGS   += $(PROF)
 
 #CXXFLAGS += -DCACHE_WATCH
 #CXXFLAGS += -DPVAL_32
@@ -33,7 +35,6 @@ COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
 CXXFLAGS += -ggdb
-#CXXFLAGS += -pg
 
 CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(CONSTRAINTS)/*.cc) $(wildcard $(UTILS)/*.cc)
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))

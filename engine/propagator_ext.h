@@ -10,6 +10,10 @@ inline void propagator::set(trailed<T>& x, T k) {
   x.set(s->persist, k);
 }
 
+template<class T> bool propagator::is_fixed(const T& v) const {
+  return v.is_fixed(s->state.p_vals);
+}
+
 template<class T> typename T::val_t propagator::lb(const T& v) const {
   return v.lb(s->state.p_vals); 
 };

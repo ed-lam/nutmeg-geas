@@ -37,6 +37,7 @@ public:
   void set(trailed<T>& x, T k);
 
   // And for variables.
+  template<class T> bool is_fixed(const T& v) const;
   template<class T> typename T::val_t lb(const T& v) const;
   template<class T> typename T::val_t ub(const T& v) const;
   template<class T> typename T::val_t lb_0(const T& v) const;

@@ -69,13 +69,13 @@ let array_bool_element args =
   z = elts.(x-1)
 
 let maximum args =
-  let xs = Pr.get_array Pr.get_int args.(0) in
-  let z = Pr.get_int args.(1) in 
+  let xs = Pr.get_array Pr.get_int args.(1) in
+  let z = Pr.get_int args.(0) in 
   z = Array.fold_left max xs.(0) xs
 
 let minimum args =
-  let xs = Pr.get_array Pr.get_int args.(0) in
-  let z = Pr.get_int args.(1) in 
+  let xs = Pr.get_array Pr.get_int args.(1) in
+  let z = Pr.get_int args.(0) in 
   z = Array.fold_left min xs.(0) xs
 
 let int_linear_rel rel args =
@@ -164,8 +164,8 @@ let check_funs =
        "int_times", int_fun2 ( * ) (=) ;
        "int_div", int_div ;
        "int_plus", int_fun2 (+) (=) ;
-       "maximum", maximum ;
-       "minimum", minimum ;
+       "array_int_maximum", maximum ;
+       "array_int_minimum", minimum ;
        "int_eq", int_rel (=) ;
        "int_ne", int_rel (<>) ;
        "int_ne_reif", reif (int_rel (<>)) ;

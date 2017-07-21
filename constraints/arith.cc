@@ -1293,6 +1293,7 @@ bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
   return true;
 }
 
+#if 1
 class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
   enum { gen_mask = ~(1<<31) };
   enum status { S_Active = 1, S_Red = 2 };
@@ -1488,6 +1489,138 @@ protected:
   char state;
 
 };
+#else
+class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
+  enum status { S_None = 0, S_Active = 1, S_Red = 2 };
+  enum mode { P_LB = 1, P_UB = 2, P_LU = 3 };
+
+  inline pval_t lb(int pi) { return pred_lb(s, pi); }
+  inline pval_t ub(int pi) { return pred_ub(s, pi); }
+
+  watch_result wake_r(int _xi) {
+    if(state&S_Red)
+      return Wt_Keep;
+    
+    set(status, S_Active);
+    if(lb(y) + ky < lb(x) + kx) {
+      mode |= P_LB;
+      queue_prop();
+    }
+    if(ub(y) + ky < ub(x) + kx) {
+    return Wt_Keep;
+  }
+
+  watch_result wake_x(int xi) {
+    if(state&S_Red)
+      return Wt_Keep;
+    
+    pval_t vx = lb(x);
+    pval_t vy = (status&S_Active) ? pred_lb(y) : pred_ub(y);
+    if(pred_lb(s, x) + kx > pred_lb(s, y) + ky) {
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+
+  void ex_r(int _p, pval_t _val, vec<clause_elt>& expl) {
+    vec_push(expl, le_atom(x, sep-p->kx - 1), ge_atom(y, sep-p->ky));
+  }
+
+  void ex_var(int var, pval_t val, vec<clause_elt>& expl) {
+    expl.push(~r);
+    if(var) {
+      expl.push(le_atom(x, val + ky - kx - 1));
+    } else {
+      expl.push(ge_atom(y, pval_inv(val) - ky + kx + 1));
+    }
+  }
+public:
+  pred_le_hr(solver_data* s, pid_t _x, pid_t _y, int _k, patom_t _r)
+    : propagator(s), r(_r), x(_x), y(_y),
+      kx(_k < 0 ? -_k : 0), ky(_k > 0 ? _k : 0),
+      fwatch_gen(0),
+      mode(P_None), state(0) {
+    assert(x < s->state.p_vals.size());
+    assert(y < s->state.p_vals.size());
+
+    s->pred_callbacks[x].push(watch<&P::wake_xs>(0, Wt_IDEM));
+    s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
+
+    attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
+  }
+  
+  bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_PROP
+    std::cerr << "[[Running ile]]" << std::endl;
+#endif
+    if(state&S_Red)
+      return true;
+
+    if(pred_lb(s, x) + kx > pred_ub(s, y) + ky) {
+      if(!enqueue(*s, ~r, ex_thunk(ex<&P::ex_r>, 0)))
+        return false;
+      set(state, S_Red);
+      return true;
+    }
+    if(mode&P_Deact) {
+      // Deactivation
+      sep = pred_lb(s, x) + kx;
+      assert(sep > pred_ub(s, y) + ky);
+      if(!enqueue(*s, ~r, ex_thunk(ex_r, 0))) {
+        return false;
+      }
+      trail_change(s->persist, state, (char) S_Red);
+      return true;
+    }
+
+    if(!(state&S_Active))
+      return true;
+
+    assert(s->state.is_entailed(r));
+
+    if(mode&P_LB) {
+      // FIXME: Overflow problems abound
+      if(lb(x) + kx > lb(y) + ky) {
+        if(!enqueue(*s, ge_atom(y, lb(x) + kx - ky), expl_thunk { ex_var, this, 1 }))
+          return false;
+      }
+    }
+    if(mode&P_UB) {
+      if(ub(y) + ky < ub(x) + kx) {
+        if(!enqueue(*s, le_atom(x, ub(y) + ky - kx), expl_thunk { ex_var, this, 0}))
+          return false;
+      }
+    }
+    return true;
+  }
+
+  void root_simplify(void) {
+    if(ub(x) + kx <= lb(y) + ky || s->state.is_inconsistent(r)) {
+      state = S_Red;
+      return;
+    }
+
+    if(s->state.is_entailed(r)) {
+      // FIXME: Instead, disable the propagator
+      // and swap in a pred_le builtin.
+      state = S_Active; 
+    }
+  }
+
+  void cleanup(void) { mode = P_None; is_queued = false; }
+
+protected:
+  // Parameters
+  patom_t r;
+  pid_t x;
+  pid_t y;
+  pval_t kx;
+  pval_t ky;
+
+  // Transient bookkeeping
+  Tchar state;
+};
+#endif
 
 class pred_le_hr_s : public propagator, public prop_inst<pred_le_hr_s> {
   enum status { S_Active = 1, S_Red = 2 };

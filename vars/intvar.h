@@ -103,10 +103,10 @@ public:
 
   val_t model_val(const model& m) const;
 
-  patom_t operator>=(val_t v) { return patom_t(p, from_int(v-off)); }
-  patom_t operator>(val_t v) { return patom_t(p, from_int(v-off+1)); }
-  patom_t operator<=(val_t v) { return ~patom_t(p, from_int(v-off+1)); }
-  patom_t operator<(val_t v) { return ~patom_t(p, from_int(v-off)); }
+  patom_t operator>=(val_t v) const { return patom_t(p, from_int(v-off)); }
+  patom_t operator>(val_t v) const { return patom_t(p, from_int(v-off+1)); }
+  patom_t operator<=(val_t v) const { return ~patom_t(p, from_int(v-off+1)); }
+  patom_t operator<(val_t v) const { return ~patom_t(p, from_int(v-off)); }
   patom_t operator==(val_t v) {
     if(p&1) {
       // CHECK: Do we need to correct for negation here?

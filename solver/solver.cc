@@ -155,7 +155,7 @@ inline int decision_level(sdata& s) {
   return s.infer.trail_lim.size();
 }
 
-static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
+static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
   s.pred_callbacks.push();
   s.pred_callbacks.push();
 
@@ -178,7 +178,8 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
 
   // s.pred_heap.insert(pi);
   // s.pred_heap.insert(pi+1);
-  s.pred_heap.insert(pi>>1);
+  if(!(flags&PR_NOBRANCH))
+    s.pred_heap.insert(pi>>1);
 
   s.polarity.push(0);
   
@@ -188,9 +189,9 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub) {
   return pi;  
 }
 
-pid_t new_pred(sdata& s, pval_t lb, pval_t ub) {
+pid_t new_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
   assert(decision_level(s) == 0);
-  pid_t p = alloc_pred(s, lb, ub);
+  pid_t p = alloc_pred(s, lb, ub, flags);
 
   run_callbacks(s.on_pred);
 
@@ -205,11 +206,11 @@ void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
 }
 */
 
-pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub) {
+pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub, unsigned char flags) {
   pval_t lb_0 = init_lb(s.state.p_root);
   pval_t inv_ub_0 = init_ub(s.state.p_root);
 
-  pid_t p = alloc_pred(s, lb_0, pval_inv(inv_ub_0));
+  pid_t p = alloc_pred(s, lb_0, pval_inv(inv_ub_0), flags);
   // Set up the prev and current values
   // Root values are set up during allocation
   s.state.p_last[p] = init_lb(s.state.p_last);
@@ -304,11 +305,17 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
   }
 
   // Check that there's something at the current level.
+retry_level:
   for(clause_elt& e : confl) {
     if(!s.state.is_inconsistent_prev(e.atom))
       return;
   }
-  ERROR;
+  // Nothing at the current level: find the appropriate level.
+//  ERROR;
+  int level = s.persist.level();
+  assert(level > 0);
+  bt_to_level(&s, level-1);
+  goto retry_level;
 }
 
 inline bool is_entailed(sdata& s, patom_t p) { return s.state.is_entailed(p); }
@@ -632,6 +639,7 @@ bool propagate_pred(solver_data& s, pid_t p) {
   patom_t atom(p, curr->succ_val);
 
   while(s.state.is_entailed(atom)) {
+    assert(curr->succ);
     curr = curr->succ;
 
     for(patom_t at : curr->bin_ws) {

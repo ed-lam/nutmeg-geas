@@ -36,6 +36,8 @@ struct manager_t {
 };
 typedef unsigned int man_id_t;
 
+enum PredFlags { PR_DEFAULT = 0, PR_NOBRANCH = 1 };
+
 class solver_data {
 public:
   solver_data(const options& _opts);
@@ -109,8 +111,8 @@ man_id_t register_manager(void* (*create)(solver_data* s), void (*destroy)(void*
 
 inline int num_preds(solver_data* s) { return s->pred_callbacks.size(); }
 
-pid_t new_pred(solver_data& s, pval_t lb = pval_min, pval_t ub = pval_max);
-pid_t new_pred(solver_data& s, pred_init init_lb, pred_init init_ub);
+pid_t new_pred(solver_data& s, pval_t lb = pval_min, pval_t ub = pval_max, unsigned char pred_flags = PR_DEFAULT);
+pid_t new_pred(solver_data& s, pred_init init_lb, pred_init init_ub, unsigned char pred_flags = PR_DEFAULT);
 
 patom_t new_bool(solver_data& s);
 patom_t new_bool(solver_data& s, pred_init init_l, pred_init init_u);
@@ -127,6 +129,9 @@ inline bool pred_fixed(solver_data* s, pid_t p) { return pval_max - pred_val(s, 
 
 inline pval_t pred_lb(solver_data* s, pid_t p) { return s->state.p_vals[p]; }
 inline pval_t pred_ub(solver_data* s, pid_t p) { return pval_inv(s->state.p_vals[p^1]); }
+
+inline pval_t pred_lb_prev(solver_data* s, pid_t p) { return s->state.p_last[p]; }
+inline pval_t pred_ub_prev(solver_data* s, pid_t p) { return pval_inv(s->state.p_last[p^1]); }
 
 bool propagate(solver_data& s);
 // bool enqueue(solver_data& s, patom_t p, reason r);
