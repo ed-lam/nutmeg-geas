@@ -100,7 +100,7 @@ solver_data::solver_data(const options& _opts)
       pred_heap(act_cmp { infer.pred_act }),
       // Assumption handling
       assump_end(0),
-      init_end(0),
+      init_end(0), init_saved(0),
       // Dynamic parameters
       learnt_act_inc(opts.learnt_act_inc),
       pred_act_inc(opts.pred_act_inc),
@@ -198,6 +198,12 @@ pid_t new_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
   return p;
 }
 
+void push_init(sdata& s, pinit_data d) {
+  assert(s.init_end == s.initializers.size());
+  trail_save(s.persist, s.init_end, s.init_saved);
+  s.initializers.push(d); 
+  s.init_end++; 
+}
 /*
 void initialize(pid_t p, pred_init init, vec<pval_t>& vals) {
   pred_init::prange_t r(init(vals));
@@ -222,8 +228,11 @@ pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub, unsigned char fla
   s.state.p_vals[p] = lb;
   s.state.p_vals[p^1] = ub;
 
+  assert(s.init_end == s.initializers.size());
   if(lb != lb_0) {
-    s.initializers.push(pinit_data {p, init_lb} ); 
+    // s.initializers.push(pinit_data {p, init_lb} ); 
+    // s.init_end++;
+    push_init(s, pinit_data { p, init_lb });
     if(lb != s.state.p_last[p]) {
       infer_info::entry e = { p, s.state.p_last[p], init_lb.expl() };
       s.infer.trail.push(e);
@@ -231,9 +240,11 @@ pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub, unsigned char fla
   }
 
   if(ub != inv_ub_0) {
-    s.initializers.push(pinit_data {p^1, init_ub} ); 
-    if(lb != s.state.p_last[p^1]) {
-      infer_info::entry e = { p^1, s.state.p_last[p^1], init_lb.expl() };
+    // s.initializers.push(pinit_data {p^1, init_ub} ); 
+    // s.init_end++;
+    push_init(s, pinit_data { p^1, init_ub });
+    if(ub != s.state.p_last[p^1]) {
+      infer_info::entry e = { p^1, s.state.p_last[p^1], init_ub.expl() };
       s.infer.trail.push(e);
     }
   }
@@ -723,16 +734,16 @@ void prop_cleanup(solver_data& s) {
 }
 
 inline void process_initializers(solver_data& s) {
+  // trail_push(s.persist, s.init_end);
   if(s.init_end != s.initializers.size()) {
     vec<pinit_data>& inits(s.initializers);
     unsigned int& end = s.init_end;
 
-    // FIXME: Trailing should probably be done in push_level.
-    trail_push(s.persist, end);
     for(int ii = end; ii != inits.size(); ++ii) {
       pid_t p(inits[ii].pi); 
-      pval_t last = inits[ii].init(s.state.p_last);
       pval_t curr = inits[ii].init(s.state.p_vals);
+//      assert(curr == s.state.p_last[p]);
+      pval_t last = inits[ii].init(s.state.p_last);
       s.state.p_last[p] = last;
       s.state.p_vals[p] = curr;
       s.wake_vals[p] = curr;
@@ -743,8 +754,11 @@ inline void process_initializers(solver_data& s) {
       }
 
       // If this is at its initial value, discard it.
-      if(last != s.state.p_root[p])
+      if(curr != s.state.p_root[p]) {
         inits[end++] = inits[ii];
+      } else {
+        inits[ii].init.finalize(&s);
+      }
     }
     inits.shrink_(inits.size() - end);
   }
@@ -1448,6 +1462,7 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
       return true;
     if(s.state.is_inconsistent_l0(e.atom))
       continue;
+    // if(s.state.is_inconsistent_prev(e.atom)) {
     if(s.state.is_inconsistent(e.atom)) {
       elts[jj++] = e;
     } else {

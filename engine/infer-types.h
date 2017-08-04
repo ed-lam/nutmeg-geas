@@ -1,6 +1,7 @@
 #ifndef PHAGE_INFER_TYPES__H
 #define PHAGE_INFER_TYPES__H
 /* Types for the inference engine */
+
 #include <stdint.h>
 #include <vector>
 #include "mtl/Vec.h"
@@ -10,6 +11,8 @@
 #include "engine/phage-types.h"
 
 namespace phage {
+
+class solver_data;
 
 class watch_node;
 
@@ -382,13 +385,14 @@ public:
   }
 
   typedef pval_t (*fun)(void*, int, vec<pval_t>&);
+  typedef void (*final)(solver_data*, void*, int);
 
-  pred_init(fun _f, void* _obj, int _data, expl_thunk _eth)
-    : f(_f), obj(_obj), data(_data), eth(_eth)
+  pred_init(fun _f, void* _obj, int _data, expl_thunk _eth, final _fin)
+    : f(_f), obj(_obj), data(_data), eth(_eth), fin(_fin)
   { }
   pred_init(void)
     : f(nullptr), obj(nullptr), data(0),
-      eth(expl_thunk { expl_none, nullptr, 0 }) { }
+      eth(expl_thunk { expl_none, nullptr, 0 }), fin(nullptr) { }
   
   pval_t operator()(vec<pval_t>& state) {
     assert(f);
@@ -396,6 +400,8 @@ public:
   }
 
   reason expl(void) const { return eth; }
+
+  void finalize(solver_data* s) const { return fin(s, obj, data); }
 
   operator bool() const { return f; }
 
@@ -405,6 +411,7 @@ protected:
   int data;
 
   expl_thunk eth;
+  final fin;
 };
 
 struct pinit_data { pid_t pi; pred_init init; };

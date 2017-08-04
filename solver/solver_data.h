@@ -87,6 +87,7 @@ public:
   // struct pinit_data { int pi; pred_init init; };
   vec<pinit_data> initializers;
   unsigned int init_end;
+  char init_saved;
 
   // Callbacks for various events
   vec<event_callback> on_pred;
