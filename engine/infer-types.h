@@ -162,7 +162,7 @@ struct MakeWNode {
 
 // For a given pid_t, map values to the corresponding
 // watches.
-#if 0
+#if 1
 // typedef std::map<pval_t, watch_node*> watch_map;
 typedef uint64_triemap<uint64_t, watch_node*, UIntOps> watch_map;
 #else

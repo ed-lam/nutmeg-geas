@@ -67,7 +67,7 @@ protected:
   pid_t new_half_pred(void) {
     pid_t pid = watch_maps.size();
     // Create the root watch-node
-#if 0
+#if 1
     watch_node* w(new watch_node); 
     // w->atom = patom_t(pid, 0);
 #ifdef DEBUG_WMAP
@@ -96,10 +96,24 @@ protected:
   pid_t new_half_pred(pval_t lb, pval_t ub) {
     pid_t pid = watch_maps.size();
     pred_ineqs.push();
+#if 1
+    watch_node* w(new watch_node); 
+#ifdef DEBUG_WMAP
+    w->curr_val = 0;
+#endif
+    w->succ_val = pval_err;
+    pred_watches.push(w);
+    pred_watch_heads.push(watch_head {0, w});
+
+    pred_ineqs.push();
+    watch_maps.push();
+    watch_maps.last().add(0, w);
+#else
     watch_maps.push(watch_map(lb, ub));
     watch_node* w(watch_maps.last().get(lb));
     pred_watches.push(w);
     pred_watch_heads.push(watch_head {lb, w});
+#endif
 
     return pid;
   }
@@ -107,7 +121,7 @@ protected:
 public:
   // Find the appropriate watch for an atom.
   watch_node* get_watch(pid_t p, pval_t val) {
-#if 1
+#if 0
     /*
     MakeWNode m;
     return (*(watch_maps[p].find_or_add(m, key))).value;

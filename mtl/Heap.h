@@ -109,6 +109,17 @@ class Heap {
         return x; 
     }
 
+    void remove(int x) {
+      assert(inHeap(x));
+      int p = indices[x];
+      int r = heap.last();
+      heap[p] = r;
+      indices[r] = p;
+      heap.pop();
+      percolateUp(p);
+      percolateDown(p);
+    }
+
 
     void clear(bool dealloc = false) 
     { 

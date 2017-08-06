@@ -337,12 +337,30 @@ static void eqat_ex_ub(void* ptr, int ei, pval_t val, vec<clause_elt>& elts) {
   }
 }
 
+static void eqat_finalize_lb(solver_data* s, void* ptr, int ei) {
+  ivar_ext* ext(static_cast<ivar_ext*>(ptr));
+  pid_t x_pi = ext->p;
+  pval_t val = ext->vals[ei];
+  patom_t at((*(ext->eqtable.find(val))).second);
+  add_clause_(s, at, ~patom_t(x_pi, val), patom_t(x_pi, val+1));
+}
+
+static void eqat_finalize_ub(solver_data* s, void* ptr, int ei) {
+  ivar_ext* ext(static_cast<ivar_ext*>(ptr));
+  pid_t x_pi = ext->p;
+  pval_t val = ext->vals[ei];
+  patom_t at((*(ext->eqtable.find(val))).second);
+  add_clause_(s, ~at, patom_t(x_pi, val));
+  add_clause_(s, ~at, ~patom_t(x_pi, val+1));
+}
+
 patom_t ivar_ext::get_eqatom(pval_t val) {
-  int eq_idx = vals.size();
-  vals.push(val);
   auto it = eqtable.find(val);
   if(it != eqtable.end())
     return (*it).second;
+
+  int eq_idx = vals.size();
+  vals.push(val);
 
   pval_t x_lb = s->state.p_root[p];
   pval_t x_ub = pval_inv(s->state.p_root[p+1]);
@@ -355,16 +373,22 @@ patom_t ivar_ext::get_eqatom(pval_t val) {
     return patom_t(p, val);
 
   pred_init in_lb(eqat_init_lb, this, eq_idx,
-    expl_thunk {eqat_ex_lb, this, eq_idx});
+    expl_thunk {eqat_ex_lb, this, eq_idx},
+    eqat_finalize_lb);
   pred_init in_ub(eqat_init_ub, this, eq_idx,
-    expl_thunk {eqat_ex_ub, this, eq_idx});
+    expl_thunk {eqat_ex_ub, this, eq_idx},
+    eqat_finalize_ub);
 
   patom_t at = new_bool(*s, in_lb, in_ub);
 
   // Connect it to the corresponding bounds
-  add_clause_(s, ~at, patom_t(p, val));
-  add_clause_(s, ~at, ~patom_t(p, val+1));
-  add_clause_(s, at, ~patom_t(p, val), patom_t(p, val+1));
+  if(!s->state.is_inconsistent(at)) {
+    add_clause_(s, ~at, patom_t(p, val));
+    add_clause_(s, ~at, ~patom_t(p, val+1));
+  }
+  if(!s->state.is_entailed(at)) {
+    add_clause_(s, at, ~patom_t(p, val), patom_t(p, val+1));
+  }
 
   eqtable.insert(std::make_pair(val, at));
   return at;

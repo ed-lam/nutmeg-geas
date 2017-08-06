@@ -26,6 +26,7 @@
 #define NOT_YET_WARN fprintf(stderr, "WARNING: Incompletely implemented.\n")
 #define WARN(x) fprintf(stderr, "WARNING: %s\n", (x))
 #define ERROR assert(0 && "FAILURE.")
+#define NEVER __builtin_unreachable()
 
 template<class T, class U>
 void vec_push(vec<T>& vec, U& elt) { vec.push(elt); }
@@ -82,8 +83,17 @@ public:
 
   irange(int _l, int _u) : l(_l), u(_u) { }
   irange(int _u) : l(0), u(_u) { }
-  iterator begin(void) { return iterator(l); }
-  iterator end(void) { return iterator(u); }
+  iterator begin(void) const { return iterator(l); }
+  iterator end(void) const { return iterator(u); }
+
+  vec<int> to_vec(void) const {
+    auto b(begin());
+    auto e(end());
+    vec<int> v;
+    for(; b != e; ++b)
+      v.push(*b);
+    return v;
+  }
 protected:
   int l; int u;
 };

@@ -41,8 +41,18 @@ public:
          free(dense);  
    }
 
+   struct range {
+     unsigned int* begin(void) const { return s; }
+     unsigned int* end(void) const { return e; }
+
+     unsigned int* s;
+     unsigned int* e;
+   };
    unsigned int* begin(void) { return dense; }
    unsigned int* end(void) { return dense+sz; }
+   
+   // Iterate over elements _not_ in the set.
+   range complement(void) const { return range { dense+sz, dense+dom }; }
 
    inline bool elem(unsigned int value) const {
      return sparse[value] < sz;
