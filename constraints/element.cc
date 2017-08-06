@@ -1,5 +1,6 @@
 #include <utility>
 #include <algorithm>
+#include <climits>
 #include "engine/propagator.h"
 #include "engine/propagator_ext.h"
 #include "solver/solver_data.h"
@@ -13,6 +14,489 @@
 namespace phage {
 
 typedef std::pair<int, int> ipair;
+
+struct sort_occ {
+  bool operator()(int xi, int xj) const {
+    if(ys[xi] == ys[xj])
+      return xi < xj;
+    return ys[xi] < ys[xj];
+  }
+  vec<int>& ys;
+};
+
+// Propagator, for when the array of interest is large: we propagate only
+// bounds of x.
+#define ELEM_DOM_SWAP
+class int_elem_dom : public propagator, public prop_inst<int_elem_dom> {
+  struct row {
+    int val; 
+    patom_t at;
+    vec<int> occurs; // occurs[0] is the current watch.
+#ifndef ELEM_DOM_SWAP
+    Tint occ_start;
+#endif
+  };
+
+  watch_result wake_x(int xi) {
+    // Check if ys[xi] has another support
+    int ri = vals[xi];
+    row& r(rows[ri]);
+    assert(r.occurs[0] == xi);
+    // for(int jj : irange(1, r.occurs.size())) {
+#ifdef ELEM_DOM_SWAP
+    int start = 1;
+#else
+    int start = r.occ_start;
+#endif
+    for(int jj : irange(start, r.occurs.size())) {
+      int xj = r.occurs[jj];
+      if(!s->state.is_inconsistent(atoms[xj])) {
+        // Appropriate replacement found. Replace this
+        // watch.
+#ifdef ELEM_DOM_SWAP
+        r.occurs[jj] = r.occurs[0];
+        r.occurs[0] = xj;
+#else
+        r.occ_start.set(s->persist, jj);
+#endif
+        attach(s, ~atoms[xj], watch<&P::wake_x>(xj, Wt_IDEM));
+        return Wt_Drop;
+      }
+    }
+    expired_rows.push(ri);
+    queue_prop();
+    return Wt_Keep;
+  }
+
+  watch_result wake_z(int ri) {
+    expired_rows.push(ri); 
+    queue_prop();
+    return Wt_Keep;
+  }
+  
+  void ex_z(int ri, pval_t _p, vec<clause_elt>& expl) {
+    for(int xi : rows[ri].occurs)
+      expl.push(atoms[xi]); 
+  }
+
+  void init_rows(intvar z, vec<int>& occ, vec<int>& ys, vec<row>& rows) {
+    int z_curr = ys[occ[0]];
+#ifdef ELEM_DOM_SWAP
+    rows.push({ z_curr, z == z_curr, vec<int>() });
+#else
+    rows.push({ z_curr, z == z_curr, vec<int>(), 0 });
+#endif
+
+    for(int xi : occ) {
+      int zval = ys[xi];
+      
+      if(zval != z_curr) {
+#ifdef ELEM_DOM_SWAP
+        rows.push({ zval, z == zval, vec<int>() });
+#else
+        rows.push({ zval, z == zval, vec<int>(), 0 });
+#endif
+//        rows.push();
+//        rows.last().val = zval;
+//        rows.last().at = (z == zval);
+        z_curr = zval;
+      }
+      rows.last().occurs.push(xi);
+    }
+  }
+public:  
+  int_elem_dom(solver_data* s, intvar _z, vec<int>& _ys, intvar _x)
+    : propagator(s), z(_z), x(_x), vals(_ys.size(), 0) {
+    // Invert ys to get occurrence lists.
+    vec<int> ys(_ys);
+    for(int xi : irange(ys.size()))
+      atoms.push(x == xi);
+    vec<int> occ(irange(ys.size()).to_vec());
+    std::sort(occ.begin(), occ.end(), sort_occ { ys });
+
+    // Set up the rows
+    init_rows(z, occ, ys, rows); 
+    // ...then filter the domain of z... 
+    uniq(ys); make_sparse(z, ys);
+    // ...and set up the cross-references and watches
+    for(int ri : irange(rows.size())) {
+      int wx = rows[ri].occurs[0];
+      attach(s, ~rows[ri].at, watch<&P::wake_z>(ri, Wt_IDEM));
+      attach(s, ~atoms[wx], watch<&P::wake_x>(wx, Wt_IDEM));
+      for(int xi : rows[ri].occurs)
+        vals[xi] = ri;
+    }
+  }
+  bool propagate(vec<clause_elt>& confl) {
+    for(int ri : dying_rows) {
+      if(!enqueue(*s, ~rows[ri].at, ex_thunk(ex<&P::ex_z>, ri)))
+        return false;
+    }
+
+    for(int ri : expired_rows) {
+      patom_t r(rows[ri].at);
+      for(int xi : rows[ri].occurs) {
+        if(!enqueue(*s, ~atoms[xi], r))
+          return false;
+      }
+    }
+    dying_rows.clear();
+    expired_rows.clear();
+    return true;
+  }
+
+  void cleanup(void) {
+    is_queued = false;
+    dying_rows.clear();
+    expired_rows.clear();
+  }
+
+  intvar z;
+  intvar x;
+
+  vec<row> rows; // For each z-val, the corresponding xs.
+  vec<int> vals; // For each x, the corresponding row.
+  vec<patom_t> atoms; // For each x, the x=k atom.
+  
+  // Transient state
+  vec<int> dying_rows;
+  vec<int> expired_rows;
+};
+
+class int_elem_bnd : public propagator, public prop_inst<int_elem_bnd> {
+  static int prop_count;
+  enum { C_NONE = 0, C_LB = 1, C_UB = 2, C_LB_ROW = 4, C_UB_ROW = 8 };
+
+  struct row {
+    int val; // z-val
+    Tint begin;
+    Tint end;
+    int supp_idx;
+    vec<int> occurs; // occurrences
+  };
+
+  inline void kill_row(int row) {
+    trail_save(s->persist, live_rows.sz, live_saved);
+    live_rows.remove(row);
+  }
+
+  watch_result wake_x_lb(int _x) {
+    if(!(change&C_LB)) {
+      change |= C_LB;
+      lb_prev = x.lb(s->wake_vals);
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+  watch_result wake_x_ub(int _x) {
+    if(!(change&C_UB)) {
+      change |= C_UB;
+      ub_prev = x.ub(s->wake_vals);
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+
+  watch_result wake_z(int r) {
+    // FIXME: Find out why wake_z is called
+    // with already-dead rows
+    if(live_rows.elem(r)) {
+      kill_row(r);
+      if(r == vals[lb(x)]) {
+        change |= C_LB_ROW;      
+        queue_prop();
+      }
+      if(r == vals[ub(x)]) {
+        change |= C_UB_ROW;
+        queue_prop();
+      }
+    }
+    return Wt_Keep;
+  }
+
+  void ex_z(int ri, pval_t _p, vec<clause_elt>& expl) {
+    // z is explained by the gap between consecutive occurrences.
+    row& r(rows[ri]);
+    if(r.end > 0)
+      expl.push(x <= r.occurs[r.end-1]);
+    if(r.end < r.occurs.size())
+      expl.push(x >= r.occurs[r.end]);
+  }
+
+  void ex_x_lb(int live_sz, pval_t p, vec<clause_elt>& expl) {
+    int x_lb = x.lb_of_pval(p);
+
+    int x_suff = lb_0(x)-1;
+    // For each live row...
+    for(int ridx : irange(live_sz)) {
+      int ri = live_rows[ridx];
+      row& r(rows[ri]);
+      // ...find the largest supported value below x_lb.
+      int start = 0;
+      int end = r.end;
+      while(start < end) {
+        int mid = start + (end - start)/2;
+        if(r.occurs[mid] >= x_lb)
+          end = mid;
+        else
+          start = mid+1;
+      }
+      if(start > 0 && r.occurs[start-1] > x_suff)
+        x_suff = r.occurs[start-1];   
+    }
+
+    for(int ridx : irange(live_sz, rows.size())) {
+      int ri = live_rows[ridx];
+      // Now check which rows need to be included in the explanation.
+      // Any rows without occurrences in [x_suff+1, x_lb] can be discarded.
+      row& r(rows[ri]);
+      int start = 0;
+      int end = r.occurs.size();
+      while(start < end) {
+        int mid = start + (end - start)/2;
+
+        if(r.occurs[mid] > x_lb)
+          end = mid;
+        else if(r.occurs[mid] < x_suff)
+          start = mid+1;
+        else {
+          // We've found some value inside the forbidden region.
+          expl.push(z == r.val);
+          break;
+        }
+      }
+    }
+    expl.push(x <= x_suff);
+  }
+   
+  void ex_x_ub(int live_sz, pval_t p, vec<clause_elt>& expl) {
+    int x_ub = x.ub_of_pval(p);
+
+    int x_suff = ub_0(x)+1;
+    // For each live row...
+    for(int ridx : irange(live_sz)) {
+      int ri = live_rows[ridx];
+      row& r(rows[ri]);
+      // ...find the largest supported value below x_lb.
+      int start = r.begin;
+      int end = r.occurs.size();
+      while(start < end) {
+        int mid = start + (end - start)/2;
+        if(r.occurs[mid] <= x_ub)
+          start = mid+1;
+        else
+          end = mid;
+      }
+      if(start < r.occurs.size() && r.occurs[start] < x_suff)
+        x_suff = r.occurs[start];
+    }
+    assert(x_suff > x_ub);
+
+    for(int ridx : irange(live_sz, rows.size())) {
+      int ri = live_rows[ridx];
+      // Now check which rows need to be included in the explanation.
+      // Any rows without occurrences in [x_suff+1, x_lb] can be discarded.
+      row& r(rows[ri]);
+      int start = 0;
+      int end = r.occurs.size();
+      while(start < end) {
+        int mid = start + (end - start)/2;
+
+        if(r.occurs[mid] > x_suff)
+          end = mid;
+        else if(r.occurs[mid] <= x_ub)
+          start = mid+1;
+        else {
+          // We've found some value inside the forbidden region.
+          expl.push(z == r.val);
+          break;
+        }
+      }
+    }
+    expl.push(x >= x_suff);
+  }
+  
+  void init_rows(vec<int>& ys, vec<row>& rows) {
+    // Sort occurrences by the corresponding y-value.
+    vec<int> occ(irange(ys.size()).to_vec());
+    std::sort(occ.begin(), occ.end(), sort_occ {ys});
+
+    int curr_z = ys[occ[0]];
+    rows.push(row { curr_z, 0, 0, 0, vec<int>() });
+    rows.last().occurs.push(occ[0]);
+    for(int ii : irange(1, occ.size())) {
+      int yi = occ[ii];
+      if(ys[yi] != curr_z) {
+        rows.last().end.x = rows.last().occurs.size();
+
+        curr_z = ys[yi];
+        rows.push(row { curr_z, 0, 0, 0, vec<int>() });
+      }
+      rows.last().occurs.push(yi);
+    }
+    rows.last().end.x = rows.last().occurs.size();
+  }
+
+public:
+  int_elem_bnd(solver_data *s, patom_t _r, intvar _z, intvar _x, vec<int>& _ys)
+    : propagator(s), z(_z), x(_x), vals(_ys.size(), 0),
+      live_saved(0),
+      change(0) {
+    assert(s->state.is_entailed(_r)); // FIXME: Implement half-reified element
+    
+    // Compute the set of live values, and their occurrences. 
+    vec<int> ys(_ys);
+    init_rows(ys, rows);
+    live_rows.growTo(rows.size()); live_rows.sz = rows.size();
+
+    uniq(ys);
+    make_sparse(z, ys);
+
+    // Now set the cross-references
+    for(int ri : irange(rows.size())) {
+      row& r(rows[ri]);
+      for(int xi : r.occurs)
+        vals[xi] = ri;
+    }
+
+    // And attach the propagator
+    x.attach(E_LB, watch<&P::wake_x_lb>(0, Wt_IDEM));
+    x.attach(E_UB, watch<&P::wake_x_ub>(0, Wt_IDEM));
+    for(int ri : irange(rows.size())) {
+      row& r(rows[ri]);
+      attach(s, z != r.val, watch<&P::wake_z>(ri, Wt_IDEM));
+    }
+  }
+  
+  // Check if the current row is still supported.
+  bool update_row(int ri, vec<clause_elt>& confl) {
+    row& r(rows[ri]);
+    int l = lb(x); int u = ub(x);
+    int begin = r.begin;
+    int end = r.end;
+
+    int supp = r.occurs[r.supp_idx];
+    if(supp < l) {
+      begin = r.supp_idx+1;
+    } else if(supp > u) {
+      end = r.supp_idx;
+    } else {
+      return true;
+    }
+    
+    while(begin != end) {
+      int mid = begin + (end - begin)/2;
+      int xval = r.occurs[mid];
+      if(xval < l) {
+        begin = mid+1;
+      } else if(u < xval) {
+        end = mid;
+      } else {
+        r.supp_idx = mid;
+        break;
+      }
+    }
+    if(begin != r.begin)
+      r.begin.set(s->persist, begin);
+    if(end != r.end)
+      r.end.set(s->persist, end);
+
+    if(begin == end) {
+      if(!enqueue(*s, z != r.val, ex_thunk(ex<&P::ex_z>, ri)))
+        return false;
+      //live_rows.remove(ri);
+      kill_row(ri);
+    }
+    return true;
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+      prop_count++;
+    if(change&(C_LB|C_UB)) {
+      int l = lb(x); int u = ub(x);
+      int scan_sz = 0;
+      if(change&C_LB)
+        scan_sz += l - lb_prev;
+      if(change&C_UB)
+        scan_sz += ub_prev - u;
+      if(scan_sz < live_rows.size()) {
+        // If the bounds only moved a little,
+        // check which 
+        if(change&C_LB) {
+          for(int k : irange(lb_prev, l)) {
+            if(!live_rows.elem(vals[k]))
+              continue;
+            if(!update_row(vals[k], confl))
+              return false;
+          }
+        }
+        if(change&C_UB) {
+          for(int k : irange(u+1, ub_prev+1)) {
+            if(!live_rows.elem(vals[k]))
+              continue;
+            if(!update_row(vals[k], confl))
+              return false;
+          }
+        }
+      } else {
+        // If we've jumped too many values, just
+        // iterate over the live rows.
+        // for(int ii : irange(live_rows.size())) {
+        // Run backwards, because of how p_sparseset removal works.
+        for(int ii = live_rows.size()-1; ii >= 0; --ii) {
+          if(!update_row(live_rows[ii], confl))
+            return false;
+        }
+      }
+    }
+
+    if(change&(C_LB|C_LB_ROW)) {
+      int l = x.lb(s); int u = x.ub(s);
+      // Walk the lb up to the next supported value
+      for(; l <= u; ++l) {
+        if(live_rows.elem(vals[l]))
+          break;
+      }
+      if(!set_lb(x, l, ex_thunk(ex<&P::ex_x_lb>, live_rows.sz)))
+        return false;
+    }
+    
+    if(change&(C_UB|C_UB_ROW)) {
+      int l = x.lb(s); int u = x.ub(s);
+      // Walk the ub down to the nearest
+      // supported value
+      for(; l <= u; --u) {
+        if(live_rows.elem(vals[u]))
+          break;
+      }
+      if(!set_ub(x, u, ex_thunk(ex<&P::ex_x_ub>, live_rows.sz)))
+        return false;
+    }
+    return true;
+  }
+
+  void cleanup(void) {
+    is_queued = false;
+    change = C_NONE;
+  }
+
+  // Problem specification
+  intvar z;
+  intvar x;
+  vec<row> rows;
+  vec<int> vals;
+
+  // Persistent state
+  p_sparseset live_rows;
+  char live_saved;
+
+  // Transient state
+  unsigned char change; 
+  // Track which values we
+  // need to check.
+  int lb_prev;
+  int ub_prev;
+};
 
 bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
                    vec<int>& ys, int base) {
@@ -827,9 +1311,25 @@ support_found:
     // Explanation hints
     vec<intvar::val_t> cut_hint;
 };
+int int_elem_bnd::prop_count = 0;
 
-bool int_element(solver_data* s, intvar x, intvar z, vec<int>& ys, patom_t r) {
-  return int_element(s, r, x, z, ys, 1);
+enum { ELEM_DOM_MAX = 50 };
+// enum { ELEM_DOM_MAX = 20 };
+// enum { ELEM_DOM_MAX = 0 };
+bool int_element(solver_data* s, intvar z, intvar x, vec<int>& ys, patom_t r) {
+#if 1
+  if(ys.size() < ELEM_DOM_MAX) {
+//    assert(s->state.is_entailed(r));
+//    new int_elem_dom(s, x, ys, z-1);
+//    return true;
+    return int_element(s, r, z, x, ys, 1);
+  } else {
+    new int_elem_bnd(s, r, z, x-1, ys);
+    return true;
+  }
+#else
+  return int_element(s, r, z, x, ys, 1);
+#endif
 }
 
 bool var_int_element(solver_data* s, intvar z, intvar x, vec<intvar>& ys, patom_t r) {
