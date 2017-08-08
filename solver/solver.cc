@@ -52,25 +52,44 @@ pval_t patom_t::val_max = pval_max;
 
 typedef solver_data sdata;
 
-#define MANAGERS_MAX 10
+// #define MANAGERS_MAX 10
 struct man_template_t {
   void* (*create)(solver_data* s);
   void (*destroy)(void*);
 };
-static man_template_t man_registry[MANAGERS_MAX];
+struct man_list_t {
+  man_template_t m;
+  man_list_t* tl;
+};
+// static man_template_t man_registry[MANAGERS_MAX];
+struct man_registry {
+  unsigned int sz; 
+  man_list_t* l;
+};
 
+/*
 static unsigned int& man_sz(void) {
   static unsigned int sz = 0;
   return sz;
 }
+*/
+static man_registry& get_reg(void) {
+  static man_registry r { 0, nullptr };
+  return r;
+}
 
 man_id_t register_manager(void* (*create)(solver_data* s), void (*destroy)(void*)) {
+  /*
   if(man_sz() >= MANAGERS_MAX) {
     fprintf(stderr, "ERROR: Registering too many managers. Increase MANAGERS_MAX and recompile.\n");
     ERROR;
   }
   man_registry[man_sz()++] = man_template_t { create, destroy };
-  return man_sz()-1;
+  */
+  man_registry& r(get_reg());
+  man_id_t id = r.sz++;
+  r.l = new man_list_t { man_template_t { create, destroy }, r.l };
+  return id;
 }
 
 solver::solver(void)
@@ -106,9 +125,14 @@ solver_data::solver_data(const options& _opts)
       pred_act_inc(opts.pred_act_inc),
       learnt_dbmax(opts.learnt_dbmax) {
   new_pred(*this, 0, 0);
-  for(auto mi : irange(man_sz())) {
-    man_template_t m = man_registry[mi]; 
-    managers.push(manager_t { m.create(this), m.destroy });
+  man_registry& r(get_reg());
+  managers.growTo(r.sz, manager_t { nullptr, nullptr });
+  unsigned int idx = r.sz-1;
+  for(man_list_t* hd = r.l; hd != nullptr; hd = hd->tl, --idx) {
+    // man_template_t m = man_registry[mi]; 
+    man_template_t m = hd->m;
+    // managers.push(manager_t { m.create(this), m.destroy });
+    managers[idx] = manager_t { m.create(this), m.destroy };
   }
 }
 
