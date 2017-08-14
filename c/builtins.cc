@@ -139,6 +139,10 @@ int int_ne(solver s, atom r, intvar x, intvar y) {
   return phage::int_ne(get_solver(s)->data,
                     *get_intvar(x), *get_intvar(y), get_atom(r));
 }
+int int_eq(solver s, atom r, intvar x, intvar y) {
+  return phage::int_eq(get_solver(s)->data,
+                    *get_intvar(x), *get_intvar(y), get_atom(r));
+}
 
 int all_different_int(solver s, intvar* xs, int sz) {
   vec<phage::intvar> p_xs;
@@ -146,6 +150,27 @@ int all_different_int(solver s, intvar* xs, int sz) {
     p_xs.push(*get_intvar(*v));
   }
   return phage::all_different_int(get_solver(s)->data, p_xs);
+}
+
+int cumulative(solver s, task* ts, int sz, int cap) {
+  vec<phage::intvar> xs;
+  vec<int> ds;
+  vec<int> rs;
+  for(task t : range(ts, ts+sz)) {
+    xs.push(*get_intvar(t.start));
+    ds.push(t.dur);
+    rs.push(t.res);
+  }
+  return phage::cumulative(get_solver(s)->data, xs, ds, rs, cap);
+}
+int disjunctive(solver s, dtask* ts, int sz) {
+  vec<phage::intvar> xs;
+  vec<int> ds;
+  for(dtask t : range(ts, ts+sz)) {
+    xs.push(*get_intvar(t.start));
+    ds.push(t.dur);
+  }
+  return phage::disjunctive_int(get_solver(s)->data, xs, ds);
 }
 
 #ifdef __cplusplus

@@ -3,21 +3,245 @@
 #include "vars/intvar.h"
 namespace phage {
 
-class disj_int : public propagator {
-  static watch_result wake(void* ptr, int xi) {
-    disj_int* p(static_cast<disj_int*>(ptr)); 
-    p->queue_prop();
-    return Wt_Keep;
+// Helpful functions
+static unsigned int tree_sz(unsigned int leaves) {
+  unsigned int pow = 32 - __builtin_clz(leaves-1);
+  return (1<<pow)-1;
+}
+static unsigned int parent(unsigned int p) { return p>>1; };
+static unsigned int left(unsigned int p) { return p<<1; };
+static unsigned int right(unsigned int p) { return (p<<1)+1; };
+// Heap-structured complete binary tree.
+template<class F>
+struct ps_tree {
+  // Node data.
+  struct node_t {
+    int d_sum;
+    int ect;
+    int o_sum;
+    int o_ect;
+  };
+
+  unsigned int base(void) const { return nodes.size()/2; }
+  unsigned int idx(unsigned int n) const { return n + nodes.size()/2; };
+
+  ps_tree(F _f, unsigned int leaves)
+    : f(_f)
+    , nodes(tree_sz(leaves), node_t { 0, INT_MIN, 0, INT_MIN })
+    , sz(leaves)
+  { }
+  
+  node_t eval(const node_t& l, const node_t& r) {
+    node_t n {
+        l.d_sum + r.d_sum,
+        std::max(l.ect + r.d_sum, r.ect),
+        std::max(l.d_sum + r.o_sum, l.o_sum + r.d_sum),
+        std::max(r.o_ect,
+          std::max(l.ect + r.o_sum, l.o_ect + r.d_sum))
+    };
+    return n;
   }
 
-  public: 
-    disj_int(solver_data* s, vec<intvar>& _st, vec<int>& _du)
-      : propagator(s), st(_st), du(_du) {
-      for(int ii : irange(st.size())) {
-        st[ii].attach(E_LU, watch_callback(wake, this, ii));
+  void fill(void) {
+    unsigned int idx = nodes.size()/2;  
+    for(int ii = 0; ii < sz; ++ii, ++idx) {
+      int ect = f.ect(ii);
+      int dur = f.dur(ii); 
+      nodes[ii] = { ect, dur, ect, dur };
+    }
+    for(int p = base()-1; p >= 0; --p) {
+      node_t& l(nodes[left(p)]);
+      node_t& r(nodes[right(p)]);
+      nodes[p] = eval(l, r);
+    }
+  }
+
+  void percolate(unsigned int p) {
+    while(p) {
+      node_t& l(p&1 ? nodes[p-1] : nodes[p]);
+      node_t& r(p&1 ? nodes[p] : nodes[p+1]);
+      p = parent(p);
+      nodes[p] = eval(l, r);
+    }
+  }
+  
+  void add(unsigned int elt) {
+    int dur = f.dur(elt);
+    int ect = f.ect(elt);
+    
+    unsigned int p(idx(elt));
+    nodes[p] = node_t { dur, ect, dur, ect };
+    percolate(p);
+  }
+  void remove(unsigned int elt) {
+    unsigned int p(idx(elt));
+    nodes[p] = node_t { 0, INT_MIN, 0, INT_MIN };
+    percolate(p);
+  }
+  void smudge(unsigned int elt) {
+    // Assumes elt is current in.
+    unsigned int p(idx(elt));
+    nodes[p].d_sum = 0;
+    nodes[p].ect = INT_MIN;
+    percolate(p);
+  }
+
+  // Find the task whose start time bounds
+  // the current envelope.
+  unsigned int binding_task(int ect, unsigned int p = 0) {
+    assert(nodes[0].ect >= ect);
+    // unsigned int p = 0;
+    while(p < base()) {
+      if(nodes[right(p)].ect >= ect) {
+        p = right(p);
+      } else {
+        ect -= nodes[right(p)].d_sum;
+        p = left(p);
       }
-      est.growTo(st.size());
-      let.growTo(st.size());
+    }
+    return p - base();
+  }
+
+  // Find the smudged task responsible for
+  // pushing the ECT above the given limit.
+  unsigned int blocked_task(int ect) {
+    assert(nodes[0].ect < ect);
+    assert(nodes[0].o_ect >= ect);
+    unsigned int p = 0;
+    while(p < base()) {
+      if(nodes[right(p)].o_ect >= ect) {
+        p = right(p);
+      } else if(nodes[left(p)].ect + nodes[right(p)].o_sum >= ect) {
+        // The binding task is to the left, blocked task contributes
+        // only to the sum.
+        while(p < base()) {
+          if(nodes[left(p)].d_sum + nodes[right(p)].o_sum >= ect) {
+            ect -= nodes[left(p)].d_sum;
+            p = right(p);
+          } else {
+            ect -= nodes[right(p)].d_sum;
+            p = left(p);
+          }
+        }
+        break;
+      } else {
+        ect -= nodes[right(p)].d_sum;
+        p = left(p);
+      }
+    }
+    return p - base();
+  }
+
+  // If there is a blocked task, which task is binding
+  // in the corresponding set?
+  unsigned int blocking_task(int ect) {
+    assert(nodes[0].ect < ect);
+    assert(nodes[0].o_ect >= ect);
+    unsigned int p = 0;
+    while(p < base()) {
+      if(nodes[right(p)].o_ect >= ect) {
+        p = right(p);
+      } else if(nodes[left(p)].ect + nodes[right(p)].o_sum >= ect) {
+        return binding_task(ect - nodes[right(p)].o_sum, left(p));
+      } else {
+        ect -= nodes[right(p)].d_sum;
+        p = left(p);
+      }
+    }
+    return p - base();
+  }
+
+  const node_t& root(void) const { return nodes[0]; };
+  const node_t& operator[](unsigned int p) const { return nodes[p]; }
+
+  F f;
+  vec<node_t> nodes;
+  int sz;
+};
+
+class disjunctive : public propagator, public prop_inst<disjunctive> {
+  struct eval_ect {
+    int ect(int idx) const {
+      return d->ect(d->p_est[idx]);
+    }
+    int dur(int idx) const { return d->du[d->p_est[idx]]; }
+
+    disjunctive* d;
+  };
+  struct eval_lst {
+    int ect(int idx) const {
+      return -d->lst(d->p_lct[idx]);
+    }
+    int dur(int idx) const { return d->du[d->p_lct[idx]]; }
+    disjunctive* d;
+  };
+
+  inline bool est(int xi) { return lb(xs[xi]); }
+  inline bool ect(int xi) { return lb(xs[xi]) + du[xi]; }
+  inline bool lct(int xi) { return ub(xs[xi]) + du[xi]; }
+  inline bool lst(int xi) { return ub(xs[xi]); }
+
+  watch_result wake(int xi) {
+    queue_prop();
+    return Wt_Keep;
+  }
+  
+  int LOW(int x) { return x&((1<<16)-1); }
+  int HIGH(int x) { return x>>16; }
+  int TAG(int x, int y) { return (y<<16)|x; }
+  
+  void ex_lb_ef(int xy, pval_t p, vec<clause_elt>& expl) {
+    int x = LOW(xy);
+    int y = HIGH(xy); 
+
+    int lb_x = xs[x].lb_of_pval(p);
+    int lb_y = lb(xs[y]);
+    // Collect enough tasks to fill [est(y), lb_x).
+    int gap = lb_x - lb_y;
+    for(int ii : irange(xs.size())) {
+      if(ii == x)
+        continue;
+      if(est(ii) >= lb_y && lct(ii) < lb_x) {
+        expl.push(xs[ii] < lb_y);
+        expl.push(xs[ii] > lb_x - du[ii]);
+        gap -= du[ii];
+        // TODO: Can weaken here if gap < 0.
+        if(gap <= 0)
+          break;
+      }
+    }
+  }
+  void ex_ub_ef(int xy, pval_t p, vec<clause_elt>& expl) {
+    int x = LOW(xy);
+    int y = HIGH(xy);
+
+    int ub_x = xs[x].ub_of_pval(p) + du[x];
+    int ub_y = ub(xs[y]) + du[y];
+    int gap = ub_y - ub_x;
+    for(int ii : irange(xs.size())) {
+      if(ii == x)
+        continue;
+      // FIXME: An off-by-one somewhere here
+      if(est(ii) >= ub_x && lct(ii) <= ub_y) {
+        expl.push(xs[ii] < ub_x - du[ii]);
+        expl.push(xs[ii] > ub_y - du[ii]);
+        gap -= du[ii];
+      }
+      if(gap <= 0)
+        break;
+    }
+  }
+
+  public:
+    disjunctive(solver_data* s, vec<intvar>& _st, vec<int>& _du)
+      : propagator(s), xs(_st), du(_du)
+      , ect_tree(eval_ect {this}, xs.size())
+      , lst_tree(eval_lst {this}, xs.size()) {
+      for(int ii : irange(xs.size())) {
+        xs[ii].attach(E_LU, watch<&P::wake>(ii));
+        p_est.push(ii);
+        p_lct.push(ii);
+      }
     }
 
     void cleanup(void) {
@@ -32,74 +256,162 @@ class disj_int : public propagator {
 #ifdef LOG_ALL
       std::cout << "[[Running disjunctive]]" << std::endl;
 #endif
-      
-      // Timetable reasoning
-      for(int ii : irange(st.size())) {
-        est[ii] = st[ii].lb(s);
-        let[ii] = st[ii].ub(s) + du[ii];
+      return prop_ef(confl);      
+    }
+
+    // Explain why ECT >= end. 
+    // Returns 
+    int ex_ect(int end, vec<clause_elt>& confl) {
+      int p = ect_tree.binding_task(end);
+      int xi = p_est[p];
+
+      vec<int> e_tasks;
+
+      // Have a choice as to which side to relax.
+      int lb = est(xi);
+      int slack = end - lb;
+      for(; p < p_est.size(); ++p) {
+        int xj = p_est[p];
+        if(est(xj) >= lb && lct(xj) <= end) {
+          e_tasks.push(xj);
+          slack -= du[xj];
+          if(slack <= 0)
+            break;
+        }
       }
-        
+      int r_end = end - slack;
+      for(int t : e_tasks) {
+        confl.push(xs[t] < lb);
+        confl.push(xs[t] >= r_end - du[t]);
+      }
+      return r_end;
+    }
+
+    int ex_lst(int begin, vec<clause_elt>& confl) {
+      int p = lst_tree.binding_task(-begin);
+      int xi = p_lct[p];
+
+      vec<int> e_tasks;
+
+      // Have a choice as to which side to relax.
+      int ub = lct(xi);
+      int slack = ub - begin;
+      for(; p < p_lct.size(); ++p) {
+        int xj = p_lct[p];
+        if(est(xj) >= begin && lct(xj) <= ub) {
+          e_tasks.push(xj);
+          slack -= du[xj];
+          if(slack <= 0)
+            break;
+        }
+      }
+      int r_begin = begin + slack;
+      for(int t : e_tasks) {
+        confl.push(xs[t] < r_begin);
+        confl.push(xs[t] >= ub - du[t]);
+      }
+      return r_begin;
+    }
+
+    // Perform edge-finding
+    bool prop_lb_ef(vec<clause_elt>& confl) {
+      // Initialize the phi-sigma tree.
+      std::sort(p_est.begin(), p_est.end(), 
+        [&](int x, int y) { return est(x) < est(y); });
+      ect_tree.fill();
+
+      std::sort(p_lct.begin(), p_lct.end(),
+        [&](int x, int y) { return lct(x) > lct(y); });
+
+      if(ect_tree.root().ect > lct(p_lct[0])) {
+        int xi = p_lct[0];
+        int lim = ex_ect(lct(p_lct[0])+1, confl);
+        confl.push(xs[xi] >= lim - du[xi]);
+        return false;
+      }
+      ect_tree.smudge(p_lct[0]);
+      for(int xi : p_lct.slice(1, p_lct.size())) {
+        if(ect_tree.root().ect > lct(xi)) {
+          int lim = ex_ect(lct(xi)+1, confl);
+          confl.push(xs[xi] >= lim - du[xi]);
+          return false;
+        }
+        while(ect_tree[0].o_ect > lct(xi)) {
+          // Identify the failing task.
+          unsigned int ti = p_est[ect_tree.blocked_task(lct(xi))];
+          unsigned int tj = p_est[ect_tree.blocking_task(lct(xi))];
+          if(!set_lb(xs[p_est[ti]], ect_tree[0].ect,
+            ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            return false;
+          ect_tree.remove(ti);
+        }
+      }
       return true;
     }
 
+    // Perform edge-finding
+    bool prop_ub_ef(vec<clause_elt>& confl) {
+      // Initialize the phi-sigma tree.
+      std::sort(p_lct.begin(), p_lct.end(), 
+        [&](int x, int y) { return lct(x) > lct(y); });
+      lst_tree.fill();
+
+      std::sort(p_est.begin(), p_est.end(),
+        [&](int x, int y) { return est(x) < est(y); });
+
+      if(lst_tree.root().ect > -lst(p_est[0])) {
+        int xi = p_est[0];
+        int lim = ex_lst(lst(xi)+1, confl);
+        confl.push(xs[xi] < lim);
+        return false;
+      }
+      lst_tree.smudge(p_lst[0]);
+      for(int xi : p_est.slice(1, p_est.size())) {
+        if(lst_tree.root().ect > -est(xi)) {
+          int lim = ex_lst(lst(xi)+1, confl);
+          confl.push(xs[xi] < lim);
+          return false;  
+        }
+        while(lst_tree.root().o_ect > -lst(xi)) {
+          // Identify the failing task.
+          unsigned int ti = p_est[lst_tree.blocked_task(-lst(xi))];
+          unsigned int tj = p_est[lst_tree.blocking_task(-lst(xi))];
+          if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
+            ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            return false;
+          lst_tree.remove(ti);
+        }
+      }
+      return true;
+    }
+
+    bool prop_ef(vec<clause_elt>& confl) {
+      return prop_lb_ef(confl) && prop_ub_ef(confl);
+    }
+
     // Parameters
-    vec<intvar> st; // Start times
+    vec<intvar> xs; // Start times
     vec<int> du; // durations
 
     // Temporary storage
-    vec<intvar::val_t> est; // earliest start time
-    vec<intvar::val_t> let; // latest end time
+    vec<int> p_est;
+    vec<int> p_ect;
+    vec<int> p_lst;
+    vec<int> p_lct;
+
+    ps_tree<eval_ect> ect_tree;
+    ps_tree<eval_lst> lst_tree;
 };
 
-class disj_var : public propagator {
-  static watch_result wake_st(void* ptr, int xi) {
-    disj_int* p(static_cast<disj_int*>(ptr)); 
-    p->queue_prop();
-    return Wt_Keep;
-  }
-
-  static watch_result wake_du(void* ptr, int xi) {
-    disj_int* p(static_cast<disj_int*>(ptr)); 
-    p->queue_prop();
-    return Wt_Keep;
-  }
-
-  public: 
-    disj_var(solver_data* s, vec<intvar>& _st, vec<intvar>& _du)
-      : propagator(s), st(_st), du(_du) {
-      for(int ii : irange(st.size())) {
-        st[ii].attach(E_LU, watch_callback(wake_st, this, ii));
-      }
-      for(int ii : irange(du.size())) {
-        du[ii].attach(E_LB, watch_callback(wake_du, this, ii));
-      }
-    }
-
-    void root_simplify(void) {
-      return; 
-    }
-    
-    bool propagate(vec<clause_elt>& confl) {
-#ifdef LOG_ALL
-      std::cout << "[[Running disjunctive]]" << std::endl;
-#endif
-      
-      return true;
-    }
-
-    // Parameters
-    vec<intvar> st; // Start times
-    vec<intvar> du; // durations
-
-    // Temporary storage
-};
-
-void disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du) {
-  new disj_int(s, st, du);
+bool disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du) {
+  new disjunctive(s, st, du);
+  return true;
 }
 
-void disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du) {
-  new disj_var(s, st, du);
+bool disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du) {
+  // new disj_var(s, st, du);
+  NOT_YET;
+  return false;
 }
 
 }

@@ -16,6 +16,17 @@ typedef struct {
   [mlname(ax)] atom x; 
 } at_linterm;
 
+typedef struct {
+  intvar start;
+  int dur;
+  int res;
+} task;
+
+typedef struct {
+  [mlname(ds)] intvar start;
+  [mlname(dd)] int dur;
+} dtask;
+
 // These are half-reified.
 // For strict versions, call with r = at_True
 boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
@@ -34,6 +45,7 @@ boolean int_max([in] solver s, atom r,
 
 boolean int_le([in] solver s, atom r, intvar z, intvar x, int k);
 boolean int_ne([in] solver s, atom r, intvar z, intvar x);
+boolean int_eq([in] solver s, atom r, intvar z, intvar x);
 
 boolean int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] int elts[], int sz);
@@ -41,3 +53,6 @@ boolean var_int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] intvar elts[], int sz);
 
 boolean all_different_int([in] solver s, [in,size_is(sz)] intvar elts[], int sz);
+
+boolean cumulative([in] solver s, [in,size_is(sz)] task ts[], int sz, int cap);
+boolean disjunctive([in] solver s, [in,size_is(sz)] dtask ts[], int sz);

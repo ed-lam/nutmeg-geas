@@ -33,6 +33,7 @@ int atmost_k(solver s, atom r, atom* xs, int sz, int k);
 // r -> (x <= y + k)
 int int_le(solver s, atom r, intvar x, intvar y, int k);
 int int_ne(solver s, atom r, intvar x, intvar y);
+int int_eq(solver s, atom r, intvar x, intvar y);
 
 int int_mul(solver s, atom r, intvar z, intvar x, intvar y);
 int int_div(solver s, atom r, intvar z, intvar x, intvar y);
@@ -44,6 +45,12 @@ int int_element(solver s, atom r, intvar z, intvar i, int* elts, int sz);
 int var_int_element(solver s, atom r, intvar z, intvar i, intvar* elts, int sz);
 
 int all_different_int(solver s, intvar* xs, int sz);
+
+typedef struct { intvar start; int dur; int res; } task;
+int cumulative(solver s, task* ts, int sz, int cap);
+
+typedef struct { intvar start; int dur; } dtask;
+int disjunctive(solver s, dtask* ts, int sz);
 #ifdef __cplusplus
 }
 #endif

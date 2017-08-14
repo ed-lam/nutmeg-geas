@@ -21,6 +21,8 @@ struct intvar_s;
 typedef struct intvar_s* intvar;
 struct fpvar_s;
 typedef struct fpvar_s* fpvar;
+struct opt_intvar_s;
+sypedef struct opt_intvar_s* opt_intvar;
 
 struct model_s;
 typedef struct model_s* model;
@@ -60,6 +62,10 @@ void destroy_intvar(intvar);
 int make_sparse(intvar, int* vals, int sz);
 intvar intvar_neg(intvar);
 intvar intvar_plus(intvar, int);
+
+opt_intvar new_opt_intvar(solver, int lb, int ub);
+opt_intvar intvar_make_opt(solver, intvar v);
+void destroy_opt_intvar(intvar);
 
 fpvar new_floatvar(solver, float lb, float ub);
 void destroy_floatvar(fpvar);
