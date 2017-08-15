@@ -5,12 +5,12 @@ namespace phage {
 
 // Helpful functions
 static unsigned int tree_sz(unsigned int leaves) {
-  unsigned int pow = 32 - __builtin_clz(leaves-1);
+  unsigned int pow = 33 - __builtin_clz(leaves-1);
   return (1<<pow)-1;
 }
-static unsigned int parent(unsigned int p) { return p>>1; };
-static unsigned int left(unsigned int p) { return p<<1; };
-static unsigned int right(unsigned int p) { return (p<<1)+1; };
+static unsigned int parent(unsigned int p) { return (p-1)>>1; };
+static unsigned int left(unsigned int p) { return (p<<1)+1; };
+static unsigned int right(unsigned int p) { return (p<<1)+2; };
 // Heap-structured complete binary tree.
 template<class F>
 struct ps_tree {
@@ -47,7 +47,7 @@ struct ps_tree {
     for(int ii = 0; ii < sz; ++ii, ++idx) {
       int ect = f.ect(ii);
       int dur = f.dur(ii); 
-      nodes[ii] = { ect, dur, ect, dur };
+      nodes[idx] = { ect, dur, ect, dur };
     }
     for(int p = base()-1; p >= 0; --p) {
       node_t& l(nodes[left(p)]);
@@ -176,10 +176,10 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
     disjunctive* d;
   };
 
-  inline bool est(int xi) { return lb(xs[xi]); }
-  inline bool ect(int xi) { return lb(xs[xi]) + du[xi]; }
-  inline bool lct(int xi) { return ub(xs[xi]) + du[xi]; }
-  inline bool lst(int xi) { return ub(xs[xi]); }
+  inline int est(int xi) { return lb(xs[xi]); }
+  inline int ect(int xi) { return lb(xs[xi]) + du[xi]; }
+  inline int lct(int xi) { return ub(xs[xi]) + du[xi]; }
+  inline int lst(int xi) { return ub(xs[xi]); }
 
   watch_result wake(int xi) {
     queue_prop();
@@ -339,10 +339,12 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         while(ect_tree[0].o_ect > lct(xi)) {
           // Identify the failing task.
           unsigned int ti = p_est[ect_tree.blocked_task(lct(xi))];
+          /*
           unsigned int tj = p_est[ect_tree.blocking_task(lct(xi))];
           if(!set_lb(xs[p_est[ti]], ect_tree[0].ect,
             ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
             return false;
+          */
           ect_tree.remove(ti);
         }
       }
@@ -375,10 +377,12 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         while(lst_tree.root().o_ect > -lst(xi)) {
           // Identify the failing task.
           unsigned int ti = p_est[lst_tree.blocked_task(-lst(xi))];
+          /*
           unsigned int tj = p_est[lst_tree.blocking_task(-lst(xi))];
           if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
             ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
             return false;
+            */
           lst_tree.remove(ti);
         }
       }
