@@ -185,7 +185,7 @@ public:
 
 // Propagator:
 // non-incremental, with naive eager explanations
-class iprod : public propagator {
+class iprod : public propagator, public prop_inst<iprod> {
   static watch_result wake_z(void* ptr, int xi) {
     iprod* p(static_cast<iprod*>(ptr)); 
     p->queue_prop();
@@ -929,7 +929,8 @@ bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
         return false;
     }
   } else {
-    new ineq(s, x, y, r);
+    // new ineq(s, x, y, r);
+    return ineq::post(s, x, y, r);
   }
   return true;
 }
@@ -1515,8 +1516,9 @@ public:
 bool int_eq(solver_data* s, intvar x, intvar y, patom_t r) {
   if(s->state.is_inconsistent(r))
     return true;
-  new int_eq_hr(s, r, x, y);
-  return true;
+  // new int_eq_hr(s, r, x, y);
+  // return true;
+  return int_eq_hr::post(s, r, x, y);
 }
 
 class pred_le_hr_s : public propagator, public prop_inst<pred_le_hr_s> {
@@ -1797,9 +1799,12 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   if(s->state.is_entailed(r))
     return int_leq(s, x, y, k);
 
+  /*
   new pred_le_hr_s(s, x.p, y.p, k, r);
   // new int_le_hr(s, r, x, y+k);
   return true;
+  */
+  return pred_le_hr_s::post(s, x.p, y.p, k, r);
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
@@ -1833,7 +1838,8 @@ bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
     }
   } else {
     // new pred_le_hr(s, x, y, k, r);
-    new pred_le_hr_s(s, x, y, k, r);
+    // new pred_le_hr_s(s, x, y, k, r);
+    return pred_le_hr_s::post(s, x, y, k, r);
   }
   return true;
 }
@@ -1974,26 +1980,32 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   // imul_decomp(s, z, x, y);
   if(z.lb(s) >= 0) {
     if(x.lb(s) >= 0 || y.lb(s) >= 0) {
-      new iprod_nonneg(s, r, z, x, y);
-      return true;
+      // new iprod_nonneg(s, r, z, x, y);
+      // return true;
+      return iprod_nonneg::post(s, r, z, x, y);
     } else if(x.ub(s) <= 0) {
-      new iprod_nonneg(s, r, z, -x, y);
-      return true;
+      // new iprod_nonneg(s, r, z, -x, y);
+      // return true;
+      return iprod_nonneg::post(s, r, z, -x, y);
     } else if(y.ub(s) <= 0) {
-      new iprod_nonneg(s, r, z, x, -y);
-      return true;
+      // new iprod_nonneg(s, r, z, x, -y);
+      // return true;
+      return iprod_nonneg::post(s, r, z, x, -y);
     }
   } else if(z.ub(s) <= 0) {
     if(x.lb(s) >= 0 || y.ub(s) <= 0) {
-      new iprod_nonneg(s, r, -z, x, -y);
-      return true;
+      // new iprod_nonneg(s, r, -z, x, -y);
+      // return true;
+      return iprod_nonneg::post(s, r, -z, x, -y);
     }  else if(x.ub(s) <= 0 || y.lb(s) >= 0) {
-      new iprod_nonneg(s, r, -z, -x, y);
-      return true;
+      // new iprod_nonneg(s, r, -z, -x, y);
+      // return true;
+      return iprod_nonneg::post(s, r, -z, -x, y);
     } 
   }
-  new iprod(s, z, x, y);
-  return true;
+  // new iprod(s, z, x, y);
+  // return true;
+  return iprod::post(s, z, x, y);
 }
 
 class idiv_nonneg : public propagator, public prop_inst<idiv_nonneg> {
@@ -2169,12 +2181,13 @@ bool post_idiv_nonneg(solver_data* s, intvar z, intvar x, intvar y) {
   new iprod_nonneg(s, at_True, x_high+1, z+1, y);
   int_leq(s, x_low, x, 0);
   int_leq(s, x, x_high, 0);
+  return true;
 #else
   if(z.lb(s) < 0 && !enqueue(*s, z >= 0, reason()))
     return false;
-  new idiv_nonneg(s, at_True, z, x, y);
+  // new idiv_nonneg(s, at_True, z, x, y);
+  return idiv_nonneg::post(s, at_True, z, x, y);
 #endif
-  return true;
 }
 
 bool int_div(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {

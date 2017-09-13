@@ -1324,8 +1324,9 @@ bool int_element(solver_data* s, intvar z, intvar x, vec<int>& ys, patom_t r) {
 //    return true;
     return int_element(s, r, z, x, ys, 1);
   } else {
-    new int_elem_bnd(s, r, z, x-1, ys);
-    return true;
+    // new int_elem_bnd(s, r, z, x-1, ys);
+    // return true;
+    return int_elem_bnd::post(s, r, z, x-1, ys);
   }
 #else
   return int_element(s, r, z, x, ys, 1);
@@ -1333,9 +1334,8 @@ bool int_element(solver_data* s, intvar z, intvar x, vec<int>& ys, patom_t r) {
 }
 
 bool var_int_element(solver_data* s, intvar z, intvar x, vec<intvar>& ys, patom_t r) {
-  // new elem_var_simple(s, x, i, ys, 1, r);
-  new elem_var_bnd(s, z, x, ys, 1, r);
-  // new elem_var_mix(s, z, x, ys, 1, r);
-  return true; 
+  // new elem_var_bnd(s, z, x, ys, 1, r);
+  // return true; 
+  return elem_var_bnd::post(s, z, x, ys, 1, r);
 }
 }

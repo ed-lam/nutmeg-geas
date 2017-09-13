@@ -6,6 +6,9 @@
 
 namespace phage {
 
+// Exception if posting a propagator fails.
+class RootFail { };
+
 class lbool {
   lbool(int _x) : x(_x) { }
 public:

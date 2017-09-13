@@ -1430,12 +1430,12 @@ intvar make_ps(solver_data* s, patom_t r, term tx, term ty, int k) {
   intvar ps = new_intvar(s, 0, ub);
   vec<int> ks { tx.k, ty.k, -1 };
   vec<intvar> xs { tx.x, ty.x, ps };
-  new lin_le_inc(s, r, ks, xs, 0);
+  lin_le_inc::post(s, r, ks, xs, 0);
   return ps;
 }
 bool linear_le_chain(solver_data* s, patom_t r, vec<int>& ks, vec<intvar>& vs, int k) {
   if(ks.size() <= 2) {
-    new lin_le_inc(s, r, ks, vs, k);
+    lin_le_inc::post(s, r, ks, vs, k);
     return true;
   }
   // Normalize the terms, correcting for lower bounds.
@@ -1467,8 +1467,7 @@ bool linear_le_chain(solver_data* s, patom_t r, vec<int>& ks, vec<intvar>& vs, i
   }
   vec<int> o_ks { 1, xs.last().k };
   vec<intvar> o_xs { ps, xs.last().x };
-  new lin_le_inc(s, r, o_ks, o_xs, k);
-  return true;
+  return lin_le_inc::post(s, r, o_ks, o_xs, k);
 }
 
 bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
@@ -1481,8 +1480,11 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
 //   new int_linear_le(s, r, ks, vs, k);
 #ifndef USE_CHAIN
   // new lin_le_inc(s, r, ks, vs, k);
-  new lin_le_tree(s, r, ks, vs, k);
-  return true;
+  // new lin_le_tree(s, r, ks, vs, k);
+  // return true;
+
+  // return lin_le_inc::post(s, r, ks, vs, k);
+  return lin_le_tree::post(s, r, ks, vs, k);
 #else
   return linear_le_chain(s, r, ks, vs, k);
 #endif
@@ -1506,8 +1508,9 @@ bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
     new int_linear_ne(s, r, ks, vs, k);
   }
   */
-  new int_linear_ne(s, r, ks, vs, k);
-  return true;
+  // new int_linear_ne(s, r, ks, vs, k);
+  // return true;
+  return int_linear_ne::post(s, r, ks, vs, k);
 }
 
 }

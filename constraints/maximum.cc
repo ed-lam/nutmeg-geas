@@ -368,8 +368,9 @@ bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r) {
   if(!s->state.is_entailed_l0(r))
     WARN("Half-reified int_max not yet implemented.");
 
-  new imax(s, z, xs);
-  return true;
+  // new imax(s, z, xs);
+  // return true;
+  return imax::post(s, z, xs);
 }
 
 

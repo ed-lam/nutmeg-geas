@@ -457,8 +457,9 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
 };
 
 bool disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du) {
-  new disjunctive(s, st, du);
-  return true;
+  // new disjunctive(s, st, du);
+  // return true;
+  return disjunctive::post(s, st, du);
 }
 
 bool disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du) {

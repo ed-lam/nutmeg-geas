@@ -148,8 +148,9 @@ class alldiff_b : public propagator {
 bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True) {
   assert(r == at_True);
 
-  new alldiff_v(s, xs);
-  return true;
+  // new alldiff_v(s, xs);
+  // return true;
+  return alldiff_v::post(s, xs);
 }
 
 }

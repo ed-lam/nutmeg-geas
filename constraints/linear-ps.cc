@@ -386,7 +386,8 @@ bool linear_le_ps(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
     */
   } else if(k < sum_ub) {
     // _Might_ be violated; make a propagator
-    new lin_le_ps(s, r, xs, k);
+    // new lin_le_ps(s, r, xs, k);
+    return lin_le_ps::post(s, r, xs, k);
   }
   return true;
 }

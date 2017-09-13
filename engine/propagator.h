@@ -152,6 +152,17 @@ public:
   prop_t get(void) {
     return prop_t { propagate, check_sat, root_simplify, cleanup, this }; 
   }
+
+  template<class ...Args>
+  static bool post(Args ...args) {
+    try {
+      new T(args...);
+      return true;
+    } catch(RootFail& e) {
+      (void) e;
+      return false;
+    }
+  }
 };
 
 /*

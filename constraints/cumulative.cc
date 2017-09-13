@@ -268,8 +268,9 @@ protected:
 
 bool cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& duration, vec<int>& resource, int cap) {
-  new cumul_prop(s, starts, duration, resource, cap);
-  return true;
+  // new cumul_prop(s, starts, duration, resource, cap);
+  // return true;
+  return cumul_prop::post(s, starts, duration, resource, cap);
 }
 
 }
