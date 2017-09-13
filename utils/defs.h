@@ -8,8 +8,8 @@
 
 #include "mtl/Vec.h"
 
-// #define forceinline __attribute__((always_inline))
-#define forceinline 
+#define forceinline __attribute__((always_inline))
+// #define forceinline 
 #ifdef LOG_ALL
 #ifndef LOG_PROP
 #define LOG_PROP
@@ -26,7 +26,8 @@
 #define NOT_YET_WARN fprintf(stderr, "WARNING: Incompletely implemented.\n")
 #define WARN(x) fprintf(stderr, "WARNING: %s\n", (x))
 #define ERROR assert(0 && "FAILURE.")
-#define NEVER __builtin_unreachable()
+// #define NEVER __builtin_unreachable()
+#define NEVER ERROR
 
 template<class T, class U>
 void vec_push(vec<T>& vec, U& elt) { vec.push(elt); }

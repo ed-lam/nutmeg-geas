@@ -15,6 +15,7 @@ type ('b, 'i) idef =
   | Iv_eq of 'i
   | Iv_opp of 'i
   (* Arithmetic functions *)
+  | Iv_elem of ('i array * 'i)
   | Iv_lin of (int * 'i) array
   | Iv_prod of 'i array
   | Iv_max of 'i array

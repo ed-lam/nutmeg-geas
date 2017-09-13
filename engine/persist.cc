@@ -173,6 +173,10 @@ void bt_to_level(solver_data* s, unsigned int l) {
 #ifdef CHECK_STATE
   check_at_fixpoint(s);
 #endif
+  // Reset flags.
+  for(char* c : s->persist.bt_flags)
+    *c = false;
+  s->persist.bt_flags.clear();
 
   // Deal with current and last-level pred values
   bt_preds(s, l);

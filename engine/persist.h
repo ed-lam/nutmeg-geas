@@ -104,6 +104,8 @@ public:
 
   // Flags to reset at a new decision level
   vec<char*> reset_flags;
+  // Flags to reset upon backtracking
+  vec<char*> bt_flags;
 };
 
 void push_level(solver_data* s);

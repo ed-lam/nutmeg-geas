@@ -115,6 +115,13 @@ public:
     void     clear  (bool dealloc = false);
     void     capacity (int size) { grow(size); }
 
+    struct slice_t {
+      T* begin(void) const { return b; }
+      T* end(void) const { return e; }
+      T* b; T* e;
+    };
+    slice_t slice(int b, int e) const { return slice_t { data+b, data+e }; }
+
     // Stack interface:
 #if 1
     void     push  (void)              { if (sz == cap) { cap = imax(2, (cap*3+1)>>1); data = (T*)realloc(data, cap * sizeof(T)); } new (&data[sz]) T(); sz++; }

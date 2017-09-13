@@ -1,14 +1,86 @@
 #ifndef PHAGE_VALSET_H
 #define PHAGE_VALSET_H
+#include "mtl/int-triemap.h"
 #include "solver/solver_data.h"
 
 namespace phage {
 
+enum mode_t { VS_Direct = 0, VS_Hash = 1, VS_Default };
+
+// Mapping val_t to things (just pid_t for now).
+template<class Construct>
+struct valmap_t {
+  enum Mode { V_Direct, V_Sparse, V_Lazy };
+  typedef uint64_triemap<uint64_t, pid_t, UIntOps> val_table;
+  struct D { // Dense
+    pval_t base;
+    unsigned int sz;  
+    pid_t* elts;
+  };
+  struct S { // Sparse
+    unsigned int sz;
+    pval_t* keys;
+    pid_t* elts;
+  };
+  struct L {
+    val_table tbl;
+  };
+
+  mode_t mode;
+  // The actual structures
+  union {
+    D d;
+    S s;
+    L l;
+  };
+  // And builder
+  Construct construct;
+
+  patom_t lookup_dense(pval_t v) {
+    if(d.base <= v && v < d.base + d.sz) {
+      patom_t& at(d.elts[v - d.base]);
+      if(at == at_Undef)
+        at = construct(v);
+      return at;
+    }
+    return at_False;
+  }
+  // TODO: Could probably construct a b-tree kinda thing,
+  // but laid out like a heap. That said, maybe not worth it.
+  patom_t lookup_sparse(pval_t v) {
+    pval_t* b(s.keys);
+    pval_t* e(s.keys + s.sz);
+
+    while(b < e) {
+      pval_t* m(b + (e - b)/2);
+      if(*m < v) {
+        b = m+1;
+      } else if(*m > v) {
+        e = m;
+      } else {
+        // *m == v
+        return s.elts[m - s.keys];
+      }
+    }
+    return at_False;
+  }
+  patom_t lookup_lazy(pval_t v) {
+    return l.tbl.find_or_add(v);
+  }
+  patom_t lookup(pval_t v) {
+    switch(mode) {
+      case V_Direct: return lookup_dense(v);
+      case V_Sparse: return lookup_sparse(v);
+      case V_Lazy: return lookup_lazy(v);
+    }
+  }
+};
+
+#if 0
 // Mapping from pval_t to stuff.
 // For small ranges, we just allocate an array.
 // Otherwise, we use robin-hood hashing, and 
 // resize when load factor hits 0.7.
-enum mode_t { VS_Direct = 0, VS_Hash = 1, VS_Default };
 
 template<class T>
 class valmap_t {
@@ -162,6 +234,7 @@ insert_restart:
   ++count;
 }
 
+#endif
 };
 
 #endif

@@ -47,7 +47,7 @@ struct ps_tree {
     for(int ii = 0; ii < sz; ++ii, ++idx) {
       int ect = f.ect(ii);
       int dur = f.dur(ii); 
-      nodes[idx] = { ect, dur, ect, dur };
+      nodes[idx] = { dur, ect, dur, ect };
     }
     for(int p = base()-1; p >= 0; --p) {
       node_t& l(nodes[left(p)]);
@@ -58,8 +58,8 @@ struct ps_tree {
 
   void percolate(unsigned int p) {
     while(p) {
-      node_t& l(p&1 ? nodes[p-1] : nodes[p]);
-      node_t& r(p&1 ? nodes[p] : nodes[p+1]);
+      node_t& l(p&1 ? nodes[p] : nodes[p-1]);
+      node_t& r(p&1 ? nodes[p+1] : nodes[p]);
       p = parent(p);
       nodes[p] = eval(l, r);
     }
@@ -114,6 +114,8 @@ struct ps_tree {
       } else if(nodes[left(p)].ect + nodes[right(p)].o_sum >= ect) {
         // The binding task is to the left, blocked task contributes
         // only to the sum.
+        ect -= nodes[left(p)].ect;
+        p = right(p);
         while(p < base()) {
           if(nodes[left(p)].d_sum + nodes[right(p)].o_sum >= ect) {
             ect -= nodes[left(p)].d_sum;
@@ -190,18 +192,33 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
   int HIGH(int x) { return x>>16; }
   int TAG(int x, int y) { return (y<<16)|x; }
   
+  void ex_naive(int _x, pval_t p, vec<clause_elt>& expl) {
+    for(const intvar& x : xs) {
+      expl.push(x < lb(x));
+      expl.push(x > ub(x));
+    }
+  }
   void ex_lb_ef(int xy, pval_t p, vec<clause_elt>& expl) {
     int x = LOW(xy);
     int y = HIGH(xy); 
 
-    int lb_x = xs[x].lb_of_pval(p);
+    int lb_x = xs[x].lb_of_pval(p) + du[x];
     int lb_y = lb(xs[y]);
     // Collect enough tasks to fill [est(y), lb_x).
+    vec<int> ex_tasks;
+    for(int ii : irange(xs.size())) {
+      if(est(ii) >= lb_y)
+        ex_tasks.push(ii);
+    }
+    std::sort(ex_tasks.begin(), ex_tasks.end(), 
+      [&](int ti, int tj) { return lct(ti) < lct(tj); });
+
+    /*
     int gap = lb_x - lb_y;
     for(int ii : irange(xs.size())) {
       if(ii == x)
         continue;
-      if(est(ii) >= lb_y && lct(ii) < lb_x) {
+      if(est(ii) >= lb_y && lct(ii) <= lb_x) {
         expl.push(xs[ii] < lb_y);
         expl.push(xs[ii] > lb_x - du[ii]);
         gap -= du[ii];
@@ -210,18 +227,36 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
           break;
       }
     }
+    */
+    int energy = 0;
+    int eend = lb_y;
+    int end = lb_x;
+    int ii = 0;
+    for(; ii < ex_tasks.size() && eend < end; ++ii) {
+      energy += du[ex_tasks[ii]]; 
+      eend += du[ex_tasks[ii]];
+      end = std::max(end, lct(ex_tasks[ii]));
+    }
+    ex_tasks.shrink(ex_tasks.size() - ii);
+
+    int begin = end - energy;
+    for(int xi : ex_tasks) {
+      expl.push(xs[xi] < begin);
+      expl.push(xs[xi] >= end - du[xi]);
+    }
   }
   void ex_ub_ef(int xy, pval_t p, vec<clause_elt>& expl) {
     int x = LOW(xy);
     int y = HIGH(xy);
 
-    int ub_x = xs[x].ub_of_pval(p) + du[x];
+    // int ub_x = xs[x].ub_of_pval(p) + du[x];
+    int ub_x = xs[x].ub_of_pval(p);
     int ub_y = ub(xs[y]) + du[y];
     int gap = ub_y - ub_x;
     for(int ii : irange(xs.size())) {
       if(ii == x)
         continue;
-      // FIXME: An off-by-one somewhere here
+      // FIXME: Probably an off-by-one somewhere here
       if(est(ii) >= ub_x && lct(ii) <= ub_y) {
         expl.push(xs[ii] < ub_x - du[ii]);
         expl.push(xs[ii] > ub_y - du[ii]);
@@ -230,6 +265,7 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       if(gap <= 0)
         break;
     }
+    assert(gap <= 0);
   }
 
   public:
@@ -241,6 +277,7 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         xs[ii].attach(E_LU, watch<&P::wake>(ii));
         p_est.push(ii);
         p_lct.push(ii);
+        task_idx.push(ii);
       }
     }
 
@@ -272,7 +309,7 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       int slack = end - lb;
       for(; p < p_est.size(); ++p) {
         int xj = p_est[p];
-        if(est(xj) >= lb && lct(xj) <= end) {
+        if(est(xj) >= lb && lct(xj) < end) {
           e_tasks.push(xj);
           slack -= du[xj];
           if(slack <= 0)
@@ -281,6 +318,7 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       }
       int r_end = end - slack;
       for(int t : e_tasks) {
+        assert(lct(t) < r_end);
         confl.push(xs[t] < lb);
         confl.push(xs[t] >= r_end - du[t]);
       }
@@ -319,6 +357,8 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       std::sort(p_est.begin(), p_est.end(), 
         [&](int x, int y) { return est(x) < est(y); });
       ect_tree.fill();
+      for(int ii : irange(p_est.size()))
+        task_idx[p_est[ii]] = ii;
 
       std::sort(p_lct.begin(), p_lct.end(),
         [&](int x, int y) { return lct(x) > lct(y); });
@@ -329,24 +369,28 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         confl.push(xs[xi] >= lim - du[xi]);
         return false;
       }
-      ect_tree.smudge(p_lct[0]);
+      ect_tree.smudge(task_idx[p_lct[0]]);
       for(int xi : p_lct.slice(1, p_lct.size())) {
-        if(ect_tree.root().ect > lct(xi)) {
-          int lim = ex_ect(lct(xi)+1, confl);
-          confl.push(xs[xi] >= lim - du[xi]);
+        if(ect_tree[0].ect > lct(xi)) {
+          // int lim = ex_ect(lct(xi)+1, confl);
+//          confl.push(xs[xi] >= lim - du[xi]);
+          ex_ect(lct(xi)+1, confl);
           return false;
         }
         while(ect_tree[0].o_ect > lct(xi)) {
           // Identify the failing task.
-          unsigned int ti = p_est[ect_tree.blocked_task(lct(xi))];
-          /*
-          unsigned int tj = p_est[ect_tree.blocking_task(lct(xi))];
-          if(!set_lb(xs[p_est[ti]], ect_tree[0].ect,
+          unsigned int pi = ect_tree.blocked_task(lct(xi)+1);
+#if 1
+          unsigned int ti = p_est[pi];
+          unsigned int tj = p_est[ect_tree.blocking_task(lct(xi)+1)];
+          if(!set_lb(xs[ti], ect_tree[0].ect,
             ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
             return false;
-          */
-          ect_tree.remove(ti);
+#endif
+          ect_tree.remove(pi);
         }
+        ect_tree.smudge(task_idx[xi]);
       }
       return true;
     }
@@ -357,34 +401,40 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       std::sort(p_lct.begin(), p_lct.end(), 
         [&](int x, int y) { return lct(x) > lct(y); });
       lst_tree.fill();
+      for(int ii : irange(p_lct.size()))
+        task_idx[p_lct[ii]] = ii;
 
       std::sort(p_est.begin(), p_est.end(),
         [&](int x, int y) { return est(x) < est(y); });
 
-      if(lst_tree.root().ect > -lst(p_est[0])) {
+      if(-lst_tree[0].ect > lst(p_est[0])) {
         int xi = p_est[0];
-        int lim = ex_lst(lst(xi)+1, confl);
-        confl.push(xs[xi] < lim);
+        // int lim = ex_lst(lst(xi)+1, confl);
+        // confl.push(xs[xi] < lim);
+        ex_lst(lst(xi)+1, confl);
         return false;
       }
-      lst_tree.smudge(p_lst[0]);
+      lst_tree.smudge(task_idx[p_est[0]]);
       for(int xi : p_est.slice(1, p_est.size())) {
-        if(lst_tree.root().ect > -est(xi)) {
+        if(-lst_tree[0].ect > lst(xi)) {
           int lim = ex_lst(lst(xi)+1, confl);
           confl.push(xs[xi] < lim);
           return false;  
         }
-        while(lst_tree.root().o_ect > -lst(xi)) {
+        while(-lst_tree[0].o_ect > lst(xi)) {
           // Identify the failing task.
-          unsigned int ti = p_est[lst_tree.blocked_task(-lst(xi))];
-          /*
-          unsigned int tj = p_est[lst_tree.blocking_task(-lst(xi))];
+          unsigned int pi = lst_tree.blocked_task(-lst(xi)+1);
+#if 1
+          unsigned int ti = p_lct[pi];
+          unsigned int tj = p_est[lst_tree.blocking_task(-lst(xi)+1)];
           if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
             ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
             return false;
-            */
-          lst_tree.remove(ti);
+#endif
+          lst_tree.remove(pi);
         }
+        lst_tree.smudge(task_idx[xi]);
       }
       return true;
     }
@@ -399,9 +449,8 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
 
     // Temporary storage
     vec<int> p_est;
-    vec<int> p_ect;
-    vec<int> p_lst;
     vec<int> p_lct;
+    vec<int> task_idx;
 
     ps_tree<eval_ect> ect_tree;
     ps_tree<eval_lst> lst_tree;

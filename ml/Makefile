@@ -25,7 +25,7 @@ SHARED = gcc -shared
 RANLIB = ranlib
 
 #IDLSRCS = $(wildcard *.idl)
-IDLSRCS = atom.idl solver.idl builtins.idl
+IDLSRCS = atom.idl solver.idl internal.idl builtins.idl
 MLIS = $(addsuffix .mli, $(basename $(IDLSRCS)))
 MLS = $(addsuffix .ml, $(basename $(IDLSRCS)))
 CMIS = $(addsuffix .cmi, $(basename $(IDLSRCS)))

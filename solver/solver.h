@@ -24,6 +24,8 @@ public:
   ~solver(void);
 
   intvar new_intvar(intvar::val_t lb, intvar::val_t ub);
+  // o_intvar new_opt_intvar(intvar::val_t lb, intvar::val_t ub);
+
   fp::fpvar new_floatvar(fp::val_t lb, fp::val_t ub);
   patom_t new_boolvar(void);
   // Post a constraint

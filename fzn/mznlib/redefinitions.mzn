@@ -41,6 +41,18 @@ annotation int_priority(array[int] of var int: xs,
 annotation bool_priority(array[int] of var bool: xs,
   array[int] of ann: br, ann: sel);
 
+predicate cumulative(array[int] of var int: s,
+  array[int] of int: d,
+  array[int] of int: r,
+  int: b) = fzn_cumulative(s, d, r, b);
+predicate fzn_cumulative(array[int] of var int: s,
+  array[int] of int: d,
+  array[int] of int: r,
+  int: b);
+
+predicate disjunctive(array[int] of var int: s, array[int] of int: d) =
+  fzn_disjunctive(s, d);
+predicate fzn_disjunctive(array[int] of var int: s, array[int] of int: d);
 % Sums over Boolean variables
 %predicate bool_lin_eq(array[int] of int: a, array[int] of var bool: x,
 %                      var int: c);

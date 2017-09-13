@@ -74,6 +74,14 @@ let int_max solver args anns =
   let z = force_ivar solver args.(2) in
   Builtins.int_max solver At.at_True z [|x; y|]
 
+let int_min solver args anns =
+  let x = force_ivar solver args.(0) in
+  let y = force_ivar solver args.(1) in
+  let z = force_ivar solver args.(2) in
+  Builtins.int_max solver At.at_True
+    (Solver.intvar_neg z)
+    [|Solver.intvar_neg x; Solver.intvar_neg y|]
+
 let array_int_max solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(1) in
   let z = force_ivar solver args.(0) in
@@ -83,13 +91,6 @@ let array_int_min solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(1) in
   let z = force_ivar solver args.(0) in
   Builtins.int_max solver At.at_True (Solver.intvar_neg z) (Array.map Solver.intvar_neg xs)
-(*
-let int_min solver args anns =
-  let x = Pr.get_ivar args.(0) in
-  let y = Pr.get_ivar args.(1) in
-  let z = Pr.get_ivar args.(2) in
-  Builtins.int_min solver At.at_True z [|x; y|]
- *)
 
 let int_mul solver args anns =
   let x = force_ivar solver args.(0) in
@@ -142,7 +143,7 @@ let post_lin_le s r cs xs k =
     else
       S.post_clause s [|At.neg r; S.ivar_le x (Util.div_floor k c)|]
   | [1, x; -1, y], k | [-1, y; 1, x], k -> B.int_le s r x y k
-  | ts, k -> B.linear_le s r (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
+  | ts, k -> B.linear_le s r (Array.of_list ts) k
 
 (* Specialized bool_lin_le *)
 let post_bool_lin_le solver cs xs k =
@@ -160,9 +161,7 @@ let post_bool_lin_le solver cs xs k =
     B.int_le solver At.at_True x y k
     *)
   | ts, k ->
-    B.bool_linear_le
-      solver At.at_True
-      (Array.map (fun (c, x) -> {B.ac = c ; B.ax = x}) (Array.of_list ts)) k
+    B.bool_linear_le solver At.at_True (Array.of_list ts) k
 
 let bool_lin_le solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
@@ -222,7 +221,7 @@ let post_lin_ne s r cs xs k =
     else
       true
   | ts, k ->
-    B.linear_ne s r (Array.map (fun (c, x) -> {B.ic = c ; B.ix = x}) (Array.of_list ts)) k
+    B.linear_ne s r (Array.of_list ts) k
 
 
 let int_lin_eq solver args anns =
@@ -316,6 +315,22 @@ let array_int_element solver args anns =
 let all_different_int solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   B.all_different_int solver xs
+
+let cumulative solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  let dur = Pr.get_array Pr.get_int args.(1) in
+  let res = Pr.get_array Pr.get_int args.(2) in
+  let cap = Pr.get_int args.(3) in
+  let ts = Array.init (Array.length xs) (fun ii ->
+    { B.start = xs.(ii) ; B.dur = dur.(ii); B.res = res.(ii) }
+  ) in
+  B.cumulative solver ts cap
+
+let disjunctive s args anns =
+  let xs = Pr.get_array (force_ivar s) args.(0) in
+  let dur = Pr.get_array Pr.get_int args.(1) in
+  let ts = Array.init (Array.length xs) (fun ii -> xs.(ii), dur.(ii)) in
+  B.disjunctive s ts
 
 let array_var_int_element solver args anns =
   match Pr.get_ival args.(0), Pr.get_ival args.(2) with
@@ -492,8 +507,12 @@ let int_eq_reif solver args anns =
       let at = S.ivar_eq x k in
       bool_iff solver r at
     | Pr.Iv_var x, Pr.Iv_var y ->
+    (* *)
       B.int_le solver r x y 0
       && B.int_le solver r y x 0
+      (* )
+      B.int_eq solver r x y
+      ( *)
       && B.int_ne solver (At.neg r) x y
   end
 
@@ -533,8 +552,11 @@ let int_ne_reif solver args anns =
       bool_iff solver r at
     | Pr.Iv_var x, Pr.Iv_var y ->
       B.int_ne solver r x y
+      (*
       && B.int_le solver (At.neg r) x y 0
       && B.int_le solver (At.neg r) y x 0
+      *)
+      && B.int_eq solver (At.neg r) x y
   end
 
 let int_ne_HR solver args anns =
@@ -601,6 +623,7 @@ let initialize () =
   let handlers =
     ["bool_clause", bool_clause ;
      "int_max", int_max ;
+     "int_min", int_min ;
      "array_int_maximum", array_int_max ;
      "array_int_minimum", array_int_min ;
      "int_times", int_mul ;
@@ -640,6 +663,8 @@ let initialize () =
      "array_var_bool_element", array_var_bool_element ;
      "bool_lin_le", bool_lin_le ;
      "all_different_int", all_different_int ;
+     "fzn_cumulative", cumulative ;
+     "fzn_disjunctive", disjunctive ;
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers

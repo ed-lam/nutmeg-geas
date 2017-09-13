@@ -41,12 +41,14 @@ intvar new_intvar(solver s, int lb, int ub) {
   return (intvar) v;
 }
 
+/*
 typedef phage::optvar<phage::intvar> o_intvar;
 intvar new_opt_intvar(solver s, int lb, int ub) {
   phage::solver* ps(get_solver(s));
   o_intvar* v(new o_intvar(ps->new_opt_intvar(lb, ub)));
   return (o_intvar) v;
 }
+*/
 
 intvar intvar_neg(intvar x) {
   phage::intvar* v(new phage::intvar(-(*((phage::intvar*) x))));

@@ -8,6 +8,7 @@
 using namespace phage;
 
 int main(int argc, char** argv) {
+  /*
   valmap_t<int> valmap(0, 10, VS_Hash);
 
   for(int ii = 0; ii < 50; ii++)
@@ -20,5 +21,6 @@ int main(int argc, char** argv) {
       std::cout << ii << " ~> " << val << std::endl;
     }
   }
+  */
   return 0;
 }

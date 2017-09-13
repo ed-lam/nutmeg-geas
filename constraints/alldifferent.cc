@@ -35,6 +35,7 @@ public:
     for(int xi : fixed) {
       intvar::val_t k(lb(xs[xi]));
       patom_t r(xs[xi] != k);
+      assert(s->state.is_inconsistent(r));
 
       for(int ii : irange(xi)) {
         if(k < lb(xs[ii]) || ub(xs[ii]) < k)

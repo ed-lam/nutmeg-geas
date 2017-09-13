@@ -1142,7 +1142,7 @@ class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
     if(state&S_Red)
       return Wt_Keep;
     
-    set(status, S_Active);
+    set(status, (char) S_Active);
     if(lb(y) + ky < lb(x) + kx) {
       mode |= P_LB;
       queue_prop();
@@ -1200,7 +1200,7 @@ public:
     if(pred_lb(s, x) + kx > pred_ub(s, y) + ky) {
       if(!enqueue(*s, ~r, ex_thunk(ex<&P::ex_r>, 0)))
         return false;
-      set(state, S_Red);
+      set(state, (char) S_Red);
       return true;
     }
     if(mode&P_Deact) {
@@ -1263,6 +1263,262 @@ protected:
 };
 #endif
 
+class int_le_hr : public propagator, public prop_inst<int_le_hr> {
+  enum Status { S_None = 0, S_Active = 1, S_Red = 2 };
+  enum Change { C_None = 0, C_LB = 1, C_UB = 2, C_DIS = 4 };
+  
+  watch_result wake_r(int _k) {
+    set(status, (char) S_Active);
+    if(lb(x) > lb(y)) {
+      change |= C_LB;
+      queue_prop();
+    }
+    if(ub(y) < ub(x)) {
+      change |= C_UB;
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+  watch_result wake_lb(int _xi) {
+    if(status&S_Red)
+      return Wt_Keep;
+    if(status&S_Active) {
+      if(lb(x) > lb(x)) {
+        change |= C_LB;
+        queue_prop();
+      }
+    } else {
+      if(lb(x) > ub(y)) {
+        change |= C_DIS;
+        cut = lb(x);
+        queue_prop();
+      }
+    }
+    return Wt_Keep;
+  }
+  watch_result wake_ub(int _xi) {
+    if(status&S_Red)
+      return Wt_Keep;
+    if(status&S_Active) {
+      if(ub(y) < ub(x)) {
+        change |= C_UB;
+        queue_prop();
+      }
+    } else {
+      if(ub(y) < lb(x)) {
+        change |= C_DIS;
+        cut = lb(x);
+        queue_prop();
+      }
+    }
+    return Wt_Keep;
+  }
+
+  void ex_lb(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int y_lb = y.lb_of_pval(p);
+    expl.push(~r);
+    expl.push(x < y_lb);
+  }
+  void ex_ub(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int x_ub = x.ub_of_pval(p);
+    expl.push(~r);
+    expl.push(y > x_ub);
+  }
+  void ex_r(int _xi, pval_t _p, vec<clause_elt>& expl) {
+    expl.push(x < cut);
+    expl.push(y >= cut);
+  }
+
+public:
+  int_le_hr(solver_data* s, patom_t _r, intvar _x, intvar _y)
+    : propagator(s), r(_r), x(_x), y(_y), change(C_None), status(S_None) {
+    
+    assert(!s->state.is_inconsistent(r)); 
+
+    x.attach(E_LB, watch<&P::wake_lb>(0, Wt_IDEM));
+    y.attach(E_UB, watch<&P::wake_ub>(0, Wt_IDEM));
+
+    if(s->state.is_entailed(r)) {
+      status = S_Active;
+    } else {
+      attach(s, r, watch<&P::wake_r>(0, Wt_IDEM)); 
+    }
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    if(status&S_Red)
+      return true;
+    
+    if(change&C_DIS) {
+      if(!enqueue(*s, ~r, ex_thunk(ex<&P::ex_r>,0)))
+        return false;
+      set(status, (char) S_Red);
+    }
+    if(change&C_LB) {
+      if(!set_lb(y, lb(x),
+          ex_thunk(ex<&P::ex_lb>,0)))
+        return false;
+    }
+    if(change&C_UB) {
+      if(!set_ub(x, ub(y),
+          ex_thunk(ex<&P::ex_ub>,0)))
+        return false;
+    }
+    change = C_None;
+    return true;
+  }
+
+  void cleanup(void) {
+    is_queued = false;
+    change = C_None;
+  }
+
+  patom_t r;
+  intvar x;
+  intvar y;
+
+  char change;
+  int lb_var; int ub_var;
+  int cut;
+  Tchar status;
+};
+class int_eq_hr : public propagator, public prop_inst<int_eq_hr> {
+  enum Status { S_None = 0, S_Active = 1, S_Red = 2 };
+  enum Change { C_None = 0, C_LB = 1, C_UB = 2, C_DIS = 4 };
+  
+  watch_result wake_r(int _k) {
+    set(status, (char) S_Active);
+    if(lb(xs[0]) != lb(xs[1])) {
+      change |= C_LB;
+      lb_var = lb(xs[0]) < lb(xs[1]) ? 1 : 0;
+      queue_prop();
+    }
+    if(ub(xs[0]) != ub(xs[1])) {
+      change |= C_UB;
+      ub_var = ub(xs[0]) < ub(xs[1]) ? 0 : 1;
+      queue_prop();
+    }
+    return Wt_Keep;
+  }
+  watch_result wake_lb(int xi) {
+    if(status&S_Red)
+      return Wt_Keep;
+    if(status&S_Active) {
+      if(lb(xs[xi]) > lb(xs[xi^1])) {
+        lb_var = xi;
+        change |= C_LB;
+        queue_prop();
+      }
+    } else {
+      if(lb(xs[xi]) > ub(xs[xi^1])) {
+        change |= C_DIS;
+        cut = lb(xs[xi]);
+        queue_prop();
+      }
+    }
+    return Wt_Keep;
+  }
+  watch_result wake_ub(int xi) {
+    if(status&S_Red)
+      return Wt_Keep;
+    if(status&S_Active) {
+      if(ub(xs[xi]) < ub(xs[xi^1])) {
+        ub_var = xi;
+        change |= C_UB;
+        queue_prop();
+      }
+    } else {
+      if(ub(xs[xi]) < lb(xs[xi^1])) {
+        change |= C_DIS;
+        cut = lb(xs[xi^1]);
+        queue_prop();
+      }
+    }
+    return Wt_Keep;
+  }
+
+  void ex_lb(int xi, pval_t p, vec<clause_elt>& expl) {
+    int x_lb = xs[xi].lb_of_pval(p);
+    expl.push(~r);
+    expl.push(xs[xi^1] < x_lb);
+  }
+  void ex_ub(int xi, pval_t p, vec<clause_elt>& expl) {
+    int x_ub = xs[xi].ub_of_pval(p);
+    expl.push(~r);
+    expl.push(xs[xi^1] > x_ub);
+  }
+  void ex_r(int _xi, pval_t _p, vec<clause_elt>& expl) {
+    if(lb(xs[0]) < cut) {
+      expl.push(xs[0] >= cut);
+      expl.push(xs[1] < cut);
+    } else {
+      expl.push(xs[0] < cut);
+      expl.push(xs[1] >= cut);
+    }
+  }
+
+public:
+  int_eq_hr(solver_data* s, patom_t _r, intvar x, intvar y)
+    : propagator(s), r(_r), change(C_None), status(S_None) {
+    xs[0] = x;
+    xs[1] = y;
+    
+    assert(!s->state.is_inconsistent(r)); 
+
+    for(int ii = 0; ii < 2; ii++) {
+      xs[ii].attach(E_LB, watch<&P::wake_lb>(ii, Wt_IDEM));
+      xs[ii].attach(E_UB, watch<&P::wake_ub>(ii, Wt_IDEM));
+    }
+    if(s->state.is_entailed(r)) {
+      status = S_Active;
+    } else {
+      attach(s, r, watch<&P::wake_r>(0, Wt_IDEM)); 
+    }
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    if(status&S_Red)
+      return true;
+    
+    if(change&C_DIS) {
+      if(!enqueue(*s, ~r, ex_thunk(ex<&P::ex_r>,0)))
+        return false;
+      set(status, (char) S_Red);
+    }
+    if(change&C_LB) {
+      if(!set_lb(xs[lb_var^1], lb(xs[lb_var]),
+          ex_thunk(ex<&P::ex_lb>,lb_var^1)))
+        return false;
+    }
+    if(change&C_UB) {
+      if(!set_ub(xs[ub_var^1], ub(xs[ub_var]),
+          ex_thunk(ex<&P::ex_ub>,ub_var^1)))
+        return false;
+    }
+    change = C_None;
+    return true;
+  }
+
+  void cleanup(void) {
+    is_queued = false;
+    change = C_None;
+  }
+
+  patom_t r;
+  intvar xs[2];
+
+  char change;
+  int lb_var; int ub_var;
+  int cut;
+  Tchar status;
+};
+bool int_eq(solver_data* s, intvar x, intvar y, patom_t r) {
+  if(s->state.is_inconsistent(r))
+    return true;
+  new int_eq_hr(s, r, x, y);
+  return true;
+}
+
 class pred_le_hr_s : public propagator, public prop_inst<pred_le_hr_s> {
   enum status { S_Active = 1, S_Red = 2 };
   enum mode { P_None = 0, P_LB = 1, P_UB = 2, P_LU = 3, P_Deact = 4 };
@@ -1277,6 +1533,10 @@ class pred_le_hr_s : public propagator, public prop_inst<pred_le_hr_s> {
     trail_change(s->persist, state, (char) S_Active);
     mode = P_LU;
     queue_prop();
+    return Wt_Keep;
+  }
+  watch_result wake_red(int _xi) {
+    trail_change(s->persist, state, (char) S_Red);
     return Wt_Keep;
   }
 
@@ -1328,6 +1588,7 @@ public:
     s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
 
     attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
+    attach(s, ~r, watch<&P::wake_red>(0, Wt_IDEM));
   }
   
   bool propagate(vec<clause_elt>& confl) {
@@ -1509,7 +1770,7 @@ bool pred_leq(solver_data* s, pid_t x, pid_t y, int k) {
 }
 
 bool int_leq(solver_data* s, intvar x, intvar y, int k) {
-  return pred_leq(s, x.p, y.p, k);
+  return pred_leq(s, x.p, y.p, k + y.off - x.off);
   /*
   if(ub(y) + k < lb(x))
     return false;
@@ -1528,18 +1789,22 @@ bool int_leq(solver_data* s, intvar x, intvar y, int k) {
 }
 
 bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
+  if(s->state.is_inconsistent(r))
+    return true;
   if(s->state.is_entailed(r) && y.ub(s) + k < x.lb(s))
     return false;
 
   if(s->state.is_entailed(r))
     return int_leq(s, x, y, k);
 
-  // new pred_le_hr(s, x.p, y.p, k, r);
   new pred_le_hr_s(s, x.p, y.p, k, r);
+  // new int_le_hr(s, r, x, y+k);
   return true;
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
+  if(s->state.is_inconsistent(r))
+    return true;
   if(s->state.is_entailed(r))
     return pred_leq(s, x, y, k);
   pval_t lb = std::max(pred_lb(s, x), pred_lb(s, y)+k);

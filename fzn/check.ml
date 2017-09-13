@@ -172,6 +172,8 @@ let check_funs =
        "int_eq_reif", reif (int_rel (=)) ;
        "int_le", int_rel (<=) ;
        "int_le_reif", reif (int_rel (<=)) ;
+       "int_lt", int_rel (<) ;
+       "int_lt_reif", reif (int_rel (<)) ;
        "int_lin_le_reif", reif (int_linear_rel (<=)) ;
        "int_lin_le", int_linear_rel (<=) ;
        "int_lin_le_reif", reif (int_linear_rel (<=)) ;

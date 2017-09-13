@@ -6,6 +6,8 @@
 #include "mtl/int-triemap.h"
 #include "infer-types.h"
 
+// #define SPARSE_WATCHES
+
 namespace phage {
 
 class infer_info {
@@ -96,7 +98,7 @@ protected:
   pid_t new_half_pred(pval_t lb, pval_t ub) {
     pid_t pid = watch_maps.size();
     pred_ineqs.push();
-#if 1
+#ifndef SPARSE_WATCHES
     watch_node* w(new watch_node); 
 #ifdef DEBUG_WMAP
     w->curr_val = 0;
@@ -121,7 +123,7 @@ protected:
 public:
   // Find the appropriate watch for an atom.
   watch_node* get_watch(pid_t p, pval_t val) {
-#if 0
+#ifdef SPARSE_WATCHES
     /*
     MakeWNode m;
     return (*(watch_maps[p].find_or_add(m, key))).value;
@@ -149,6 +151,16 @@ public:
     pred->succ_val = val;
     pred->succ = w;
     return w;
+#endif
+  }
+
+  void make_sparse(pid_t p, vec<pval_t>& vs) {
+#ifdef SPARSE_WATCHES
+    // Only safe at decision level 0.
+    watch_maps[p].make_sparse(p, vs); 
+    watch_node* w(watch_maps[p].nodes);
+    pred_watches[p] = w;
+    pred_watch_heads[p] = watch_head { 0, w };
 #endif
   }
 

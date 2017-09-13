@@ -4,7 +4,10 @@
 #include <cstdio>
 #include <utility>
 
-
+#define ADD(T, K, V) (T).add((K),(V))
+// #define ADD(T, K, V) (T).insert(std::make_pair((K),(V)))
+#define VAL(It) (It).value
+// #define VAL(It) (It).second
 namespace phage {
 
 typedef intvar::val_t val_t;
@@ -259,18 +262,29 @@ void ivar_ext::make_eager(void) {
 }
 
 bool ivar_ext::make_sparse(vec<pval_t>& _vs) {
+  // Only safe at decision level 0.
   vec<pval_t> vs(_vs); 
   uniq(vs);
-  // Set global bounds and gaps
+  // Make the watch-maps sparse.
+// #if 0
+  s->infer.make_sparse(p, vs);
+  vec<pval_t> inv_vs;
+  for(int ii = vs.size()-1; ii >= 0; --ii)
+    inv_vs.push(pval_inv(vs[ii]));
+  s->infer.make_sparse(p^1, inv_vs);
 
+  // Set global bounds and gaps
   if(!enqueue(*s, ge_atom(p, vs[0]), reason()))
     return false;
+#ifndef SPARSE_WATCHES
+  // Now done in make_sparse.
   for(int vi = 1; vi < vs.size(); vi++) {
     if(vs[vi-1]+1 == vs[vi])
       continue;
     if(!add_clause(s, le_atom(p, vs[vi-1]), ge_atom(p, vs[vi])))
       return false;
   }
+#endif
   if(!enqueue(*s, le_atom(p, vs.last()), reason()))
     return false;
 
@@ -278,7 +292,8 @@ bool ivar_ext::make_sparse(vec<pval_t>& _vs) {
   auto it = eqtable.find(vs[0]);
   if(it == eqtable.end()) {
     patom_t at = le_atom(p, vs[0]);
-    eqtable.insert(std::make_pair(vs[0], at));
+    // eqtable.insert(std::make_pair(vs[0], at));
+    ADD(eqtable, vs[0], at);
   }
   for(int vi = 1; vi < vs.size()-1; vi++) {
     auto it = eqtable.find(vs[vi]);
@@ -286,7 +301,8 @@ bool ivar_ext::make_sparse(vec<pval_t>& _vs) {
       continue;
 
     patom_t at = new_bool(*s);
-    eqtable.insert(std::make_pair(vs[vi], at));
+    // eqtable.insert(std::make_pair(vs[vi], at));
+    ADD(eqtable, vs[vi], at);
     if(!add_clause(s, ~at, le_atom(p, vs[vi])))
       return false;
     if(!add_clause(s, ~at, ge_atom(p, vs[vi])))
@@ -296,7 +312,8 @@ bool ivar_ext::make_sparse(vec<pval_t>& _vs) {
   }
   it = eqtable.find(vs.last());
   if(it == eqtable.end()) {
-    eqtable.insert(std::make_pair(vs.last(), ge_atom(p, vs.last())));
+    // eqtable.insert(std::make_pair(vs.last(), ge_atom(p, vs.last())));
+    ADD(eqtable, vs.last(), ge_atom(p, vs.last()));
   }
 
   return true;
@@ -341,7 +358,8 @@ static void eqat_finalize_lb(solver_data* s, void* ptr, int ei) {
   ivar_ext* ext(static_cast<ivar_ext*>(ptr));
   pid_t x_pi = ext->p;
   pval_t val = ext->vals[ei];
-  patom_t at((*(ext->eqtable.find(val))).second);
+  // patom_t at((*(ext->eqtable.find(val))).second);
+  patom_t at(VAL(*(ext->eqtable.find(val))));
   add_clause_(s, at, ~patom_t(x_pi, val), patom_t(x_pi, val+1));
 }
 
@@ -349,7 +367,8 @@ static void eqat_finalize_ub(solver_data* s, void* ptr, int ei) {
   ivar_ext* ext(static_cast<ivar_ext*>(ptr));
   pid_t x_pi = ext->p;
   pval_t val = ext->vals[ei];
-  patom_t at((*(ext->eqtable.find(val))).second);
+//  patom_t at((*(ext->eqtable.find(val))).second);
+  patom_t at(VAL(*(ext->eqtable.find(val))));
   add_clause_(s, ~at, patom_t(x_pi, val));
   add_clause_(s, ~at, ~patom_t(x_pi, val+1));
 }
@@ -357,7 +376,8 @@ static void eqat_finalize_ub(solver_data* s, void* ptr, int ei) {
 patom_t ivar_ext::get_eqatom(pval_t val) {
   auto it = eqtable.find(val);
   if(it != eqtable.end())
-    return (*it).second;
+    // return (*it).second;
+    return VAL(*it);
 
   int eq_idx = vals.size();
   vals.push(val);
@@ -390,7 +410,8 @@ patom_t ivar_ext::get_eqatom(pval_t val) {
     add_clause_(s, at, ~patom_t(p, val), patom_t(p, val+1));
   }
 
-  eqtable.insert(std::make_pair(val, at));
+  // eqtable.insert(std::make_pair(val, at));
+  ADD(eqtable, val, at);
   return at;
 }
 

@@ -25,11 +25,11 @@ bool var_int_element(solver_data* s, intvar x, intvar i, vec<intvar>& ys,
   patom_t r = at_True);
 
 // disjunctive.cc
-void disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du); 
-void disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du);
+bool disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du); 
+bool disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du);
 
 // cumulative.cc
-void cumulative(solver_data* s,
+bool cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& durations, vec<int>& resources, int cap);
 
 // arith.cc
@@ -45,6 +45,7 @@ bool int_div(solver_data* s, intvar z, intvar x, intvar y, patom_t r = at_True);
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r = at_True);
 bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r = at_True);
 bool int_ne(solver_data* s, intvar x, intvar y, patom_t r = at_True);
+bool int_eq(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 
 // alldifferent.cc
 bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True);

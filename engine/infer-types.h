@@ -10,6 +10,8 @@
 #include "utils/defs.h"
 #include "engine/phage-types.h"
 
+// #define SPARSE_WATCHES
+
 namespace phage {
 
 class solver_data;
@@ -162,7 +164,7 @@ struct MakeWNode {
 
 // For a given pid_t, map values to the corresponding
 // watches.
-#if 1
+#ifndef SPARSE_WATCHES
 // typedef std::map<pval_t, watch_node*> watch_map;
 typedef uint64_triemap<uint64_t, watch_node*, UIntOps> watch_map;
 #else
@@ -177,12 +179,13 @@ private:
 
 public:
   enum Kind { W_EAGER, W_SPARSE, W_LAZY };   
-  enum { EAGER_LIMIT = 20 };
+  enum { EAGER_LIMIT = 10 };
 
   Kind kind;
   union {
     struct {
       pval_t base;
+      unsigned int sz;
     } e;
     struct {
       pval_t base;
@@ -204,10 +207,11 @@ public:
     : kind(ub - lb < EAGER_LIMIT ? W_EAGER : W_LAZY) {
     if(kind == W_EAGER) {
       unsigned int sz = (ub - lb + 1);
-      nodes = (watch_node*) malloc(sizeof(watch_node) * sz);
+      nodes = (watch_node*) malloc(sizeof(watch_node) * (sz+1));
       e.base = lb;
+      e.sz = sz;
       watch_node* n = nodes;
-      for(; lb < ub; ++lb, ++n) {
+      for(; lb <= ub; ++lb, ++n) {
         new (n) watch_node;
         n->succ_val = lb+1;
         n->succ = n+1;
@@ -222,22 +226,130 @@ public:
       l.add(lb, m(lb));
     }
   }
+  
+  // PRE: xs is ascending.
+  // Drop any nodes which aren't present in xs.
+  void migrate_watches(watch_node* dest, watch_node* src) {
+    if(dest == src)
+      return;
+    for(patom_t p : src->bin_ws)
+      dest->bin_ws.push(p);
+    for(clause_head w : src->ws)
+      dest->ws.push(w);
+    for(watch_callback c : src->callbacks)
+      dest->callbacks.push(c);
+    src->bin_ws.clear();
+    src->ws.clear();
+    src->callbacks.clear();
+  }
 
+  void shrink(pid_t p, vec<pval_t>& xs) {
+    watch_node* pn(nodes);
+    watch_node* en(nodes);
+
+    watch_node* curr(nodes);
+
+    pval_t* px = xs.begin();
+    pval_t* ex = xs.end();
+    pval_t implied = curr->succ_val-1;
+    while(pn != en && px != ex) {
+      if(*px + 1 < pn->succ_val) {
+        ++px;
+      } else if(*px + 1 > pn->succ_val) {
+        migrate_watches(curr, pn);
+        ++pn; 
+      } else {
+        migrate_watches(curr, pn); 
+        curr->succ_val = pn->succ_val;
+        if(implied < *px) // FIXME: May have dupes here.
+          curr->bin_ws.push(ge_atom(p, *px));
+        ++pn;
+        ++px;
+        ++curr;
+        implied = pn->succ_val;
+      }
+    }
+    s.base = 0;
+    s.sz = curr - nodes;
+    // Call destructors on anything we'll skip
+    for(; curr != en; ++curr)
+      curr->~watch_node();
+  }
+
+  // FIXME: Given values [x1, ..., x_n], we _actually_ need
+  // watches on each xi+1, not xi.
+  // We need the p parameter so we know which binary clauses to add.
+  void make_sparse(pid_t p, vec<pval_t>& xs) {
+    switch(kind) {
+      case W_EAGER: 
+        // Only sparsify if it's worthwhile.
+        if(2 * xs.size() < e.sz) {
+          kind = W_SPARSE;
+          s = { e.base, e.sz };
+          shrink(p, xs);
+        }
+        break;
+      case W_SPARSE:
+        // Already sparse; drop any values
+        // which are no longer feasible.
+        shrink(p, xs);
+        break;
+      case W_LAZY:
+        // Allocate the sparse nodes, then
+        // migrate everything from the lazy.
+        {
+          kind = W_SPARSE;
+          unsigned int sz = xs.size();
+          nodes = (watch_node*) malloc(sizeof(watch_node) * (sz+1));
+          
+          watch_node* curr(nodes);
+          auto lnode(l.begin());
+          for(int ii : irange(xs.size())) {
+            new (curr) watch_node;
+            curr->succ_val = xs[ii]+1;
+            curr->succ = curr+1;
+            
+            if(ii > 0 && xs[ii] > xs[ii-1]+1) {
+              // Non-contiguous.
+              curr->bin_ws.push(ge_atom(p, xs[ii]));
+            }
+
+            while(lnode != l.end() && (*lnode).key <= xs[ii]) {
+              migrate_watches(curr, (*lnode).value);  
+              delete (*lnode).value;
+              ++lnode;
+            }
+            ++curr;
+          }
+          new (curr) watch_node;
+          curr->succ_val = pval_err;
+          curr->succ = nullptr;
+
+          l.~watch_trie();
+
+          s.base = xs[0];
+          s.sz = sz;
+        }
+        break;
+      default:
+        NEVER;
+    }
+  }
   watch_map(vec<pval_t>& xs)
     : kind(W_SPARSE) {
     unsigned int sz = xs.size();
     s.sz = sz;
 
     s.base = xs[0];
-    nodes = (watch_node*) malloc(sizeof(watch_node) * sz);
-    for(int ii = 1; ii < xs.size(); ++ii) {
+    nodes = (watch_node*) malloc(sizeof(watch_node) * (sz+1));
+    for(int ii = 1; ii <= sz; ++ii) {
       new (&nodes[ii-1]) watch_node;
       nodes[ii-1].succ_val = xs[ii];
       nodes[ii-1].succ = &nodes[ii];
     }
-    new (&nodes[xs.size()-1]) watch_node;
-    nodes[xs.size()-1].succ_val = pval_err;
-    nodes[xs.size()-1].succ = nullptr;
+    new (&nodes[sz]) watch_node;
+    nodes[sz].succ_val = pval_err;
+    nodes[sz].succ = nullptr;
   }
 
   watch_map(watch_map&& o)
@@ -245,9 +357,11 @@ public:
       switch(o.kind) {
         case W_EAGER:
           e = o.e;
+          o.e.sz = 0;
           break;
         case W_SPARSE:
           s = o.s;
+          o.s.sz = 0;
           break;
         case W_LAZY:
           l = std::move(o.l);
@@ -262,9 +376,11 @@ public:
     switch(o.kind) {
       case W_EAGER:
         e = o.e;
+        o.e.sz = 0;
         break;
       case W_SPARSE:
         s = o.s;
+        o.s.sz = 0;
         break;
       case W_LAZY:
         l = std::move(o.l);
@@ -273,45 +389,65 @@ public:
   }
 
   ~watch_map(void) {
-    if(nodes)
-      free(nodes);
 
     switch(kind) {
       case W_LAZY:
         l.~watch_trie();
+        break;
+      case W_EAGER:
+        for(watch_node* p = nodes; p != nodes+e.sz; ++p)
+          p->~watch_node();
+        break;
+      case W_SPARSE:
+        for(watch_node* p = nodes; p != nodes+s.sz; ++p)
+          p->~watch_node();
+        break;
       default:
         break;
     }
+    if(nodes)
+      free(nodes);
   }
 
   watch_node& find_sparse(pval_t k) {
     if(k <= s.base)
       return nodes[0];
 
+    // FIXME
+#if 0
     unsigned int pre = 0;
-    unsigned int high = s.sz-1;
+    unsigned int high = s.sz;
 
-    while(pre+1 < high) {
+    while(pre < high) {
       unsigned int mid = pre + (high - pre)/2;
       if(nodes[mid].succ_val < k)
-        high = mid;
+        pre = mid+1;
       else if(nodes[mid].succ_val > k)
-        pre = mid+1; 
+        high = mid; 
       else
         return nodes[mid+1];
     }
     return nodes[high];
+#else
+    watch_node* p(nodes);
+    while(p->succ_val < k)
+      ++p;
+    return *(p+1);
+#endif
   }
 
   watch_node* find_lazy(pval_t k) {
     MakeWNode m;
-    return (*(l.find_or_add(m, k))).value;
+    return l.find_or_add(m, k);
   }
   
   watch_node* get(pval_t k) {
     switch(kind) {
       case W_EAGER:
-        return &(nodes[k - e.base]);
+        {
+          unsigned int idx = std::min(k - e.base, (pval_t) e.sz);
+          return &(nodes[idx]);
+        }
       case W_SPARSE:
         return &(find_sparse(k));
       case W_LAZY:

@@ -9,6 +9,7 @@
 
 #include "solver/solver_data.h"
 #include "constraints/builtins.h"
+#include "constraints/flow/flow.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +33,7 @@ int linear_le(solver s, atom r, int_linterm* ts, int sz, int k) {
     ks.push(ts[ii].c);
     xs.push(*get_intvar(ts[ii].x));
   }
-#if 1
+#if 0
   if(xs.size() > 5)
     return phage::linear_le_ps(get_solver(s)->data, ks, xs,  k, get_atom(r));
   else
@@ -149,7 +150,38 @@ int all_different_int(solver s, intvar* xs, int sz) {
   for(intvar* v = xs; v != xs+sz; ++v) {
     p_xs.push(*get_intvar(*v));
   }
+#if 1
   return phage::all_different_int(get_solver(s)->data, p_xs);
+#else
+  /*
+  vec<int> ds(p_xs.size(), 1);
+  return phage::disjunctive_int(get_solver(s)->data, p_xs, ds);
+  */
+  // Find the min and max-domains.
+  phage::solver_data* sd(get_solver(s)->data);
+  int lb = p_xs[0].lb(sd); 
+  int ub = p_xs[0].ub(sd); 
+  for(int ii = 1; ii < p_xs.size(); ii++) {
+    lb = std::min(lb, (int) p_xs[ii].lb(sd));
+    ub = std::max(ub, (int) p_xs[ii].ub(sd));
+  }
+
+  int dom = ub - lb + 1;
+  if(p_xs.size() == dom) {
+    vec<int> srcs(p_xs.size(), 1);
+    vec<int> sinks(p_xs.size(), 1);
+
+    vec<phage::bflow> flows;
+    for(int xi : irange(p_xs.size())) {
+      for(int k : irange(dom)) {
+        flows.push(phage::bflow {xi, k, p_xs[xi] == lb+k }); 
+      }
+    }
+    return phage::bipartite_flow(sd, srcs, sinks, flows);
+  } else {
+    return phage::all_different_int(sd, p_xs);
+  }
+#endif
 }
 
 int cumulative(solver s, task* ts, int sz, int cap) {

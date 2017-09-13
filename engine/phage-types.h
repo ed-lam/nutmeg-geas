@@ -44,6 +44,8 @@ static const pval_t pval_err = UINT64_MAX;
 static const pval_t pval_min = 0;
 #endif
 
+typedef uint32_t pid_t;
+
 typedef vec<pval_t> ctx_t;
 
 forceinline inline pval_t pval_inv(pval_t v) { return pval_max - v; }
@@ -60,11 +62,10 @@ forceinline inline bool pred_fixed(const ctx_t& ctx, pid_t p) {
   return pval_inv(ctx[p]) == ctx[p^1];
 }
 
-typedef uint32_t pid_t;
-
 class patom_t {
 public:
   // So it's accessible during debugging
+  typedef bool val_t;
   static pval_t val_max;
 
   patom_t(void) : pid(UINT32_MAX), val(0) { }

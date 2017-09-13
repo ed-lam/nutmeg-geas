@@ -191,6 +191,8 @@ let handle_idef x def =
   | S.Iv_eq y -> add_mono [] bx (Int y)
   | S.Iv_opp y -> add_anti [] bx (Int y)
   (* Arithmetic functions *)
+  | S.Iv_elem (ys, x) ->
+    Ar.fold_left (fun rs y -> add_mono rs bx (Int y)) (add_mix [] bx (Int x)) ys
   | S.Iv_lin ys -> Ar.fold_left (fun rs (c, y) ->
       if c < 0 then
         add_anti rs bx (Int y)

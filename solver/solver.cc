@@ -586,7 +586,8 @@ bool update_watchlist(solver_data& s,
     */
     // Normal case: look for a new watch
     clause& c(*ch.c);
-    if(c[1].atom != elt.atom) {
+    // if(c[1].atom != elt.atom) {
+    if(c[1].atom.pid != elt.atom.pid) {
 #ifdef CACHE_WATCH
       elt.watch = c[0].watch;
 #endif

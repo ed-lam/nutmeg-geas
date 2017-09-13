@@ -1,6 +1,7 @@
 #ifndef PHAGE_VAR__H
 #define PHAGE_VAR__H
 #include <unordered_map>
+#include "mtl/int-triemap.h"
 
 #include "utils/interval.h"
 #include "engine/infer.h"
@@ -13,10 +14,125 @@ class intvar_manager;
 
 enum intvar_event { E_None = 0, E_LB = 1, E_UB = 2, E_LU = 3, E_FIX = 4 };
 
+enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
+
 intvar_manager* get_ivar_man(solver_data* s);
 
 // Extra bookkeeping for intvars
+#if 0
+struct ivar_emap {
+  pval_t base;
+  unsigned int sz;
+  patom_t* atoms;  
+
+  template<class F>
+  patom_t get(F& f, pval_t v) {
+    if(v < base) return at_False;
+    if(base+sz <= v) return at_False;
+
+    patom_t at(atoms[v - base]);
+    if(at.pid == pid_None) {
+      at = f(v);
+      atoms[v - base].at = at;
+    }
+    return at;
+  }
+
+  bool in_domain(ctx_t& ctx, pval_t v) {
+    if(v < base) return false;
+    if(base+sz <= v) return false;
+
+    patom_t at(atoms[v - base]);
+    if(at.pid == pid_None)
+      return true;
+    else
+      return at.ub(ctx); 
+  }
+};
+
+struct ivar_smap {
+  struct smap_node { pval_t k; patom_t at; };
+  unsigned int sz;
+  smap_node* atoms;
+
+  // Tighten the domain of a value.
+  bool shrink(solver_data* s, pid_t v, vec<pval_t>& xs) {
+    pval_t* px(xs.begin());
+    pval_t* ex(xs.end());
+    smap_node* pn(atoms);
+    smap_node* en(atoms + sz);
+
+    // Find the new first element.
+    while(px != ex && pn != en) {
+      if(*px < pn->k)
+        ++px;
+      else if(*px > pn->k)
+        ++pn;
+      else {
+        goto found_min;      
+      }
+    }
+    // If we reach here, the domain is empty.
+    return false; 
+found_min:
+    pval_t prev = pn->v;
+    *curr = *pn;
+    ++px; ++pn;
+    bool skip = false;
+    
+    while(px != ex && pn != en) {
+      if(*px < pn->k) {
+        ++px; skip = true;
+      } else if(*px > pn->k) {
+        ++pn; skip = true;
+      } else {
+        if(skip) {
+          if(!add_clause(*s, le_atom(v, prev), ge_atom(v, *px)))
+            return false; 
+        }
+        ++curr;
+        *curr = *pn;
+        ++px;
+        ++pn;
+      }
+    }
+    if(!enqueue(*s, le_atom(v, curr->k), reason()))
+      return false;
+
+    ++curr;
+    sz = curr - atoms;
+    return true;
+  }
+
+  // Doesn't check bounds.
+  bool in_domain(ctx_t& ctx, int k) const {
+    // Find the correct index.
+    unsigned int low = 0;
+    unsigned int high = sz;
+    while(low != high) {
+      unsigned int mid = low + (high - low)/2;  
+      if(atoms[mid].k > k) {
+        high = mid;
+      } else if (atoms[mid].k < k) {
+        low = mid+1;
+      } else {
+        // Found the location
+        patom_t at(atoms[mid].at);
+        if(at.pid == pid_None) {
+          return true;
+        } else {
+          return at.ub(ctx);
+        }
+      }
+    }
+    return false;
+  }
+};
+#endif
+
 struct ivar_ext {
+  typedef uint64_triemap<uint64_t, patom_t, UIntOps> eqtable_t;
+
   ivar_ext(solver_data* _s, pid_t _p, int _idx)
     : s(_s), p(_p), idx(_idx) { }
 
@@ -31,7 +147,8 @@ struct ivar_ext {
   vec<watch_callback> b_callbacks[2];
   vec<watch_callback> fix_callbacks;
 
-  std::unordered_map<pval_t, patom_t> eqtable;
+  // std::unordered_map<pval_t, patom_t> eqtable;
+  eqtable_t eqtable;
   vec<pval_t> vals;
 };
 
@@ -137,7 +254,6 @@ class intvar_manager {
 public:
   typedef intvar::val_t val_t;
 
-  enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
 
   intvar_manager(solver_data* _s);
   intvar new_var(val_t lb, val_t ub);

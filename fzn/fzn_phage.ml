@@ -119,8 +119,8 @@ type 'a val_inst =
   | Open
   | Closed of 'a
 
-let linterm k x = { B.ic = k ; B.ix = x }
-let neg_coeff t = { B.ic = -t.B.ic; B.ix = t.B.ix }
+let linterm k x = (k, x)
+let neg_coeff (k, x) = (-k, x)
 
 let apply_lindef s ctx z ts =
   let terms =
@@ -153,6 +153,7 @@ let build_idef s make_ivar make_bvar dom ctx def =
   let z =
     match def with
     | Simp.Iv_eq x -> make_ivar x
+    | Simp.Iv_opp x -> Sol.intvar_neg (make_ivar x)
     | _ -> make_intvar s dom in
   let _ = match Simp.map_idef make_bvar make_ivar def with
     (* Should instead resolve const references *)
@@ -161,6 +162,7 @@ let build_idef s make_ivar make_bvar dom ctx def =
       | Simp.Iv_eq _ ) -> ()
     | Simp.Iv_opp x -> apply_lindef s ctx z [| (-1, x) |]
     (* Arithmetic functions *)
+    | Simp.Iv_elem (ys, x) -> failwith "Implement"
     | Simp.Iv_lin ts -> apply_lindef s ctx z ts
     | Simp.Iv_prod ys -> failwith "Implement"
     | Simp.Iv_b2i b -> 
@@ -420,11 +422,19 @@ let build_branching problem env solver anns =
 
 (* Helpers for printing arrays *)
 let print_fzn_array p_expr fmt es dims =
+(*
   Format.fprintf fmt "array%dd(@[" (Array.length dims) ;
   Util.print_array Pr.print_ann ~sep:",@ " ~pre:"@[" ~post:"@]" fmt dims ;
   Format.fprintf fmt ",@ " ;
   Util.print_array p_expr ~sep:",@ " ~pre:"[@[" ~post:"@]]" fmt es ;
   Format.fprintf fmt "@])"
+  *)
+  Format.fprintf fmt "array%dd(" (Array.length dims) ;
+  Util.print_array Pr.print_ann ~sep:", " ~pre:"" ~post:"" fmt dims ;
+  Format.fprintf fmt ", " ;
+  Util.print_array p_expr ~sep:", " ~pre:"[" ~post:"]" fmt es ;
+  Format.fprintf fmt ")"
+
 
 (* Print a variable assignment *)
 let get_array_dims e_anns =
@@ -534,7 +544,7 @@ let solve_satisfy print_model print_nogood solver assumps =
   if not (apply_assumps solver assumps) then
     begin
       print_nogood fmt (Sol.get_conflict solver) ;
-      Format.fprintf fmt "============@."
+      Format.fprintf fmt "==========@."
     end
   else
     match Sol.solve solver !Opts.conflict_limit with
@@ -545,7 +555,7 @@ let solve_satisfy print_model print_nogood solver assumps =
           let nogood = Sol.get_conflict solver in
           print_nogood fmt nogood
       end ; 
-      Format.fprintf fmt "============@."
+      Format.fprintf fmt "==========@."
     | Sol.SAT -> print_model fmt (Sol.get_model solver)
 
 let solve_findall print_model print_nogood block_solution solver assumps =
@@ -553,7 +563,7 @@ let solve_findall print_model print_nogood block_solution solver assumps =
   let rec aux max_sols =
     match Sol.solve solver !Opts.conflict_limit with
     | Sol.UNKNOWN -> ()
-    | Sol.UNSAT -> Format.fprintf fmt "============@."
+    | Sol.UNSAT -> Format.fprintf fmt "==========@."
     | Sol.SAT ->
        begin
          let model = Sol.get_model solver in
@@ -562,20 +572,24 @@ let solve_findall print_model print_nogood block_solution solver assumps =
            if block_solution solver model then
              aux (max 0 (max_sols-1))
            else
-             Format.fprintf fmt "===========@." 
+             Format.fprintf fmt "==========@." 
        end
   in
   if not (apply_assumps solver assumps) then
-    Format.fprintf fmt "============@."
+    Format.fprintf fmt "==========@."
   else
     aux !Opts.max_solutions
           
-let decrease_ivar ivar solver model =
+let decrease_ivar obj_val ivar solver model =
   let model_val = Sol.int_value model ivar in
+  (* Format.fprintf Format.err_formatter "%% [[OBJ = %d]]@." model_val ;  *)
+  obj_val := Some model_val ;
   Sol.post_atom solver (Sol.ivar_lt ivar model_val)
       
-let increase_ivar ivar solver model =
+let increase_ivar obj_val ivar solver model =
   let model_val = Sol.int_value model ivar in
+  (* Format.fprintf Format.err_formatter "%% [[OBJ = %d]%@." model_val ; *)
+  obj_val := Some model_val ;
   Sol.post_atom solver (Sol.ivar_gt ivar model_val)
 
 let solve_optimize print_model print_nogood constrain solver assumps =
@@ -585,7 +599,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
     print_model fmt model ;
     if not (constrain solver model) then
       ((* print_model fmt model ; *)
-       Format.fprintf fmt "============@.")
+       Format.fprintf fmt "==========@.")
     else
       match Sol.solve solver !Opts.conflict_limit with
       | Sol.UNKNOWN ->
@@ -593,7 +607,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
           Format.fprintf fmt "INCOMPLETE@.")
       | Sol.UNSAT ->
          ((* print_model fmt model ; *)
-          Format.fprintf fmt "==============@.")
+          Format.fprintf fmt "==========@.")
       | Sol.SAT -> aux (Sol.get_model solver)
   in
   match Sol.solve solver !Opts.conflict_limit with
@@ -601,9 +615,13 @@ let solve_optimize print_model print_nogood constrain solver assumps =
   | Sol.UNSAT -> Format.fprintf fmt "UNSAT@."
   | Sol.SAT -> aux (Sol.get_model solver)
  
-let print_stats fmt stats =
+let print_stats fmt stats obj_val =
   if !Opts.print_stats then
     begin
+      let _ = match obj_val with
+      | Some k -> Format.fprintf fmt "objective %d@." k
+      | None -> ()
+      in
       Format.fprintf fmt "%d solutions, %d conflicts, %d restarts@." stats.Sol.solutions stats.Sol.conflicts stats.Sol.restarts ;
       Format.fprintf fmt "%d learnts, average size %f@."
         stats.Sol.num_learnts
@@ -688,9 +706,10 @@ let main () =
       if not !Opts.quiet then
         begin
           print_solution fmt problem env model ;
-          Format.fprintf fmt "------------@."
+          Format.fprintf fmt "----------@."
         end) in
   let print_nogood = print_nogood problem env in
+  let obj_val = ref None in
   begin
   match fst problem.Pr.objective with
   | Pr.Satisfy ->
@@ -701,11 +720,11 @@ let main () =
        solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
      solve_optimize print_model print_nogood
-       (decrease_ivar env.ivars.(obj)) solver assumps
+       (decrease_ivar obj_val env.ivars.(obj)) solver assumps
   | Pr.Maximize obj ->
      solve_optimize print_model print_nogood
-       (increase_ivar env.ivars.(obj)) solver assumps
+       (increase_ivar obj_val env.ivars.(obj)) solver assumps
   end ;
-  print_stats Format.std_formatter (Sol.get_statistics solver)
+  print_stats Format.std_formatter (Sol.get_statistics solver) !obj_val
 
 let _ = main ()

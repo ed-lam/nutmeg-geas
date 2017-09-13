@@ -204,12 +204,12 @@ public:
   }
 
   template<class Construct>
-  iterator find_or_add(Construct& construct, const Key& key) {
+  Val find_or_add(Construct& construct, const Key& key) {
     if(!root)
     {
       root = make_leaf(key, construct(key), NULL, NULL);
       head = tail = (leaf_t*) root;
-      return head;
+      return head->ref.value;
     }
 
     elt_t e = Ops::to_uint(key);
@@ -218,7 +218,7 @@ public:
     // Already in the set
     if(leaf->ref.key == key)
     {
-      return leaf;
+      return leaf->ref.value;
     }
 
     uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
@@ -277,7 +277,7 @@ public:
     else
       (*p) = fresh_node;
 
-    return fresh_leaf;
+    return fresh_leaf->ref.value;
   }
 
 

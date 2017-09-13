@@ -35,6 +35,7 @@ type ('b, 'i) idef =
   | Iv_opp of 'i
   (* Arithmetic functions *)
   (* Maybe make this linear, rather than sum. *)
+  | Iv_elem of ('i array * 'i)
   | Iv_lin of (int * 'i) array
   | Iv_prod of 'i array
   | Iv_max of 'i array
@@ -47,6 +48,7 @@ let eval_idef z def =
   | Iv_const k -> k
   | Iv_eq x -> x
   | Iv_opp x -> -x
+  | Iv_elem (ys, x) -> ys.(x)
   | Iv_lin ts -> Array.fold_left (fun s (c, x) -> s + c*x) 0 ts
   | Iv_prod xs -> Array.fold_left ( * ) 1 xs
   | Iv_min xs -> Array.fold_left min max_int xs
@@ -97,6 +99,7 @@ let map_idef fb fi def =
   | Iv_const k -> Iv_const k
   | Iv_eq x -> Iv_eq (fi x)
   | Iv_opp x -> Iv_opp (fi x)
+  | Iv_elem (ys, x) -> Iv_elem (Array.map fi ys, fi x)
   | Iv_lin ts -> Iv_lin (Array.map (apply_snd fi) ts)
   | Iv_prod xs -> Iv_prod (Array.map fi xs)
   | Iv_max xs -> Iv_max (Array.map fi xs)
@@ -217,6 +220,7 @@ let fzn_assert_ieq st x def =
   | Iv_eq _
   | Iv_opp _ -> failwith "fzn_assert_ieq called on alias."
   (* Arithmetic functions *)
+  | Iv_elem (ys, x) -> failwith "FIXME"
   | Iv_lin ts -> failwith "FIXME"
   | Iv_prod xs -> failwith "FIXME"
   | Iv_max xs -> (("array_int_maximum", [| Pr.Ivar x; to_ivars xs |]), [])
@@ -392,6 +396,18 @@ let simp_int_eq st args anns =
       apply_idef st x (Iv_const k)
   | (Pr.Iv_var x, Pr.Iv_var y) -> apply_idef st x (Iv_eq y)
 
+let simp_bool2int st args anns =
+  match Pr.get_bval args.(0), Pr.get_ival args.(1) with
+  | Pr.Bv_bool b, Pr.Iv_int y ->
+    if b <> (y = 1) then failwith "Toplevel conflict in bool2int."
+  | Pr.Bv_var b, Pr.Iv_int y ->
+    apply_bdef st b (Bv_const (y = 1))
+  | Pr.Bv_bool b, Pr.Iv_var y ->
+    apply_idef st y (Iv_const (if b then 1 else 0))
+  | Pr.Bv_var b, Pr.Iv_var y ->
+    (* apply_idef st y (Iv_b2i b) *)
+    apply_bdef st b (At (y, Igt, 0))
+
 let simplify_constraint state id args anns =
   try
     let simplifier = H.find registry id in
@@ -433,7 +449,8 @@ let init () =
       "int_ne_reif", simp_irel_reif Ine ;
       "int_eq", simp_int_eq ;
       "bool_eq", simp_bool_eq ; 
-      "bool_ne", simp_bool_ne
+      "bool_ne", simp_bool_ne ;
+      "bool2int", simp_bool2int ;
     ] in
   List.iter (fun (id, h) -> H.add registry id h) handlers
 
