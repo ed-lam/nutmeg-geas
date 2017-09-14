@@ -1,0 +1,25 @@
+quote(c, "#include \"c/builtins.h\"");
+
+import "atom.idl";
+import "solver.idl";
+
+typedef struct {
+  [mlname(ic)] int c;
+  [mlname(ix)] intvar x; 
+} int_linterm;
+boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
+boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
+
+typedef struct {
+  [mlname(ac)] int c;
+  [mlname(ax)] atom x; 
+} at_linterm;
+boolean bool_linear_le([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);
+boolean bool_linear_ne([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);
+
+typedef struct {
+  [mlname(ds)] intvar start;
+  [mlname(dd)] int dur;
+} dtask;
+
+boolean disjunctive([in] solver s, [in,size_is(sz)] dtask ts[], int sz);
