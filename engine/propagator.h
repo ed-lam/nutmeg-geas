@@ -44,6 +44,8 @@ public:
   template<class T> typename T::val_t ub_0(const T& v) const;
   template<class T> typename T::val_t lb_prev(const T& v) const;
   template<class T> typename T::val_t ub_prev(const T& v) const;
+  template<class T> typename T::val_t lb_delta(const T& v) const;
+  template<class T> typename T::val_t ub_delta(const T& v) const;
   template<class T> bool set_lb(T& x, typename T::val_t v, reason r);
   template<class T> bool set_ub(T& x, typename T::val_t v, reason r);
 
@@ -115,6 +117,7 @@ public:
     return (cast(ptr)->*F)(x, elt);
   }
 
+  /*
   template<void (*F)(T* ptr, int x, val_t val, vec<clause_elt>& elt)>
   static void ex_lb(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     F(cast(ptr), x, to_int(pval), elt);
@@ -134,9 +137,15 @@ public:
   static void ex_ub(void* ptr, int x, pval_t pval, vec<clause_elt>& elt) {
     (cast(ptr)->*F)(x, to_int(pval_max - pval), elt);
   }
+  */
 
   expl_thunk ex_thunk(expl_fun f, int x, char flags = 0) {
     return expl_thunk { f, this, x, flags };
+  }
+
+  template<void (T::*F)(int x, pval_t p, vec<clause_elt>& elt)>
+  expl_thunk expl(int x, char flags = 0) {
+    return expl_thunk { ex<F>, this, x, flags };
   }
 
   template<watch_result (T::*F)(int)>
