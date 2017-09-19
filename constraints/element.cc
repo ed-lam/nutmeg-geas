@@ -202,11 +202,13 @@ class int_elem_bnd : public propagator, public prop_inst<int_elem_bnd> {
     // with already-dead rows
     if(live_rows.elem(r)) {
       kill_row(r);
-      if(r == vals[lb(x)]) {
+      int l = lb(x);
+      if(r == vals[l]) {
         change |= C_LB_ROW;      
         queue_prop();
       }
-      if(r == vals[ub(x)]) {
+      int u = ub(x);
+      if(r == vals[u]) {
         change |= C_UB_ROW;
         queue_prop();
       }
@@ -414,7 +416,7 @@ public:
       prop_count++;
     if(change&(C_LB|C_UB)) {
       int l = lb(x); int u = ub(x);
-      int scan_sz = 0;
+      unsigned int scan_sz = 0;
       if(change&C_LB)
         scan_sz += l - lb_prev;
       if(change&C_UB)
@@ -558,17 +560,19 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     }
   }
 
-  static void ex_y_lb(elem_var_bnd* p, int yi, intvar::val_t lb, vec<clause_elt>& expl) {
+  void ex_y_lb(int yi, pval_t p, vec<clause_elt>& expl) {
+    int lb = z.lb_of_pval(p);
     // expl.push(p->x != yi + p->base);
-    expl.push(p->x < yi + p->base);
-    expl.push(p->x > yi + p->base);
-    expl.push(p->z < lb);
+    expl.push(x < yi + base);
+    expl.push(x > yi + base);
+    expl.push(z < lb);
   }
 
-  static void ex_y_ub(elem_var_bnd* p, int yi, intvar::val_t ub, vec<clause_elt>& expl) {
-    expl.push(p->x < yi + p->base);
-    expl.push(p->x > yi + p->base);
-    expl.push(p->z > ub);
+  void ex_y_ub(int yi, pval_t p, vec<clause_elt>& expl) {
+    int ub = z.ub_of_pval(p);
+    expl.push(x < yi + base);
+    expl.push(x > yi + base);
+    expl.push(z > ub);
   }
    
   void ex_x_lb(int vi, pval_t p, vec<clause_elt>& expl) {
@@ -688,8 +692,7 @@ public:
       int low = vi;
 
       if(low + base > x.lb(s)) {
-        // if(!set_lb(x,low + base, ex_thunk(ex_nil<ex_naive>, vi, expl_thunk::Ex_BTPRED)))
-        if(!set_lb(x,low + base, ex_thunk(ex<&P::ex_x_lb>, lb(x)-base, expl_thunk::Ex_BTPRED)))
+        if(!set_lb(x,low + base, expl<&P::ex_x_lb>(lb(x)-base, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -705,32 +708,27 @@ public:
         }
       }
       if(high + base < x.ub(s)) {
-        // if(!set_ub(x,high + base, ex_thunk(ex_nil<ex_naive>, high, expl_thunk::Ex_BTPRED)))
-        if(!set_ub(x,high + base, ex_thunk(ex<&P::ex_x_ub>, ub(x) - base, expl_thunk::Ex_BTPRED)))
+        if(!set_ub(x,high + base, expl<&P::ex_x_ub>(ub(x) - base, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
       if(z_supp.lb > z.lb(s)) {
-        // if(!set_lb(z, z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
-        if(!set_lb(z, z_supp.lb, ex_thunk(ex<&P::ex_z_lb>, 0, expl_thunk::Ex_BTPRED)))
+        if(!set_lb(z, z_supp.lb, expl<&P::ex_z_lb>(0, expl_thunk::Ex_BTPRED)))
           return false;
       }
       if(z_supp.ub < z.ub(s)) {
-        // if(!set_ub(z, z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
-        if(!set_ub(z, z_supp.ub, ex_thunk(ex<&P::ex_z_ub>, 0, expl_thunk::Ex_BTPRED)))
+        if(!set_ub(z, z_supp.ub, expl<&P::ex_z_ub>(0, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
       if(low == high) {
         intvar& y = ys[low];
         if(z_supp.lb > y.lb(s)) {
-          // if(!y.set_lb(z_supp.lb, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
-          if(!set_lb(y, z_supp.lb, ex_thunk(ex_lb<ex_y_lb>, low)))
+          if(!set_lb(y, z_supp.lb, expl<&P::ex_y_lb>(low)))
             return false;
         }
         if(z_supp.ub < y.ub(s)) {
-          // if(!y.set_ub(z_supp.ub, ex_thunk(ex_nil<ex_naive>, 0, expl_thunk::Ex_BTPRED)))
-          if(!set_ub(y, z_supp.ub, ex_thunk(ex_ub<ex_y_ub>, low)))
+          if(!set_ub(y, z_supp.ub, expl<&P::ex_y_ub>(low)))
            return false;
         }
       }
@@ -802,7 +800,7 @@ class elem_var_mix : public propagator, public prop_inst<elem_var_mix> {
   }
 
   watch_result wake_y_ub(int yi) {
-    assert(yi < live_yi.dom);
+    assert(yi < (int) live_yi.dom);
     assert(yi < ys.size());
     if(!live_yi.elem(yi))
       return Wt_Keep;
@@ -1164,6 +1162,7 @@ public:
 
 
 // Non-incremental interval-based propagation
+#if 0
 class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
   // Wakeup and explanation
   static watch_result wake(void* ptr, int xi) {
@@ -1311,6 +1310,7 @@ support_found:
     // Explanation hints
     vec<intvar::val_t> cut_hint;
 };
+#endif
 int int_elem_bnd::prop_count = 0;
 
 enum { ELEM_DOM_MAX = 50 };
