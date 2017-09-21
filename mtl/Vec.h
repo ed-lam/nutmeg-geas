@@ -24,6 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <cassert>
 #include <new>
 #include <initializer_list>
+#include <utility>
 
 //=================================================================================================
 // Automatically resizable arrays
@@ -104,6 +105,17 @@ public:
     operator T*       (void)           { return data; }     // (unsafe but convenient)
     operator const T* (void) const     { return data; }
 
+    struct slice_t {
+      T* begin(void) const { return b; }
+      T* end(void) const { return e; }
+      T* b;
+      T* e;
+    };
+    slice_t slice(int b, int e) { return slice_t { data+b, data+e }; }
+    slice_t slice(int k) { return slice_t { data, data+k }; }
+    slice_t slice_from(int k) { return slice_t { data+k, data+sz }; }
+    slice_t tail(void) { return slice_t { data+1, data+sz }; }
+
     // Size operations:
     int      size   (void) const       { return sz; }
     int&     _size  (void)             { return sz; }
@@ -114,13 +126,6 @@ public:
     void     growTo (int size, const T& pad);
     void     clear  (bool dealloc = false);
     void     capacity (int size) { grow(size); }
-
-    struct slice_t {
-      T* begin(void) const { return b; }
-      T* end(void) const { return e; }
-      T* b; T* e;
-    };
-    slice_t slice(int b, int e) const { return slice_t { data+b, data+e }; }
 
     // Stack interface:
 #if 1

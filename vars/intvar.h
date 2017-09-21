@@ -199,6 +199,8 @@ public:
 
   val_t lb(const vec<pval_t>& ctx) const;
   val_t ub(const vec<pval_t>& ctx) const;
+  val_t lb_delta(const vec<pval_t>& ctx_new, const vec<pval_t>& ctx_old) const;
+  val_t ub_delta(const vec<pval_t>& ctx_new, const vec<pval_t>& ctx_old) const;
   val_t lb(const solver_data* s) const;
   val_t ub(const solver_data* s) const;
 
@@ -317,6 +319,12 @@ inline intvar::val_t intvar::lb(const vec<pval_t>& ctx) const {
 // forceinline
 inline intvar::val_t intvar::ub(const vec<pval_t>& ctx) const {
   return to_int(pval_inv(ctx[p^1])) + off;
+}
+inline intvar::val_t intvar::lb_delta(const vec<pval_t>& ctx, const vec<pval_t>& old) const {
+  return ctx[p] - old[p];
+}
+inline intvar::val_t intvar::ub_delta(const vec<pval_t>& ctx, const vec<pval_t>& old) const {
+  return ctx[p^1] - old[p^1];
 }
 inline intvar::val_t intvar::lb(const solver_data* s) const { return lb(s->state.p_vals); }
 inline intvar::val_t intvar::ub(const solver_data* s) const { return ub(s->state.p_vals); }
