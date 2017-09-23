@@ -303,6 +303,38 @@ patom_t new_bool(sdata& s) {
   return patom_t(pi, from_int(1));
 }
 
+void process_initializers(solver_data& s) {
+  if(s.init_end != s.initializers.size()) {
+    trail_save(s.persist, s.init_end, s.init_saved);
+    vec<pinit_data>& inits(s.initializers);
+    unsigned int& end = s.init_end;
+
+    for(int ii = end; ii != inits.size(); ++ii) {
+      pid_t p(inits[ii].pi); 
+      pval_t curr = inits[ii].init(s.state.p_vals);
+//      assert(curr == s.state.p_last[p]);
+      pval_t last = inits[ii].init(s.state.p_last);
+      s.state.p_last[p] = last;
+      s.state.p_vals[p] = curr;
+      s.wake_vals[p] = curr;
+
+      if(curr != last) {
+        infer_info::entry e = { p, last, inits[ii].init.expl() };
+        s.infer.trail.push(e);
+      }
+
+      // If this is at its initial value, discard it.
+      if(curr != s.state.p_root[p]) {
+        inits[end++] = inits[ii];
+      } else {
+        inits[ii].init.finalize(&s);
+      }
+    }
+    inits.shrink_(inits.size() - end);
+  }
+}
+
+
 void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
   confl.clear();
 
@@ -350,6 +382,7 @@ retry_level:
   int level = s.persist.level();
   assert(level > 0);
   bt_to_level(&s, level-1);
+  process_initializers(s);
   goto retry_level;
 }
 
@@ -756,37 +789,6 @@ void prop_cleanup(solver_data& s) {
   }
   // s.active_prop = nullptr;
   clear_reset_flags(s);
-}
-
-inline void process_initializers(solver_data& s) {
-  // trail_push(s.persist, s.init_end);
-  if(s.init_end != s.initializers.size()) {
-    vec<pinit_data>& inits(s.initializers);
-    unsigned int& end = s.init_end;
-
-    for(int ii = end; ii != inits.size(); ++ii) {
-      pid_t p(inits[ii].pi); 
-      pval_t curr = inits[ii].init(s.state.p_vals);
-//      assert(curr == s.state.p_last[p]);
-      pval_t last = inits[ii].init(s.state.p_last);
-      s.state.p_last[p] = last;
-      s.state.p_vals[p] = curr;
-      s.wake_vals[p] = curr;
-
-      if(curr != last) {
-        infer_info::entry e = { p, last, inits[ii].init.expl() };
-        s.infer.trail.push(e);
-      }
-
-      // If this is at its initial value, discard it.
-      if(curr != s.state.p_root[p]) {
-        inits[end++] = inits[ii];
-      } else {
-        inits[ii].init.finalize(&s);
-      }
-    }
-    inits.shrink_(inits.size() - end);
-  }
 }
 
 bool propagate(solver_data& s) {

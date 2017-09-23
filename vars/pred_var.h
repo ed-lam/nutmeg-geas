@@ -38,7 +38,7 @@ struct pred_var {
   pval_t lb_of_pval(pval_t p) { return p;}
   pval_t ub_of_pval(pval_t p) { return pval_inv(p); }
 
-  patom_t operator>=(int k) const { return ge_atom(p, k); }
+  patom_t operator>=(pval_t k) const { return ge_atom(p, k); }
   patom_t operator<=(pval_t k) const { return le_atom(p, k); }
 
   patom_t operator<(pval_t k) const { return this->operator<=(k-1); }
