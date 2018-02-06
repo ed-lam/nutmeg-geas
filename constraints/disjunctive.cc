@@ -79,7 +79,7 @@ struct ps_tree {
     percolate(p);
   }
   void smudge(unsigned int elt) {
-    // Assumes elt is current in.
+    // Assumes elt is currently in.
     unsigned int p(idx(elt));
     nodes[p].d_sum = 0;
     nodes[p].ect = INT_MIN;
@@ -183,6 +183,13 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
   inline int lct(int xi) { return ub(xs[xi]) + du[xi]; }
   inline int lst(int xi) { return ub(xs[xi]); }
 
+  // For semi-eager explanations
+  struct ex_data {
+    int xi; // Task which was updated
+    int lb; // est of energy window
+    int ub; // lct of energy window
+  };
+
   watch_result wake(int xi) {
     queue_prop();
     return Wt_Keep;
@@ -198,11 +205,61 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       expl.push(x > ub(x));
     }
   }
+
+  // TODO: Explanation lifting
+  void ex_lb_ef_eager(int eid, pval_t p, vec<clause_elt>& expl) {
+    ex_data e(edata[eid]);
+    // int x_lb = xs[e.xi].lb_of_pval(p);
+    // assert(e.ub >= x_lb + du[e.xi]);
+
+    // Need to collect at least ub - lb - du[xi] energy,
+    // from tasks bracketed in [lb, ub]
+    expl.push(xs[e.xi] < e.lb);
+    int energy = e.ub - e.lb - du[e.xi];
+    for(int ti : irange(xs.size())) {
+      if(ti == e.xi)
+        continue;
+      if(est(ti) < e.lb || lct(ti) >= e.ub)
+        continue;
+      expl.push(xs[ti] < e.lb);
+      expl.push(xs[ti] >= e.ub - du[ti]);
+      energy -= du[ti];
+      if(energy <= 0)
+        break; 
+    }
+    assert(energy <= 0);
+  }
+
+  void ex_ub_ef_eager(int eid, pval_t p, vec<clause_elt>& expl) {
+    ex_data e(edata[eid]);
+
+    expl.push(xs[e.xi] >= e.ub);
+    int energy = e.ub - e.lb - du[e.xi];
+    for(int ti : irange(xs.size())) {
+      if(ti == e.xi)
+        continue;
+      if(est(ti) < e.lb || lct(ti) >= e.ub)
+        continue;
+      expl.push(xs[ti] < e.lb);
+      expl.push(xs[ti] >= e.ub - du[ti]);
+      energy -= du[ti];
+      if(energy <= 0)
+        break; 
+    }
+    assert(energy <= 0);
+  }
+
   void ex_lb_ef(int xy, pval_t p, vec<clause_elt>& expl) {
     int x = LOW(xy);
     int y = HIGH(xy); 
 
-    int lb_x = xs[x].lb_of_pval(p) + du[x];
+    /*
+    ex_naive(xy, p, expl);
+    return;
+    */
+
+    // int lb_x = xs[x].lb_of_pval(p) + du[x];
+    int lb_x = xs[x].lb_of_pval(p);
     int lb_y = lb(xs[y]);
     // Collect enough tasks to fill [est(y), lb_x).
     vec<int> ex_tasks;
@@ -232,10 +289,13 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
     int eend = lb_y;
     int end = lb_x;
     int ii = 0;
-    for(; ii < ex_tasks.size() && eend < end; ++ii) {
-      energy += du[ex_tasks[ii]]; 
+    for(; ii < ex_tasks.size(); ++ii) {
+      energy += du[ex_tasks[ii]];
       eend += du[ex_tasks[ii]];
       end = std::max(end, lct(ex_tasks[ii]));
+      if(eend + du[x] > lct(ex_tasks[ii])
+        && eend >= end)
+        break;
     }
     ex_tasks.shrink(ex_tasks.size() - ii);
 
@@ -246,10 +306,13 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
     }
   }
   void ex_ub_ef(int xy, pval_t p, vec<clause_elt>& expl) {
+    /*
     int x = LOW(xy);
     int y = HIGH(xy);
-
-    // int ub_x = xs[x].ub_of_pval(p) + du[x];
+    */
+    
+    ex_naive(xy, p, expl);
+/*
     int ub_x = xs[x].ub_of_pval(p);
     int ub_y = ub(xs[y]) + du[y];
     int gap = ub_y - ub_x;
@@ -266,19 +329,29 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         break;
     }
     assert(gap <= 0);
+    */
   }
 
   public:
     disjunctive(solver_data* s, vec<intvar>& _st, vec<int>& _du)
       : propagator(s), xs(_st), du(_du)
       , ect_tree(eval_ect {this}, xs.size())
-      , lst_tree(eval_lst {this}, xs.size()) {
+      , lst_tree(eval_lst {this}, xs.size())
+      , edata_saved(false) {
       for(int ii : irange(xs.size())) {
         xs[ii].attach(E_LU, watch<&P::wake>(ii));
         p_est.push(ii);
         p_lct.push(ii);
         task_idx.push(ii);
       }
+    }
+
+    // Make enough information to reconstruct an explanation
+    int make_edata(int xi, int lb, int ub) {
+      int id = edata.size();
+      trail_save(s->persist, edata._size(), edata_saved);
+      edata.push(ex_data { xi, lb, ub });
+      return id;
     }
 
     void cleanup(void) {
@@ -383,8 +456,10 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
 #if 1
           unsigned int ti = p_est[pi];
           unsigned int tj = p_est[ect_tree.blocking_task(lct(xi)+1)];
+          // fprintf(stdout, "(%d, %d)\n", ti, tj);
           if(!set_lb(xs[ti], ect_tree[0].ect,
-            ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            // ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            ex_thunk(ex<&P::ex_lb_ef_eager>, make_edata(ti, est(tj), ect_tree[0].o_ect), expl_thunk::Ex_BTPRED)))
             // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
             return false;
 #endif
@@ -428,7 +503,8 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
           unsigned int ti = p_lct[pi];
           unsigned int tj = p_est[lst_tree.blocking_task(-lst(xi)+1)];
           if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
-            ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            // ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+            ex_thunk(ex<&P::ex_ub_ef_eager>, make_edata(ti, -lst_tree[0].ect - du[ti], ect(tj)), expl_thunk::Ex_BTPRED)))
             // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
             return false;
 #endif
@@ -454,6 +530,10 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
 
     ps_tree<eval_ect> ect_tree;
     ps_tree<eval_lst> lst_tree;
+
+    // For storing explanation information.
+    vec<ex_data> edata;
+    char edata_saved;
 };
 
 bool disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du) {

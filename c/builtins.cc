@@ -150,7 +150,7 @@ int all_different_int(solver s, intvar* xs, int sz) {
   for(intvar* v = xs; v != xs+sz; ++v) {
     p_xs.push(*get_intvar(*v));
   }
-#if 1
+#if 0
   return phage::all_different_int(get_solver(s)->data, p_xs);
 #else
   /*
