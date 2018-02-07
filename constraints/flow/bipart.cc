@@ -8,6 +8,7 @@
 
 #include "constraints/flow/flow.h"
 
+// #define LOG_FLOW
 namespace phage {
 
 class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
@@ -27,6 +28,10 @@ class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
   }
   
   void ex_pos(int fi, pval_t _p, vec<clause_elt>& expl) {
+#ifdef LOG_FLOW
+    fprintf(stderr, "Explain: [%d -> %d]\n", flows[fi].src, flows[fi].sink);
+    log_state();
+#endif
     bflow& f(flows[fi]);
     bool r = mark_reach<true>(f.src, f.sink, fi);
     assert(!r);
@@ -34,10 +39,29 @@ class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
   }
 
   void ex_neg(int fi, pval_t _p, vec<clause_elt>& expl) {
+#ifdef LOG_FLOW
+    fprintf(stderr, "Explain: ~ [%d -> %d]\n", flows[fi].src, flows[fi].sink);
+    log_state();
+#endif
     bflow& f(flows[fi]);
     bool r = mark_reach<false>(f.src, f.sink, fi);
     assert(!r);
     make_expl<false>(fi, f.src, f.sink, expl);
+  }
+
+  void log_state(void) {
+    fprintf(stderr, "[[%d, %d]]\n", out_flows.size(), in_flows.size());
+    for(int ii : irange(out_flows.size())) {
+      fprintf(stderr, "%d:", ii);  
+      for(int fi : out_flows[ii]) {
+        fprintf(stderr, " {%d : %s | %s}",
+          flows[fi].sink,
+          used_flow[fi] ? "+" : "_",
+          lb(flows[fi].at) ? "T" :
+            !ub(flows[fi].at) ? "F" : "?");
+      }
+      fprintf(stderr, " (%d)\n", sccs[ii]);
+    }
   }
 
   // Explanation is two-phase: mark reachability, then
@@ -165,6 +189,70 @@ class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
   }
 
   template<int S>
+  bool find_sink(int si, vec<int>& slack) {
+    src_seen.clear(); sink_seen.clear();
+    src_seen.add(si);
+    queue.clear();
+    queue.push(si<<1);
+
+    int qi = 0;
+    for(; qi < queue.size(); ++qi) {
+      int e = queue[qi];
+      if(!(e&1)) {
+        // Searching forward.
+        for(int fi : out_flows[e>>1]) {
+          const bflow& f(flows[fi]);
+          if(S) {
+            if(used_flow[fi] || sink_seen.elem(f.sink) || !ub(f.at))
+              continue;
+          } else {
+            if(!used_flow[fi] || sink_seen.elem(f.sink) || lb(f.at))
+              continue;
+          }
+
+          sink_pred[f.sink] = fi;
+          if(slack[f.sink]) {
+            // Now fix the path
+            slack[f.sink]--;
+
+            int dflow = fi;
+            int src = f.src;
+            while(src != si) {
+              used_flow[dflow] = S;
+              int sflow = src_pred[src];
+              used_flow[sflow] = !S;
+              dflow = sink_pred[flows[sflow].sink];
+              src = flows[dflow].src;
+            }
+            used_flow[dflow] = S;
+
+            return true;
+          }
+
+          sink_seen.add(f.sink);
+          queue.push((f.sink<<1)|1);
+        }
+      } else {
+        // Searching backward
+        for(int fi : in_flows[e>>1]) {
+          const bflow& f(flows[fi]);
+          if(S) {
+            if(!used_flow[fi] || src_seen.elem(f.src) || lb(f.at))
+              continue;
+          } else {
+            if(used_flow[fi] || src_seen.elem(f.src) || !ub(f.at))
+              continue;
+          }
+          src_pred[f.src] = fi;
+          src_seen.add(f.src);
+          queue.push(f.src<<1);
+        }
+      }
+    }
+    return false;
+  }
+
+  template<int S>
   bool init_flow(int si, int di) {
     if(!mark_reach<S>(si, di))
       return false;
@@ -233,14 +321,18 @@ public:
 
     // Now we need to find an initial feasible flow.
     // This is a hideously inefficient way of initialization.
-    int di = 0;
+    // int di = 0;
     for(int si = 0; si < srcs.size(); si++) {
       while(srcs[si]) {
+        /*
         while(!sinks[di]) ++di;
         if(!init_flow<true>(si, di))
           ERROR;
+          */
+        if(!find_sink<true>(si, sinks))
+          ERROR;
         srcs[si]--;
-        sinks[di]--;
+        // sinks[di]--;
         src_seen.clear();
         sink_seen.clear(); 
         queue.clear();
@@ -264,7 +356,7 @@ public:
           if(!index.elem(d)) {
             strongconnect(d);
             lowlink[e] = std::min(lowlink[e], lowlink[d]);
-          } else {
+          } else if (queued[d]) {
             lowlink[e] = std::min(lowlink[e], (int) index.pos(d));
           }
         }
@@ -278,7 +370,7 @@ public:
           if(!index.elem(s)) {
             strongconnect(s);
             lowlink[e] = std::min(lowlink[e], lowlink[s]);
-          } else {
+          } else if (queued[s]) {
             lowlink[e] = std::min(lowlink[e], (int) index.pos(s));
           }
         }
@@ -299,12 +391,12 @@ public:
   void compute_sccs(void) {
     index.clear();
     queue.clear();
-    for(int ii : irange(src_seen.size())) {
+    for(int ii : irange(out_flows.size())) {
       int e = ii<<1;
       if(!index.elem(e))
         strongconnect(e);
     }
-    for(int ii: irange(sink_seen.size())) {
+    for(int ii: irange(in_flows.size())) {
       int e = (ii<<1)|1;
       if(!index.elem(e))
         strongconnect(e);
@@ -329,6 +421,7 @@ public:
   }
 
   bool propagate(vec<clause_elt>& confl) {
+    // fprintf(stderr, "[Running bipartite-flow (%d)]\n", prop_id);
     // Try to repair the model
     for(int fi : fixed_flows) {
       if(!used_flow[fi]) {
@@ -352,9 +445,17 @@ public:
     // In the residual graph, only
     // flows within an SCC could be used.
     compute_sccs();
+#ifdef LOG_FLOW
+    fprintf(stderr, "After repair:\n");
+    log_state();
+#endif
     if(!process_sccs(confl))
       return false;
 
+#ifdef LOG_FLOW
+    fprintf(stderr, "After propagation:\n");
+    log_state();
+#endif
     return true;
   }
 
