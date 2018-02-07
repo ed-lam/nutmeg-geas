@@ -304,7 +304,7 @@ let array_int_element solver args anns =
   let elts = Pr.get_array Pr.get_int args.(1) in
   match Pr.get_ival args.(0), Pr.get_ival args.(2) with
   | Pr.Iv_int idx, Pr.Iv_int res ->
-    res = elts.(idx-1) 
+    res = elts.(idx-1)
   | Pr.Iv_var idx, Pr.Iv_int res ->
     S.make_sparse idx (Array.of_list (val_indices elts res))
   | Pr.Iv_int idx, Pr.Iv_var res ->
@@ -315,6 +315,26 @@ let array_int_element solver args anns =
 let all_different_int solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   B.all_different_int solver xs
+
+let global_card solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  let vals = Pr.get_array Pr.get_int args.(1) in
+  let count = Pr.get_array Pr.get_int args.(2) in
+  (* Check counts match up *)
+  let val_count = Array.fold_left (+) 0 count in
+  if val_count <> Array.length xs then
+    failwith "ERROR: global_card does not yet handle flexibility."
+  else
+    begin
+      let srcs = Array.map (fun _ -> 1) xs in
+      (* Construct the flows *)
+      let var_flows = Array.init (Array.length xs) (fun i ->
+        Array.init (Array.length vals) (fun j ->
+          (S.ivar_eq xs.(i) vals.(j), i, j)
+        )
+      ) in
+      B.bipartite_flow solver srcs count (Array.to_list var_flows |> Array.concat)
+    end
 
 let cumulative solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
@@ -336,13 +356,13 @@ let array_var_int_element solver args anns =
   match Pr.get_ival args.(0), Pr.get_ival args.(2) with
   | Pr.Iv_int idx, Pr.Iv_int res ->
     begin
-      match Pr.get_ival (array_nth args.(1) idx) with
+      match Pr.get_ival (array_nth args.(1) (idx-1)) with
       | Pr.Iv_int elt -> res = elt
       | Pr.Iv_var elt -> S.post_atom solver (S.ivar_eq elt res)
     end
   | Pr.Iv_int idx, Pr.Iv_var res -> 
     begin
-      match Pr.get_ival (array_nth args.(1) idx) with
+      match Pr.get_ival (array_nth args.(1) (idx-1)) with
       | Pr.Iv_int elt -> S.post_atom solver (S.ivar_eq res elt)
       | Pr.Iv_var elt ->
         B.int_le solver At.at_True res elt 0
@@ -373,8 +393,8 @@ let atom_iff at b = if b then at else (At.neg at)
 let array_bool_element solver args anns =
   let elts = Pr.get_array Pr.get_bool args.(1) in
   match Pr.get_ival args.(0), Pr.get_bval args.(2) with
-  | Pr.Iv_int idx, Pr.Bv_bool b -> elts.(idx+1) = b
-  | Pr.Iv_int idx, Pr.Bv_var at -> S.post_atom solver (atom_iff at elts.(idx+1))
+  | Pr.Iv_int idx, Pr.Bv_bool b -> elts.(idx-1) = b
+  | Pr.Iv_int idx, Pr.Bv_var at -> S.post_atom solver (atom_iff at elts.(idx-1))
   | Pr.Iv_var idx, Pr.Bv_bool b ->
     Util.array_everyi (fun i b' ->
       if b = b' then
@@ -388,13 +408,13 @@ let array_var_bool_element solver args anns =
   match Pr.get_ival args.(0), Pr.get_bval args.(2) with
   | Pr.Iv_int idx, Pr.Bv_bool b ->
     begin
-      match Pr.get_bval (array_nth args.(1) idx) with
+      match Pr.get_bval (array_nth args.(1) (idx-1)) with
       | Pr.Bv_bool b' -> b = b'
       | Pr.Bv_var at -> S.post_atom solver (atom_iff at b)
     end
   | Pr.Iv_int idx, Pr.Bv_var at -> 
     begin
-      match Pr.get_bval (array_nth args.(1) idx) with
+      match Pr.get_bval (array_nth args.(1) (idx-1)) with
       | Pr.Bv_bool b -> S.post_atom solver (atom_iff at b)
       | Pr.Bv_var at' ->
         post_clauses solver
@@ -665,6 +685,7 @@ let initialize () =
      "all_different_int", all_different_int ;
      "fzn_cumulative", cumulative ;
      "fzn_disjunctive", disjunctive ;
+     "fzn_global_cardinality", global_card ;
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers

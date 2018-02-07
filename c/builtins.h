@@ -51,6 +51,10 @@ int cumulative(solver s, task* ts, int sz, int cap);
 
 typedef struct { intvar start; int dur; } dtask;
 int disjunctive(solver s, dtask* ts, int sz);
+
+typedef struct { atom at; int src; int sink; } bp_flow;
+int bipartite_flow(solver s, int* srcs, int srcs_sz, int* sinks, int sinks_sz, bp_flow* flows, int flows_sz);
+
 #ifdef __cplusplus
 }
 #endif

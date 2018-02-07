@@ -1483,6 +1483,7 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   // new lin_le_tree(s, r, ks, vs, k);
   // return true;
 
+  // return int_linear_le::post(s, r, ks, vs, k);
   // return lin_le_inc::post(s, r, ks, vs, k);
   return lin_le_tree::post(s, r, ks, vs, k);
 #else

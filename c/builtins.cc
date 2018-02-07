@@ -184,6 +184,22 @@ int all_different_int(solver s, intvar* xs, int sz) {
 #endif
 }
 
+int bipartite_flow(solver s, int* srcs, int srcs_sz, int* sinks, int sinks_sz, bp_flow* flows, int flows_sz) {
+  vec<int> src_vec;
+  for(; srcs_sz; --srcs_sz, ++srcs)
+    src_vec.push(*srcs);
+
+  vec<int> sink_vec; 
+  for(; sinks_sz; --sinks_sz, ++sinks)
+    sink_vec.push(*sinks);
+
+  vec<phage::bflow> flow_vec;
+  for(; flows_sz; --flows_sz, ++flows) {
+    flow_vec.push(phage::bflow { (*flows).src, (*flows).sink, get_atom((*flows).at) });
+  }
+  return phage::bipartite_flow(get_solver(s)->data, src_vec, sink_vec, flow_vec);
+}
+
 int cumulative(solver s, task* ts, int sz, int cap) {
   vec<phage::intvar> xs;
   vec<int> ds;

@@ -23,3 +23,14 @@ typedef struct {
 } dtask;
 
 boolean disjunctive([in] solver s, [in,size_is(sz)] dtask ts[], int sz);
+
+typedef struct {
+  [mlname(at)] atom at;
+  [mlname(src)] int src;
+  [mlname(sink)] int sink;
+} bp_flow;
+
+boolean bipartite_flow([in] solver s,
+  [in,size_is(srcs_sz)] int srcs[], int srcs_sz,
+  [in,size_is(sinks_sz)] int sinks[], int sinks_sz,
+  [in,size_is(flows_sz)] bp_flow flows[], int flows_sz);
