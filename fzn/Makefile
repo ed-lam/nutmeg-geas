@@ -81,32 +81,19 @@ libgeas_ml.a: ../ml/libgeas_ml.a
 
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
 	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
-<<<<<<< Updated upstream
-  -ccopt "-L /opt/local/lib/ocaml" \
-  -ccopt "-L ${HOME}/.opam/system/lib/camlidl" \
-  ../ml/geas.cmxa \
-=======
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
-  ../ml/phage.cmxa \
->>>>>>> Stashed changes
+  ../ml/geas.cmxa \
   $@.mli $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_DEBUG) : %.debug : $(MLMODULES:%=%.cmo) %.ml
 	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@ \
-<<<<<<< Updated upstream
-  -ccopt "-L /opt/local/lib/ocaml" \
-  -ccopt "-L ${HOME}/.opam/system/lib/camlidl" \
-  ../ml/geas.cma \
-=======
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
-  ../ml/phage.cma \
->>>>>>> Stashed changes
+  ../ml/geas.cma \
   $(subst .debug,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_PROF) : %.p : $(MLMODULES:%=%.p.cmx) %.ml
 	$(OCAMLFIND) ocamlopt -p $(OCAMLFLAGS) -o $@ \
-  -ccopt "-L /opt/local/lib/ocaml" \
-  -ccopt "-L ${HOME}/.opam/system/lib" \
+  -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
   ../ml/geas.cmxa \
   $(subst .p,.mli,$@) $^ -package $(REQ_PKG) -linkpkg
 
