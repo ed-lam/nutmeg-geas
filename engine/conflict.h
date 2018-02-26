@@ -1,8 +1,8 @@
-#ifndef PHAGE_CONFLICT__H
-#define PHAGE_CONFLICT__H
+#ifndef GEAS_CONFLICT__H
+#define GEAS_CONFLICT__H
 
 #include "mtl/p-sparse-set.h"
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 #include "engine/infer-types.h"
 
 namespace phage {

@@ -1,5 +1,5 @@
-#ifndef PHAGE_TYPES__H
-#define PHAGE_TYPES__H
+#ifndef GEAS_TYPES__H
+#define GEAS_TYPES__H
 #include <stdint.h>
 #include "utils/defs.h"
 #include "mtl/Vec.h"

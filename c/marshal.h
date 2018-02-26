@@ -1,9 +1,9 @@
-#ifndef PHAGE_C_MARSHAL_H
-#define PHAGE_C_MARSHAL_H
+#ifndef GEAS_C_MARSHAL_H
+#define GEAS_C_MARSHAL_H
 #include "solver/solver.h"
 #include "solver/model.h"
 #include "c/atom.h"
-#include "c/phage.h"
+#include "c/geas.h"
 
 inline phage::solver* get_solver(solver s) {
   return (phage::solver*) s;

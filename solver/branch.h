@@ -1,6 +1,6 @@
-#ifndef PHAGE_BRANCH_H
-#define PHAGE_BRANCH_H
-#include "engine/phage-types.h"
+#ifndef GEAS_BRANCH_H
+#define GEAS_BRANCH_H
+#include "engine/geas-types.h"
 #include "engine/infer.h"
 
 namespace phage {

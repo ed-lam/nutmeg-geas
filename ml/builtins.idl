@@ -65,5 +65,5 @@ quote(ml, "let disjunctive s xs = \
 quote(mli, "val bipartite_flow : \
   Solver.t -> int array -> int array -> (Atom.t * int * int) array -> bool");
 quote(ml, "let bipartite_flow s srcs sinks flows = \
-  I.bipartite_flow s srcs sinks (Array.map (fun (a, sr, de) -> { I.src = sr, I.dest = de, I.at = a }) flows)")
+  I.bipartite_flow s srcs sinks (Array.map (fun (a, sr, de) -> { I.src = sr; I.sink = de; I.at = a }) flows)")
   

@@ -1,5 +1,5 @@
-#ifndef PHAGE_VALSET_H
-#define PHAGE_VALSET_H
+#ifndef GEAS_VALSET_H
+#define GEAS_VALSET_H
 #include "mtl/int-triemap.h"
 #include "solver/solver_data.h"
 

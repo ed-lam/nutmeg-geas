@@ -1,5 +1,5 @@
-#ifndef PHAGE_BOOL_SET_H
-#define PHAGE_BOOL_SET_H
+#ifndef GEAS_BOOL_SET_H
+#define GEAS_BOOL_SET_H
 #include "mtl/Vec.h"
 
 // A monotone set for collecting changes.

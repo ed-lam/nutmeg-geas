@@ -1,5 +1,5 @@
-#ifndef PHAGE_VAR__H
-#define PHAGE_VAR__H
+#ifndef GEAS_VAR__H
+#define GEAS_VAR__H
 #include <unordered_map>
 #include "mtl/int-triemap.h"
 

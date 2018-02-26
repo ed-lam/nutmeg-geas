@@ -1,6 +1,6 @@
-#ifndef PHAGE_STATE__H
-#define PHAGE_STATE__H
-#include "engine/phage-types.h"
+#ifndef GEAS_STATE__H
+#define GEAS_STATE__H
+#include "engine/geas-types.h"
 #include "mtl/Vec.h"
 
 namespace phage {

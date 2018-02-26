@@ -1,5 +1,5 @@
-#ifndef PHAGE_INFER__H
-#define PHAGE_INFER__H
+#ifndef GEAS_INFER__H
+#define GEAS_INFER__H
 #include <map>
 #include <vector>
 

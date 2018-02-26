@@ -13,6 +13,7 @@ CXXFLAGS += $(PROF)
 CFLAGS = -g -O3 -I .
 CFLAGS += -Wall -Wno-unused-function -Wno-deprecated -ffast-math
 CFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
+CFLAGS += -I ${HOME}/.opam/system/lib/camlidl
 CFLAGS += $(PROF)
 CFLAGS += -I ..
 LFLAGS = -lz
@@ -35,18 +36,18 @@ STUBS = $(addsuffix _stubs.c, $(basename $(IDLSRCS)))
 OBJS = $(addsuffix _stubs.o, $(basename $(IDLSRCS))) solver_extra.o
 #DEPS = $(addsuffix .d, $(basename $(IDLSRCS)))
 
-MLLIBS = phage
+MLLIBS = geas
 
 MLTARGETS = $(addsuffix .cma, $(MLLIBS)) $(addsuffix .cmxa, $(MLLIBS))
-LIBTARGETS = libphage_ml.a $(MLTARGETS)
+LIBTARGETS = libgeas_ml.a $(MLTARGETS)
 
-all : $(LIBTARGETS) phage_top
+all : $(LIBTARGETS) geas_top
 
 #$(TESTS) : % : %.o $(OBJS)
 #	$(CXX) $(CXXFLAGS) -o $@ $@.o $(OBJS) $(LFLAGS)
 
-#libphage.a:
-#	cp ../libphage.a .
+#libgeas.a:
+#	cp ../libgeas.a .
 
 $(STUBS) : $(MLIS)
 
@@ -54,27 +55,27 @@ $(STUBS) : $(MLIS)
 	@echo Generating interfaces: " $^ "
 	camlidl -no-include $^
 
-phage.cma: $(CMIS) $(CMOS) libphage_ml.a ../libphage.a
+geas.cma: $(CMIS) $(CMOS) libgeas_ml.a ../libgeas.a
 	$(OCAMLC) $(OCAMLFLAGS) $(OCAMLINC) -custom -a -o $@ \
-	$(CMOS) libphage_ml.a ../libphage.a \
+	$(CMOS) libgeas_ml.a ../libgeas.a \
 	-ccopt "-L ." -cclib "-lcamlidl -lstdc++"
 
-phage.cmxa phage.a: $(CMIS) $(CMXS) libphage_ml.a ../libphage.a
+geas.cmxa geas.a: $(CMIS) $(CMXS) libgeas_ml.a ../libgeas.a
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) $(OCAMLINC) -a -o $@ \
-	$(CMXS) libphage_ml.a ../libphage.a \
+	$(CMXS) libgeas_ml.a ../libgeas.a \
 	-ccopt "-L ."  -cclib "-lcamlidl -lstdc++"
-	$(RANLIB) phage.a
+	$(RANLIB) geas.a
 
-libphage_ml.a: $(OBJS)
+libgeas_ml.a: $(OBJS)
 	$(AR) rcs $@ $^
 	$(RANLIB) $@
 
-libphage_ml.so: $(OBJS)
+libgeas_ml.so: $(OBJS)
 	$(SHARED) -o $@ $^
 
-phage_top : $(LIBTARGETS)
+geas_top : $(LIBTARGETS)
 	$(OCAMLMKTOP) $(OCAMLINC) -custom -o $@ \
-	phage.a phage.cma \
+	geas.a geas.cma \
   -ccopt "-ggdb" \
   -ccopt "-L /opt/local/lib/ocaml" \
 	-ccopt "-L . " -cclib "-lcamlidl -lstdc++"

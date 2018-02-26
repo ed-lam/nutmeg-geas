@@ -1,10 +1,10 @@
-#ifndef PHAGE_SOLVER_IMPL__H
-#define PHAGE_SOLVER_IMPL__H
+#ifndef GEAS_SOLVER_IMPL__H
+#define GEAS_SOLVER_IMPL__H
 #include <signal.h>
 #include "mtl/Vec.h"
 #include "mtl/Heap.h"
 #include "mtl/Queue.h"
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 #include "engine/state.h"
 #include "engine/infer.h"
 #include "engine/persist.h"

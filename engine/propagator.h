@@ -1,5 +1,5 @@
-#ifndef PHAGE_PROPAGATOR__H
-#define PHAGE_PROPAGATOR__H
+#ifndef GEAS_PROPAGATOR__H
+#define GEAS_PROPAGATOR__H
 #include "engine/infer-types.h"
 #include "engine/persist.h"
 

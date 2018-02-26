@@ -1,5 +1,5 @@
-#ifndef PHAGE_PRIORITY_BRANCH__H
-#define PHAGE_PRIORITY_BRANCH__H
+#ifndef GEAS_PRIORITY_BRANCH__H
+#define GEAS_PRIORITY_BRANCH__H
 #include <climits>
 #include "solver/branch.h"
 

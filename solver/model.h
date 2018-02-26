@@ -1,7 +1,7 @@
-#ifndef PHAGE_MODEL_H
-#define PHAGE_MODEL_H
+#ifndef GEAS_MODEL_H
+#define GEAS_MODEL_H
 #include "mtl/Vec.h"
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 
 namespace phage {
 

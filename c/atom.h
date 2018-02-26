@@ -1,5 +1,5 @@
-#ifndef PHAGE_C_ATOM_H
-#define PHAGE_C_ATOM_H
+#ifndef GEAS_C_ATOM_H
+#define GEAS_C_ATOM_H
 #include <stdint.h>
 #ifdef __cplusplus
 extern "C" {

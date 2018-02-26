@@ -1,5 +1,5 @@
-#ifndef __PHAGE_MAGIC_H__
-#define __PHAGE_MAGIC_H__
+#ifndef __GEAS_MAGIC_H__
+#define __GEAS_MAGIC_H__
 // Magical templatey incantations for stuff.
 
 /*

@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include "utils/defs.h"
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 #include "solver/solver_data.h"
 #include "engine/persist.h"
 

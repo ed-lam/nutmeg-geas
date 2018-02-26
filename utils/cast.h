@@ -1,5 +1,5 @@
-#ifndef PHAGE_CAST__H
-#define PHAGE_CAST__H
+#ifndef GEAS_CAST__H
+#define GEAS_CAST__H
 // Mapping different types to/from bit sequences.
 #include <cstring>
 #include <cfloat>

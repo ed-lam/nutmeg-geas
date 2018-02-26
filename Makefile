@@ -52,17 +52,18 @@ TESTOBJS = $(addsuffix .o, $(basename $(TESTSRC)))
 TESTS = $(basename $(TESTSRC))
 TESTDEPS = $(addsuffix .d, $(TESTS))
 
-TARGETS = phage $(TESTS)
-MLTARGETS = ml/libphage_ml.a ml/phage.cma ml/phage.cmxa ml/phage.a
-FZN_TARGETS = fzn/fzn_phage fzn/fzn_phage.debug
+#TARGETS = phage $(TESTS)
+TARGETS = $(TESTS)
+MLTARGETS = ml/libgeas_ml.a ml/geas.cma ml/geas.cmxa ml/geas.a
+FZN_TARGETS = fzn/fzn_geas fzn/fzn_geas.debug
 
 #TARGETS = $(TESTS)
-LIB = libphage.a
+LIB = libgeas.a
 all: $(TARGETS) $(LIB) $(MLTARGETS) $(FZN_TARGETS)
 
 ## Dependencies
 $(TESTS) : % : %.o $(COBJS)
-phage:			phage.o $(COBJS)
+#geas:			geas.o $(COBJS)
 
 .PHONY: all clean tests
 
@@ -83,12 +84,12 @@ $(TARGETS):
 	@echo Linking: "$@ ( $^ )"
 	@$(CXX) $^ $(LFLAGS) -o $@
 
-libphage.a: $(COBJS) $(LIBOBJS)
+libgeas.a: $(COBJS) $(LIBOBJS)
 	@echo Archiving: "$@ ( $^ )"
 	ar rc $@ $^
 	ranlib $@
 
-ml/libphage_ml.a ml/phage.a ml/phage.cmxa ml/phage.cma : libphage.a
+ml/libgeas_ml.a ml/geas.a ml/geas.cmxa ml/geas.cma : libgeas.a
 	@echo Building ML interface
 	$(MAKE) -C $(@D) $(@F)
 
@@ -100,7 +101,7 @@ $(FZN_TARGETS) : % : $(LIB) $(ML_TARGETS)
 clean:
 	$(MAKE) -C ml clean
 	$(MAKE) -C fzn clean
-	@rm -f $(TARGETS) $(LIB) phage.o $(COBJS) $(LIBOBJS) $(TESTOBJS) $(CDEPS) $(LIBDEPS) $(TESTDEPS)
+	@rm -f $(TARGETS) $(LIB) geas.o $(COBJS) $(LIBOBJS) $(TESTOBJS) $(CDEPS) $(LIBDEPS) $(TESTDEPS)
 
 clobber: clean
 	$(MAKE) -C ml clobber

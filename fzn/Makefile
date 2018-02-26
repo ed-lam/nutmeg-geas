@@ -9,7 +9,7 @@ SRCDIR = $(shell pwd)
 # Installation directory
 #
 SITE-LIB = $(shell $(OCAMLFIND) printconf destdir)
-PKG-NAME = fzn_phage
+PKG-NAME = fzn_geas
 SITE-LIB-PKG = $(SITE-LIB)/$(PKG-NAME)
 
 #---------------------------------------
@@ -43,7 +43,7 @@ OCAMLOPTFLAGS+=$(PROF)
 
 # Global rules
 #TESTS=testPath testInterpret testLexer
-TARGETS=fzn_phage
+TARGETS=fzn_geas
 TARGETS_BYTE=$(TARGETS:%=%.byte)
 TARGETS_PROF=$(TARGETS:%=%.p)
 TARGETS_DEBUG=$(TARGETS:%=%.debug)
@@ -68,33 +68,36 @@ debug: $(TARGETS_DEBUG)
 #$(TARGETS_BYTE) : %.byte : $(MLMODULES:%=%.cmo) %.ml
 #	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -o $@ $(subst .byte,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
 
-#libphage_ml.a : ../ml/libphage_ml.a
-#	cp ../ml/libphage_ml.a .
+#libgeas_ml.a : ../ml/libgeas_ml.a
+#	cp ../ml/libgeas_ml.a .
 
-$(TARGETS) : phage.a libphage_ml.a
-$(TARGETS_DEBUG) : phage.a libphage_ml.a
+$(TARGETS) : geas.a libgeas_ml.a
+$(TARGETS_DEBUG) : geas.a libgeas_ml.a
 
-phage.a: ../ml/phage.a
-	cp ../ml/phage.a .
-libphage_ml.a: ../ml/libphage_ml.a
-	cp ../ml/libphage_ml.a .
+geas.a: ../ml/geas.a
+	cp ../ml/geas.a .
+libgeas_ml.a: ../ml/libgeas_ml.a
+	cp ../ml/libgeas_ml.a .
 
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
 	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
   -ccopt "-L /opt/local/lib/ocaml" \
-  ../ml/phage.cmxa \
+  -ccopt "-L ${HOME}/.opam/system/lib/camlidl" \
+  ../ml/geas.cmxa \
   $@.mli $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_DEBUG) : %.debug : $(MLMODULES:%=%.cmo) %.ml
 	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@ \
   -ccopt "-L /opt/local/lib/ocaml" \
-  ../ml/phage.cma \
+  -ccopt "-L ${HOME}/.opam/system/lib/camlidl" \
+  ../ml/geas.cma \
   $(subst .debug,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
 
 $(TARGETS_PROF) : %.p : $(MLMODULES:%=%.p.cmx) %.ml
 	$(OCAMLFIND) ocamlopt -p $(OCAMLFLAGS) -o $@ \
   -ccopt "-L /opt/local/lib/ocaml" \
-  ../ml/phage.cmxa \
+  -ccopt "-L ${HOME}/.opam/system/lib" \
+  ../ml/geas.cmxa \
   $(subst .p,.mli,$@) $^ -package $(REQ_PKG) -linkpkg
 
 clobber: clean

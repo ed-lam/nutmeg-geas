@@ -660,7 +660,7 @@ let main () =
   Arg.parse
     Opts.speclist
       (begin fun infile -> Opts.infile := Some infile end)
-      "fzn_phage <options> <inputfile>"
+      "fzn_geas <options> <inputfile>"
   ;
   Half_reify.initialize () ;
   Registry.initialize () ;

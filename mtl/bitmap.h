@@ -1,5 +1,5 @@
-#ifndef __PHAGE_BIT_MAP_H__
-#define __PHAGE_BIT_MAP_H__
+#ifndef __GEAS_BIT_MAP_H__
+#define __GEAS_BIT_MAP_H__
 // Implementation of a crit-bit tree/binary trie a la DJB.
 
 #include <boost/optional.hpp>

@@ -1,3 +1,4 @@
+#include <climits>
 #include "engine/propagator.h"
 #include "engine/propagator_ext.h"
 #include "vars/intvar.h"

@@ -13,7 +13,7 @@
 
 #include "../solver/stats.h"
 #include "../solver/options.h"
-#include "../c/phage.h"
+#include "../c/geas.h"
 
 extern value camlidl_c2ml_atom_atom(atom *, camlidl_ctx _ctx);
 

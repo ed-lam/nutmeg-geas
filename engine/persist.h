@@ -1,10 +1,10 @@
-#ifndef PHAGE_PERSIST_H
-#define PHAGE_PERSIST_H
+#ifndef GEAS_PERSIST_H
+#define GEAS_PERSIST_H
 
 // Data structures for managing trailing and
 // restoration (except the implication graph, which
 // is dealt with in infer.h
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 #include "engine/infer-types.h"
 
 namespace phage {

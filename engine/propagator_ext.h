@@ -1,5 +1,5 @@
-#ifndef PHAGE__PROPAGATOR_EXT_H
-#define PHAGE__PROPAGATOR_EXT_H
+#ifndef GEAS__PROPAGATOR_EXT_H
+#define GEAS__PROPAGATOR_EXT_H
 // Header file for syntactic-sugar templated
 // function definitions
 #include "solver/solver_data.h"

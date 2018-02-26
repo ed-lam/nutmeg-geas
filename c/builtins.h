@@ -1,7 +1,7 @@
-#ifndef PHAGE_C_BUILTINS_H
-#define PHAGE_C_BUILTINS_H
+#ifndef GEAS_C_BUILTINS_H
+#define GEAS_C_BUILTINS_H
 #include "c/atom.h"
-#include "c/phage.h"
+#include "c/geas.h"
 
 #ifdef __cplusplus
 extern "C" {

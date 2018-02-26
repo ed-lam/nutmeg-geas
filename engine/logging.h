@@ -1,6 +1,6 @@
-#ifndef PHAGE_PROOF_LOG_H
-#define PHAGE_PROOF_LOG_H
-#include "engine/phage-types.h"
+#ifndef GEAS_PROOF_LOG_H
+#define GEAS_PROOF_LOG_H
+#include "engine/geas-types.h"
 #include "engine/infer-types.h"
 
 #include "mtl/Vec.h"

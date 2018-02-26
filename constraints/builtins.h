@@ -1,5 +1,5 @@
-#ifndef PHAGE_BUILTINS_H
-#define PHAGE_BUILTINS_H
+#ifndef GEAS_BUILTINS_H
+#define GEAS_BUILTINS_H
 #include "vars/intvar.h"
 
 namespace phage {

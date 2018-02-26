@@ -1,5 +1,5 @@
-#ifndef PHAGE_FPVAR_H
-#define PHAGE_FPVAR_H
+#ifndef GEAS_FPVAR_H
+#define GEAS_FPVAR_H
 #include "solver/solver_data.h"
 #include "utils/cast.h"
 

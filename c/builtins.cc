@@ -2,7 +2,7 @@
 #include "utils/defs.h"
 
 #include "c/atom.h"
-#include "c/phage.h"
+#include "c/geas.h"
 #include "c/builtins.h"
 
 #include "c/marshal.h"

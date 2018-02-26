@@ -1,5 +1,5 @@
-#ifndef PHAGE_SOLVER_OPTIONS_H
-#define PHAGE_SOLVER_OPTIONS_H
+#ifndef GEAS_SOLVER_OPTIONS_H
+#define GEAS_SOLVER_OPTIONS_H
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,5 +1,5 @@
-#ifndef PHAGE_DEFS__H
-#define PHAGE_DEFS__H
+#ifndef GEAS_DEFS__H
+#define GEAS_DEFS__H
 // Syntactic sugar definitions
 #include <cassert>
 #include <cstdio>

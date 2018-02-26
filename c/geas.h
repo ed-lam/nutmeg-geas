@@ -1,5 +1,5 @@
-#ifndef PHAGE_H
-#define PHAGE_H
+#ifndef GEAS_H
+#define GEAS_H
 // Top-level C interface
 #include "c/atom.h"
 #include "solver/stats.h"

@@ -1,5 +1,5 @@
-#ifndef PHAGE_STATS_H
-#define PHAGE_STATS_H
+#ifndef GEAS_STATS_H
+#define GEAS_STATS_H
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,8 +1,8 @@
-#ifndef PHAGE_SOLVER__H
-#define PHAGE_SOLVER__H
+#ifndef GEAS_SOLVER__H
+#define GEAS_SOLVER__H
 
 // #include "solver/var.h"
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 #include "solver/expr.h"
 #include "solver/model.h"
 #include "solver/options.h"

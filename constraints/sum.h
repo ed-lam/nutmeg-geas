@@ -1,5 +1,5 @@
-#ifndef PHAGE_SUM__H
-#define PHAGE_SUM__H
+#ifndef GEAS_SUM__H
+#define GEAS_SUM__H
 #include "engine/propagator.h"
 #include "engine/propagator_ext.h"
 

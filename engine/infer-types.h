@@ -1,5 +1,5 @@
-#ifndef PHAGE_INFER_TYPES__H
-#define PHAGE_INFER_TYPES__H
+#ifndef GEAS_INFER_TYPES__H
+#define GEAS_INFER_TYPES__H
 /* Types for the inference engine */
 
 #include <stdint.h>
@@ -8,7 +8,7 @@
 #include "mtl/int-triemap.h"
 
 #include "utils/defs.h"
-#include "engine/phage-types.h"
+#include "engine/geas-types.h"
 
 // #define SPARSE_WATCHES
 

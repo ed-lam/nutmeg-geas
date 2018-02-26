@@ -1,5 +1,5 @@
-#ifndef PHAGE_BOUNDS_H
-#define PHAGE_BOUNDS_H
+#ifndef GEAS_BOUNDS_H
+#define GEAS_BOUNDS_H
 #include<algorithm>
 
 template<class T>
