@@ -8,15 +8,16 @@ CXX = g++
 #CXX = g++-4.9
 CXXFLAGS = -g -O3 -I .
 CXXFLAGS += -Wall -Wno-non-virtual-dtor -Wno-unused-function -Wno-deprecated -ffast-math # -funroll-loops
-CXXFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
+#CXXFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
+CXXFLAGS += -I $(CAML_PREFIX)/lib/ocaml -I $(CAMLIDL_PREFIX)/lib/camlidl
 CXXFLAGS += $(PROF)
 CFLAGS = -g -O3 -I .
 CFLAGS += -Wall -Wno-unused-function -Wno-deprecated -ffast-math
-CFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
-CFLAGS += -I ${HOME}/.opam/system/lib/camlidl
+#CFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
+CFLAGS += -I $(CAML_PREFIX)/lib/ocaml -I $(CAMLIDL_PREFIX)/lib/camlidl
 CFLAGS += $(PROF)
 CFLAGS += -I ..
-LFLAGS = -lz
+LFLAGS = -lz -L $(CAML_PREFIX)/lib/ocaml $(CAMLIDL_PREFIX)/lib/camlidl
 LFLAGS += $(PROF)
 OCAMLINC += -I ..
 OCAMLOPTFLAGS += $(MLPROF)
@@ -77,7 +78,7 @@ geas_top : $(LIBTARGETS)
 	$(OCAMLMKTOP) $(OCAMLINC) -custom -o $@ \
 	geas.a geas.cma \
   -ccopt "-ggdb" \
-  -ccopt "-L /opt/local/lib/ocaml" \
+  -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
 	-ccopt "-L . " -cclib "-lcamlidl -lstdc++"
 
 clean :

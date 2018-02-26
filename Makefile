@@ -28,10 +28,10 @@ LFLAGS   += $(PROF)
 #CXXFLAGS += -DLOG_PROP
 #CXXFLAGS += -DCHECK_STATE
 
-#COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-partition
+COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2
 #COPTIMIZE = -O1
-COPTIMIZE = -O0
+#COPTIMIZE = -O0
 #COPTIMIZE += -DNDEBUG
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
@@ -52,7 +52,6 @@ TESTOBJS = $(addsuffix .o, $(basename $(TESTSRC)))
 TESTS = $(basename $(TESTSRC))
 TESTDEPS = $(addsuffix .d, $(TESTS))
 
-#TARGETS = phage $(TESTS)
 TARGETS = $(TESTS)
 MLTARGETS = ml/libgeas_ml.a ml/geas.cma ml/geas.cmxa ml/geas.a
 FZN_TARGETS = fzn/fzn_geas fzn/fzn_geas.debug
@@ -63,7 +62,6 @@ all: $(TARGETS) $(LIB) $(MLTARGETS) $(FZN_TARGETS)
 
 ## Dependencies
 $(TESTS) : % : %.o $(COBJS)
-#geas:			geas.o $(COBJS)
 
 .PHONY: all clean tests
 
