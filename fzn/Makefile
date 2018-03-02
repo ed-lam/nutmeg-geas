@@ -1,4 +1,11 @@
-include ../Makefile.config
+CAML_PREFIX=$(dir $(shell which ocamlc))/..
+CAMLIDL_PREFIX=$(dir $(shell which camlidl))/..
+OCAMLC=$(CAML_PREFIX)/bin/ocamlc.opt
+OCAMLOPT=$(CAML_PREFIX)/bin/ocamlopt.opt
+OCAMLMKTOP=$(CAML_PREFIX)/bin/ocamlmktop.opt
+OCAMLDEP=$(CAML_PREFIX)/bin/ocamldep.opt
+OCAMLLEX=$(CAML_PREFIX)/bin/ocamllex.opt
+OCAMLYACC=$(CAML_PREFIX)/bin/ocamlyacc.opt
 
 #---------------------------------------
 # Directories
@@ -15,9 +22,6 @@ SITE-LIB-PKG = $(SITE-LIB)/$(PKG-NAME)
 #---------------------------------------
 # CAML part
 #---------------------------------------
-
-#REQ_PKG = "extlib camlidl"
-REQ_PKG = ""
 
 MLMODULES=\
    dynArray \
@@ -80,22 +84,25 @@ libgeas_ml.a: ../ml/libgeas_ml.a
 	cp ../ml/libgeas_ml.a .
 
 $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
-	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ \
+#	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -o $@ 
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -o $@ \
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
   ../ml/geas.cmxa \
-  $@.mli $^ -package $(REQ_PKG) -linkpkg
+  $@.mli $^
 
 $(TARGETS_DEBUG) : %.debug : $(MLMODULES:%=%.cmo) %.ml
-	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@ \
+#	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@
+	$(OCAMLOPT) ocamlc $(OCAMLFLAGS) -custom -g -o $@ \
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
   ../ml/geas.cma \
-  $(subst .debug,.mli,$@)  $^ -package $(REQ_PKG) -linkpkg
+  $(subst .debug,.mli,$@)  $^
 
 $(TARGETS_PROF) : %.p : $(MLMODULES:%=%.p.cmx) %.ml
-	$(OCAMLFIND) ocamlopt -p $(OCAMLFLAGS) -o $@ \
+	#$(OCAMLFIND) ocamlopt -p $(OCAMLFLAGS) -o $@ 
+	$(OCAMLOPT) -p $(OCAMLFLAGS) -o $@ \
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
   ../ml/geas.cmxa \
-  $(subst .p,.mli,$@) $^ -package $(REQ_PKG) -linkpkg
+  $(subst .p,.mli,$@) $^
 
 clobber: clean
 	/bin/rm -f Makefile.depend TAGS
@@ -126,16 +133,16 @@ wc: $(SRC)
 	$(OCAMLYACC) $^
 
 %.cmi: %.mli
-	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -package $(REQ_PKG) -c $<
+	$(OCAMLFIND) ocamlc $(OCAMLFLAGS)  -c $<
 
 %.cmo: %.ml
-	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -package $(REQ_PKG) -c $<
+	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -c $<
 
 %.cmx: %.ml
-	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS) -package $(REQ_PKG) -c $<
+	$(OCAMLFIND) ocamlopt $(OCAMLOPTFLAGS)  -c $<
 
 %.p.cmx: %.ml
-	$(OCAMLFIND) ocamlopt -p $(OCAMLOPTFLAGS) -package $(REQ_PKG) -c -o $@ $<
+	$(OCAMLFIND) ocamlopt -p $(OCAMLOPTFLAGS)  -c -o $@ $<
 
 .PHONY: tags TAGS
 tags: TAGS

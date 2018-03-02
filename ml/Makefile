@@ -1,5 +1,8 @@
-include ../Makefile.config
-
+CAML_PREFIX=$(dir $(shell which ocamlc))/..
+CAMLIDL_PREFIX=$(dir $(shell which camlidl))/..
+OCAMLC=$(CAML_PREFIX)/bin/ocamlc.opt
+OCAMLOPT=$(CAML_PREFIX)/bin/ocamlopt.opt
+OCAMLMKTOP=$(CAML_PREFIX)/bin/ocamlmktop.opt
 #PROF = -pg
 PROF = 
 #MLPROF = -ccopt "-pg" -p
