@@ -612,7 +612,9 @@ let solve_optimize print_model print_nogood constrain solver assumps =
   in
   match Sol.solve solver !Opts.conflict_limit with
   | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
-  | Sol.UNSAT -> Format.fprintf fmt "UNSAT@."
+  | Sol.UNSAT ->
+    (* Format.fprintf fmt "UNSAT@." *)
+    Format.fprintf fmt "==========@."
   | Sol.SAT -> aux (Sol.get_model solver)
  
 let print_stats fmt stats obj_val =

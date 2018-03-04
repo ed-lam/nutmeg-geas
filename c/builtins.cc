@@ -211,6 +211,7 @@ int cumulative(solver s, task* ts, int sz, int cap) {
   }
   return phage::cumulative(get_solver(s)->data, xs, ds, rs, cap);
 }
+
 int disjunctive(solver s, dtask* ts, int sz) {
   vec<phage::intvar> xs;
   vec<int> ds;
@@ -219,6 +220,28 @@ int disjunctive(solver s, dtask* ts, int sz) {
     ds.push(t.dur);
   }
   return phage::disjunctive_int(get_solver(s)->data, xs, ds);
+}
+
+int precede_chain_int(solver s, intvar* vs, int sz) {
+  vec<phage::intvar> xs;
+  intvar* end = vs+sz;
+  for(; vs != end; ++vs) {
+    xs.push(*get_intvar(*vs));
+  }
+  return int_precede_chain(get_solver(s)->data, xs);
+}
+
+int values_precede_chain_int(solver s, int* ks, int ks_sz,
+  intvar* vs, int vs_sz) {
+  vec<int> vals(ks, ks+ks_sz);
+  vec<phage::intvar> xs;
+  intvar* end = vs+vs_sz;
+  for(; vs != end; ++vs) {
+    xs.push(*get_intvar(*vs));
+  }
+  //return phage::int_precede_chain::post(get_solver(s)->data, xs);
+  NOT_YET;
+  return false;
 }
 
 #ifdef __cplusplus

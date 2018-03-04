@@ -77,6 +77,17 @@ public:
       sz = ii;
     }
 
+    vec(const T* begin, const T* end)
+      : data(NULL), sz(0), cap(0) {
+      capacity(imax(2, end - begin));
+      int ii = 0;
+      for(; begin < end; ++begin) {
+        new (&data[ii]) T(*begin);
+        ++ii;
+      }
+      sz = ii;
+    }
+
     vec<T>& operator=(vec<T>&& o) {
       if(data) { free(data); }
       data = o.data;
@@ -142,8 +153,8 @@ public:
     const T& last  (void) const        { return data[sz-1]; }
     T&       last  (void)              { return data[sz-1]; }
 
-    T* begin(void) { return data; }
-    T* end(void)   { return data+sz; }
+    T* begin(void) const { return data; }
+    T* end(void)   const { return data+sz; }
     // Vector interface:
     const T& operator [] (int index) const  { return data[index]; }
     T&       operator [] (int index)        { return data[index]; }

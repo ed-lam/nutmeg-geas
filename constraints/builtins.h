@@ -49,5 +49,8 @@ bool int_eq(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 
 // alldifferent.cc
 bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
+
+// values-precede.cc
+bool int_precede_chain(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
 }
 #endif

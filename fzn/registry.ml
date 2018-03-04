@@ -637,6 +637,10 @@ let atmost_k solver args anns =
   let k = Pr.get_int args.(1) in
   B.atmost_k solver At.at_True xs k
 
+let precede_chain_int solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  B.precede_chain_int solver xs
+
 (* Maybe separate this out into a separate
  * per-solver registrar *)
 let initialize () =
@@ -686,6 +690,7 @@ let initialize () =
      "fzn_cumulative", cumulative ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
+     "precede_chain_int", precede_chain_int ;
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers
