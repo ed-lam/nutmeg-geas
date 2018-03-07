@@ -41,6 +41,11 @@ intvar new_intvar(solver s, int lb, int ub) {
   return (intvar) v;
 }
 
+intvar permute_intvar(solver s, intvar x, int* ks, int sz) {
+  vec<int> vals(ks, ks+sz);
+  phage::intvar* v(new phage::intvar(phage::permute_intvar(get_solver(s)->data, *get_intvar(x), vals)));
+  return (intvar) v;
+}
 /*
 typedef phage::optvar<phage::intvar> o_intvar;
 intvar new_opt_intvar(solver s, int lb, int ub) {

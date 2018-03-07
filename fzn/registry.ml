@@ -641,6 +641,12 @@ let precede_chain_int solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   B.precede_chain_int solver xs
 
+let value_precede_chain solver args anns =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array (force_ivar solver) args.(1) in
+  let zs = Array.map (fun x -> S.permute_intvar solver x cs) xs in
+  B.precede_chain_int solver zs
+
 (* Maybe separate this out into a separate
  * per-solver registrar *)
 let initialize () =
@@ -690,7 +696,8 @@ let initialize () =
      "fzn_cumulative", cumulative ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
-     "precede_chain_int", precede_chain_int ;
+     "geas_precede_chain", precede_chain_int ;
+     "geas_value_precede_chain", value_precede_chain ;
       ] in
   List.iter (fun (id, handler) ->
              register id handler) handlers

@@ -251,6 +251,7 @@ public:
 };
 
 intvar new_intvar(solver_data* s, intvar::val_t lb, intvar::val_t ub);
+intvar permute_intvar(solver_data* s, intvar x, vec<int>& perm);
 
 class intvar_manager {
 public:

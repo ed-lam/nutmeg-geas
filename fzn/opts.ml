@@ -28,7 +28,7 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "<int> : verbosity level, from 0 to 2 (default:0)"
      ) ;
      (
-      "-S",
+      "-s",
       Arg.Unit (fun () -> print_stats := true),
       " : print statistics"
      ) ;

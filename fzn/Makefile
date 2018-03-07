@@ -92,7 +92,7 @@ $(TARGETS) : % : $(MLMODULES:%=%.cmx) %.ml $(PHAGE_LIB)
 
 $(TARGETS_DEBUG) : %.debug : $(MLMODULES:%=%.cmo) %.ml
 #	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) -custom -g -o $@
-	$(OCAMLOPT) ocamlc $(OCAMLFLAGS) -custom -g -o $@ \
+	$(OCAMLC) $(OCAMLFLAGS) -custom -g -o $@ \
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
   ../ml/geas.cma \
   $(subst .debug,.mli,$@)  $^

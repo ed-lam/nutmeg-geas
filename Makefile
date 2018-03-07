@@ -35,7 +35,7 @@ COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-
 #COPTIMIZE += -DNDEBUG
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
-CXXFLAGS += -ggdb
+CXXFLAGS += -g -ggdb
 
 CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOLVER)/*.cc) $(wildcard $(CONSTRAINTS)/*.cc) $(wildcard $(CONSTRAINTS)/*/*.cc) $(wildcard $(UTILS)/*.cc)
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))

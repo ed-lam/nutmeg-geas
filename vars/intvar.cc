@@ -419,5 +419,139 @@ intvar new_intvar(solver_data* s, intvar::val_t lb, intvar::val_t ub) {
   return get_ivar_man(s)->new_var(lb, ub);
 }
 
+void uniq(vec<int>& values) {
+  std::sort(values.begin(), values.end());
+  int jj = 0;
+  for(int ii : irange(1, values.size())) {
+    if(values[jj] != values[ii]) {
+      values[++jj] = values[ii];
+    }
+  }
+  values.shrink(values.size() - (jj + 1));
+}
+
+// Should only be called when perm is a permutation (a superset of) of dom(x).
+intvar permute_intvar_total(solver_data* s, intvar x, vec<int>& perm) {
+  intvar_manager* m(get_ivar_man(s));
+  
+  // Set up the variable pred.
+  intvar z(m->new_var(1, perm.size()));
+  ivar_ext* x_ext(x.ext);
+  ivar_ext* z_ext(z.ext);
+
+  vec<patom_t> atoms;
+  {
+    patom_t at0(x_ext->get_eqatom(perm[0]));
+    add_clause(s, ~at0, z <= 1);
+    add_clause(s, at0, z > 1);
+  }
+  for(int ii = 2; ii < perm.size(); ii++) {
+    patom_t at(x_ext->get_eqatom(perm[ii-1]));
+    ADD(z_ext->eqtable, ii, at);
+    add_clause(s, ~at, z <= ii);
+    add_clause(s, ~at, z >= ii);
+    add_clause(s, at, z < ii, z > ii);
+  }
+  {
+    patom_t atE(x_ext->get_eqatom(perm.last()));
+    add_clause(s, ~atE, z >= perm.size());
+    add_clause(s, atE, z < perm.size());
+  }
+
+  return z;
+}
+
+// Version of permute-intvar which extends the domain of perm to
+// all values of dom(x)..
+intvar permute_intvar_ext(solver_data* s, intvar x, vec<int>& perm) {
+  int low(x.lb(s));
+  int high(x.ub(s));
+
+  vec<int> vals(perm);
+  std::sort(vals.begin(), vals.end());
+  // Remove out-of-bounds values
+  auto end = std::remove_if(vals.begin(), vals.end(), [&](int k) { return k < low || high < k; });
+  vals.shrink_(vals.end() - end);
+
+  for(int ii = 1; ii < vals.size(); ++ii) {
+    // Check the permutation has no duplicates.
+    if(vals[ii-1] == vals[ii]) {
+      fprintf(stderr, "ERROR: Called permute_intvar_ext with duplicate value %d.\n", vals[ii]);
+      ERROR;
+    }
+  }
+
+  // Now prefix any missing in-domain values at the beginning of the permutation
+  vec<int> perm_ext;
+  int k = x.lb(s);
+  for(int v : vals) {
+    if(v < k) continue;
+    for(; k < v; ++k) {
+      perm_ext.push(k);
+    }
+    // Used up this value
+    ++k;
+  }
+  int offset = perm_ext.size();
+  for(int v : perm)
+    perm_ext.push(v);
+
+  intvar z = permute_intvar_total(s, x, perm_ext);
+  return z - offset;
+}
+
+struct gap { int l; int u; };
+
+intvar permute_intvar(solver_data* s, intvar x, vec<int>& perm) {
+  return permute_intvar_ext(s, x, perm);
+  /*
+  intvar_manager* m(get_ivar_man(s));
+  
+  int low(x.lb(s));
+  int high(x.ub(s));
+
+  vec<int> vals(perm);
+  std::sort(vals.begin(), vals.end());
+  // Drop out-of-bounds values.
+  auto end = std::remove_if(vals.begin(), vals.end(),
+    [&](int k) { return k < low || high < k; });
+  vals.shrink_(vals.end() - end);
+
+  // Check totality and correctness.
+  vec<gap> gaps;
+  bool total = vals[0] <= low && vals.last() >= high;
+  for(int ii = 1; ii < vals.size(); ++ii) {
+    if(vals[ii-1] == vals[ii]) {
+      fprintf(stderr, "ERROR: Called permute_intvar with duplicate value %d.\n", vals[ii]);
+      ERROR;
+    }
+    if(vals[ii-1]+1 < vals[ii]) {
+      total = false;
+      gaps.push(gap { vals[ii-1]+1, vals[ii]-1 });
+    }
+  }
+
+  // Set up the variable pred.
+  intvar z(m->new_var(total, vals.size()));
+  ivar_ext* x_ext(x.ext);
+  ivar_ext* z_ext(z.ext);
+
+  vec<patom_t> atoms;
+  if(total) {
+    add_clause_(s, ~x_ext->get_eqatom(vals[0]), z <= 1);
+  } else {
+    ADD(z_ext->eqtable, 1, x_ext->get_eqatom(vals[0]));
+    // Now we need to hook up the zero value.
+    // z = 0 <-> x notin perm
+  }
+  for(int ii = 2; ii < vals.size(); ii++) {
+    patom_t at(x_ext->get_eqatom(vals[ii-1]));
+    ADD(z_ext->eqtable, ii, at);
+  }
+  // x = v_max -> z 
+  add_clause_(s, ~x_ext->get_eqatom(vals.last()), z >= vals.size());
+  */
+}
+
 }
 

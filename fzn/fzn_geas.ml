@@ -727,6 +727,8 @@ let main () =
      solve_optimize print_model print_nogood
        (increase_ivar obj_val env.ivars.(obj)) solver assumps
   end ;
-  print_stats Format.std_formatter (Sol.get_statistics solver) !obj_val
+  (* let fmt = Format.std_formatter in *)
+  let fmt = Format.err_formatter in
+  print_stats fmt (Sol.get_statistics solver) !obj_val
 
 let _ = main ()

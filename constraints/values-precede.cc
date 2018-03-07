@@ -49,10 +49,16 @@ class vals_precede_seq : public propagator,
       expl.push(xs[ii] >= u);
   }
 
+  // This requires expl_thunk::BT_PRED
   void ex_lb(int tag_int, pval_t p, vec<clause_elt>& expl) {
     tag_t t(cast::conv<tag_t, int>(tag_int));
 
     int l = xs[t.idx].lb_of_pval(p);
+    for(int ii : irange(t.idx))
+      l = std::max(l, (int) xs[ii].ub(s)+1);
+    for(int ii : irange(t.idx+1, t.wit))
+      l = std::max(l, (int) xs[ii].ub(s)+1);
+
     expl.push(~r);
     for(int ii : irange(t.idx))
       expl.push(xs[ii] >= l);
@@ -140,7 +146,7 @@ public:
           if(pos[L] == xi) {
             // is also the earliest, update the lb.
             uint32_t tag(cast::conv<uint32_t, tag_t>(tag_t(xi, idx)));
-            if(!set_lb(xs[xi], L, expl<&P::ex_lb>(tag))) {
+            if(!set_lb(xs[xi], L, expl<&P::ex_lb>(tag, expl_thunk::Ex_BTPRED))) {
               return false;
             }
           }
