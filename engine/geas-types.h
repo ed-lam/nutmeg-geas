@@ -4,7 +4,7 @@
 #include "utils/defs.h"
 #include "mtl/Vec.h"
 
-namespace phage {
+namespace geas {
 
 // Exception if posting a propagator fails.
 class RootFail { };

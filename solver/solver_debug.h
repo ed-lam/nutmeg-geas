@@ -21,7 +21,7 @@
 #endif
 */
 
-namespace phage {
+namespace geas {
 
 void check_pvals(solver_data* s);
 

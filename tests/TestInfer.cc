@@ -4,14 +4,14 @@
 #include "solver/solver_data.h"
 #include "engine/persist.h"
 
-using namespace phage;
+using namespace geas;
 
 int main(int argc, char** argv) {
   solver s; 
 
   solver_data& sd(*s.data);
-  phage::pid_t x = new_pred(sd);
-  phage::pid_t y = new_pred(sd);
+  geas::pid_t x = new_pred(sd);
+  geas::pid_t y = new_pred(sd);
   
   // x >= 5 -> x >= 8.
   add_clause(&sd, ~patom_t(x, 5), patom_t(x, 8));

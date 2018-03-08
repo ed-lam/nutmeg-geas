@@ -3,7 +3,7 @@
 // Header file for syntactic-sugar templated
 // function definitions
 #include "solver/solver_data.h"
-namespace phage {
+namespace geas {
 
 template<class T>
 inline void propagator::set(trailed<T>& x, T k) {

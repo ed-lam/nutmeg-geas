@@ -9,7 +9,7 @@
 #include "vars/intvar.h"
 #include "vars/fpvar.h"
 
-namespace phage {
+namespace geas {
 
 class solver_data;
 

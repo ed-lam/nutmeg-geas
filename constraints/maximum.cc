@@ -8,7 +8,7 @@
 #include "mtl/p-sparse-set.h"
 #include "utils/interval.h"
 
-namespace phage {
+namespace geas {
 
 // Incremental version
 #if 1

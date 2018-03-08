@@ -11,7 +11,7 @@
 
 // #define DEBUG_ELEM
 
-namespace phage {
+namespace geas {
 
 typedef std::pair<int, int> ipair;
 

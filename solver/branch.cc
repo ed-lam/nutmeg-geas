@@ -3,7 +3,7 @@
 #include "solver/branch.h"
 #include "vars/intvar.h"
 
-namespace phage {
+namespace geas {
 
 class simple_branch : public brancher {
 public:

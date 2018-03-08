@@ -12,7 +12,7 @@
 
 // #define SPARSE_WATCHES
 
-namespace phage {
+namespace geas {
 
 class solver_data;
 

@@ -2,7 +2,7 @@
 #include "solver/solver_data.h"
 #include "solver/solver_debug.h"
 
-namespace phage {
+namespace geas {
 
 void check_pvals(solver_data* s) {
   pred_state& st(s->state);

@@ -19,7 +19,7 @@
 #include "solver/stats.h"
 #include "solver/model.h"
 
-namespace phage {
+namespace geas {
 
 struct act_cmp {
   bool operator()(int i, int j) { return act[i] > act[j]; }; 

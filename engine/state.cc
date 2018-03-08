@@ -1,7 +1,7 @@
 #include "engine/state.h"
 #include "vars/intvar.h"
 
-namespace phage {
+namespace geas {
 
 void log_state(pred_state& p) {
   int pi = 0;

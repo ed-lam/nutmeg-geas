@@ -3,7 +3,7 @@
 #include "solver/solver_data.h"
 #include "utils/cast.h"
 
-namespace phage {
+namespace geas {
 namespace fp {
 
 typedef float fval;

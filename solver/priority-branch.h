@@ -3,7 +3,7 @@
 #include <climits>
 #include "solver/branch.h"
 
-namespace phage {
+namespace geas {
 namespace branching {
 
 template<int VarC, class V>

@@ -3,7 +3,7 @@
 #include "mtl/int-triemap.h"
 #include "solver/solver_data.h"
 
-namespace phage {
+namespace geas {
 
 enum mode_t { VS_Direct = 0, VS_Hash = 1, VS_Default };
 

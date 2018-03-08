@@ -6,7 +6,7 @@
 #include "engine/propagator_ext.h"
 #include "vars/intvar.h"
 
-namespace phage {
+namespace geas {
   
 class alldiff_v : public propagator, public prop_inst<alldiff_v> {
   watch_result wake(int xi) {

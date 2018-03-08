@@ -8,7 +8,7 @@
 // #define ADD(T, K, V) (T).insert(std::make_pair((K),(V)))
 #define VAL(It) (It).value
 // #define VAL(It) (It).second
-namespace phage {
+namespace geas {
 
 typedef intvar::val_t val_t;
 

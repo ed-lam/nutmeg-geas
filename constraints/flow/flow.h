@@ -4,7 +4,7 @@
 #include "vars/intvar.h"
 
 // 0-1 flow.
-namespace phage {
+namespace geas {
 
 struct bflow {
   int src;

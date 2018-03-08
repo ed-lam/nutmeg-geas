@@ -3,7 +3,7 @@
 #include "engine/infer-types.h"
 #include "engine/persist.h"
 
-namespace phage {
+namespace geas {
 class solver_data;
 
 // Lifting actual function pointers to avoid

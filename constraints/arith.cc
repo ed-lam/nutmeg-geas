@@ -11,7 +11,7 @@
 // using max = std::max;
 // using min = std::min;
 
-namespace phage {
+namespace geas {
 
 // Deciding whether to decompose
 bool is_small(solver_data* s, intvar x) {

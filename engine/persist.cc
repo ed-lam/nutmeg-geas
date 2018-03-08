@@ -4,7 +4,7 @@
 #include "solver/solver_data.h"
 #include "engine/persist.h"
 
-namespace phage {
+namespace geas {
 
 void push_level(solver_data* s) {
   persistence& p(s->persist);

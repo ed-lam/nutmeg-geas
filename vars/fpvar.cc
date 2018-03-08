@@ -1,6 +1,6 @@
 #include "vars/fpvar.h"
 
-namespace phage {
+namespace geas {
 namespace fp {
 
 // Creating and accessing the manager

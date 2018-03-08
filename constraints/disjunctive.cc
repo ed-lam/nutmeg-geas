@@ -2,7 +2,7 @@
 #include "engine/propagator.h"
 #include "engine/propagator_ext.h"
 #include "vars/intvar.h"
-namespace phage {
+namespace geas {
 
 // Helpful functions
 static unsigned int tree_sz(unsigned int leaves) {

@@ -31,7 +31,7 @@ options default_options = {
    10, // eager_threshold
 };
 
-namespace phage {
+namespace geas {
 
 /* This flag controls early solver termination */
 volatile static sig_atomic_t global_abort = 0;

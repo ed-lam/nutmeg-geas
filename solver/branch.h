@@ -3,7 +3,7 @@
 #include "engine/geas-types.h"
 #include "engine/infer.h"
 
-namespace phage {
+namespace geas {
 
 class brancher {
 public:

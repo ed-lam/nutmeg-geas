@@ -5,7 +5,7 @@
 #include "engine/geas-types.h"
 #include "engine/infer-types.h"
 
-namespace phage {
+namespace geas {
 
 class conflict_info {
   struct phase {

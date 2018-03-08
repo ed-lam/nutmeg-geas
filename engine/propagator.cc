@@ -1,7 +1,7 @@
 #include "engine/propagator.h"
 #include "solver/solver_data.h"
 
-namespace phage {
+namespace geas {
 
 propagator::propagator(solver_data* _s)
     : is_queued(false), prop_id(_s->propagators.size()), s(_s) {

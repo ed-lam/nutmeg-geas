@@ -5,7 +5,7 @@
 #include "engine/persist.h"
 #include "engine/valmap.h"
 
-using namespace phage;
+using namespace geas;
 
 int main(int argc, char** argv) {
   /*

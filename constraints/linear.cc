@@ -11,7 +11,7 @@
 // #define EXPL_EAGER
 // #define EXPL_NAIVE
 
-namespace phage {
+namespace geas {
 
 class int_linear_le : public propagator, public prop_inst<int_linear_le> {
   enum { Var_None = -1 };

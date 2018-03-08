@@ -7,7 +7,7 @@
 #include "vars/intvar.h"
 
 #define SKIP_L0
-namespace phage {
+namespace geas {
 
 struct elt {
   typedef typename intvar::val_t val_t;

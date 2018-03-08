@@ -8,7 +8,7 @@
 #include "solver/model.h"
 #include "solver/solver_data.h"
 
-namespace phage {
+namespace geas {
 
 class intvar_manager;
 

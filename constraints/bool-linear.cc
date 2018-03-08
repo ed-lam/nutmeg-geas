@@ -4,7 +4,7 @@
 #include "solver/solver_data.h"
 #include "constraints/builtins.h"
 
-namespace phage {
+namespace geas {
 
 struct term {
   int c;

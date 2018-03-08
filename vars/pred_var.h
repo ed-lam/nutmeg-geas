@@ -4,7 +4,7 @@
 // Saves us from having to wrap preds in intvars all the time.
 #include "solver/solver_data.h"
 
-namespace phage {
+namespace geas {
 
 struct pred_var {
   typedef pval_t val_t;

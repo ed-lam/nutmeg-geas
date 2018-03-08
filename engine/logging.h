@@ -6,7 +6,7 @@
 #include "mtl/Vec.h"
 
 
-namespace phage {
+namespace geas {
 
 class solver_data;
 

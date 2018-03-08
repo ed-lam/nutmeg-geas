@@ -8,7 +8,7 @@
 #include "mtl/p-sparse-set.h"
 #include "utils/interval.h"
 
-namespace phage {
+namespace geas {
 
 // Templated version of max propagator.
 template<class Val, class Var>

@@ -41,7 +41,7 @@ int main(int argc, char** argv)
 }
 #endif
 
-using namespace phage;
+using namespace geas;
 
 void print_touched(solver_data& sd) {
   std::cout << "touched: [" ;

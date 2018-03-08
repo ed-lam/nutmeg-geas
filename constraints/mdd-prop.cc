@@ -4,7 +4,7 @@
 #include "mtl/bool-set.h"
 #include "vars/intvar.h"
 
-namespace phage {
+namespace geas {
 
 class mdd_prop : public propagator {
   class mdd;

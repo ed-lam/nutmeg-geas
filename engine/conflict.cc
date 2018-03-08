@@ -3,7 +3,7 @@
 #include "solver/solver_debug.h"
 #include "engine/conflict.h"
 
-namespace phage {
+namespace geas {
 
 // ex_val is the bound which must be entailed
 static inline void bump_clause_act(solver_data* s, clause& cl) {

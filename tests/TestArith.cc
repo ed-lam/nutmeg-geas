@@ -5,7 +5,7 @@
 
 #include "constraints/builtins.h"
 
-using namespace phage;
+using namespace geas;
 
 std::ostream& operator<<(std::ostream& o, const solver::result& r) {
   switch(r) {

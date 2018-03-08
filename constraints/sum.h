@@ -3,7 +3,7 @@
 #include "engine/propagator.h"
 #include "engine/propagator_ext.h"
 
-namespace phage {
+namespace geas {
 
 // Parametric version of the sum(xs) <= k constraint, so we can
 // just swap in other variable types.

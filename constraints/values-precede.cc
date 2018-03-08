@@ -8,7 +8,7 @@
 #include "mtl/p-sparse-set.h"
 #include "utils/interval.h"
 
-namespace phage {
+namespace geas {
 
 // Like vals-precede-chain, but just monotonically
 // increasing.

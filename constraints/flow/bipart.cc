@@ -9,7 +9,7 @@
 #include "constraints/flow/flow.h"
 
 // #define LOG_FLOW
-namespace phage {
+namespace geas {
 
 class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
   watch_result wake_kill(int fi) {

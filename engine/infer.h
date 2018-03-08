@@ -8,7 +8,7 @@
 
 // #define SPARSE_WATCHES
 
-namespace phage {
+namespace geas {
 
 class infer_info {
 public:

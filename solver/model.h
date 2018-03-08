@@ -3,7 +3,7 @@
 #include "mtl/Vec.h"
 #include "engine/geas-types.h"
 
-namespace phage {
+namespace geas {
 
 struct model {
   model(void) { };

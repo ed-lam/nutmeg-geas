@@ -2,7 +2,7 @@
 #define GEAS_BUILTINS_H
 #include "vars/intvar.h"
 
-namespace phage {
+namespace geas {
 // linear.cc
 bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r = at_True);

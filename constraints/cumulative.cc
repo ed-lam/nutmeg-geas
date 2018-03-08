@@ -7,7 +7,7 @@
 #include "mtl/bool-set.h"
 #include "mtl/p-sparse-set.h"
 
-namespace phage {
+namespace geas {
 
 // Totally non-incremental time-table propagator.
 class cumul_prop : public propagator, public prop_inst<cumul_prop> {

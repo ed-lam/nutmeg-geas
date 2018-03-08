@@ -1,7 +1,7 @@
 #include <iostream>
 #include "solver/solver.h"
 
-using namespace phage;
+using namespace geas;
 
 std::ostream& operator<<(std::ostream& o, solver::result r) {
   switch(r) {

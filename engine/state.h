@@ -3,7 +3,7 @@
 #include "engine/geas-types.h"
 #include "mtl/Vec.h"
 
-namespace phage {
+namespace geas {
 
 // Interpreting a pair of pvals as a range.
 // Keeping persistent pvar_refs is probably risky,

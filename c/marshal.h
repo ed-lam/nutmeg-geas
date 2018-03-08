@@ -5,38 +5,38 @@
 #include "c/atom.h"
 #include "c/geas.h"
 
-inline phage::solver* get_solver(solver s) {
-  return (phage::solver*) s;
+inline geas::solver* get_solver(solver s) {
+  return (geas::solver*) s;
 }
-inline phage::intvar* get_intvar(intvar v) {
-  return (phage::intvar*) v;
+inline geas::intvar* get_intvar(intvar v) {
+  return (geas::intvar*) v;
 }
-inline phage::fp::fpvar* get_fpvar(fpvar v) {
-  return (phage::fp::fpvar*) v;
+inline geas::fp::fpvar* get_fpvar(fpvar v) {
+  return (geas::fp::fpvar*) v;
 }
-inline phage::patom_t get_atom(atom at) {
-  return phage::patom_t(at.pid, at.val);
+inline geas::patom_t get_atom(atom at) {
+  return geas::patom_t(at.pid, at.val);
 }
-inline atom unget_atom(phage::patom_t at) {
+inline atom unget_atom(geas::patom_t at) {
   atom a = { at.pid, at.val };
   return a;
 }
 
-inline phage::model* get_model(model m) {
-  return (phage::model*) m;
+inline geas::model* get_model(model m) {
+  return (geas::model*) m;
 }
 
-inline phage::brancher* get_brancher(brancher b) {
-  return (phage::brancher*) b;
+inline geas::brancher* get_brancher(brancher b) {
+  return (geas::brancher*) b;
 }
 
-inline result unget_result(phage::solver::result r) {
+inline result unget_result(geas::solver::result r) {
   switch(r) {
-    case phage::solver::SAT:
+    case geas::solver::SAT:
       return SAT;
-    case phage::solver::UNSAT:
+    case geas::solver::UNSAT:
       return UNSAT;
-    case phage::solver::UNKNOWN:
+    case geas::solver::UNKNOWN:
     default:
       return UNKNOWN;
   }
