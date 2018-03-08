@@ -14,3 +14,14 @@ But mostly to play around with different implementation ideas. Geas is
 intended to be readily extensible (with new variable types as well as
 propagators), can cope with large variable domains, and can spawn
 multiple solver instances in the same process.
+
+How to build it?
+----------------
+Requirements:
+  * Core engine:
+    - C++ compiler (g++/clang++)
+  * ML interface, and FZN frontend:
+    - `ocaml`
+    - `camlidl`
+
+The easiest way to get `camlidl` is through `opam`.

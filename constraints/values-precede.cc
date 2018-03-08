@@ -12,6 +12,8 @@ namespace phage {
 
 // Like vals-precede-chain, but just monotonically
 // increasing.
+// Use permutation views to deal with the rest.
+
 class vals_precede_seq : public propagator,
   public prop_inst<vals_precede_seq> {
   enum { S_Nil = 0, S_Act = 1, S_Red = 2 };

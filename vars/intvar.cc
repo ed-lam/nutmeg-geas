@@ -436,24 +436,23 @@ intvar permute_intvar_total(solver_data* s, intvar x, vec<int>& perm) {
   
   // Set up the variable pred.
   intvar z(m->new_var(1, perm.size()));
-  ivar_ext* x_ext(x.ext);
   ivar_ext* z_ext(z.ext);
 
   vec<patom_t> atoms;
   {
-    patom_t at0(x_ext->get_eqatom(perm[0]));
+    patom_t at0(x == perm[0]);
     add_clause(s, ~at0, z <= 1);
     add_clause(s, at0, z > 1);
   }
   for(int ii = 2; ii < perm.size(); ii++) {
-    patom_t at(x_ext->get_eqatom(perm[ii-1]));
+    patom_t at(x == perm[ii-1]);
     ADD(z_ext->eqtable, ii, at);
     add_clause(s, ~at, z <= ii);
     add_clause(s, ~at, z >= ii);
     add_clause(s, at, z < ii, z > ii);
   }
   {
-    patom_t atE(x_ext->get_eqatom(perm.last()));
+    patom_t atE(x == perm.last());
     add_clause(s, ~atE, z >= perm.size());
     add_clause(s, atE, z < perm.size());
   }
@@ -500,10 +499,69 @@ intvar permute_intvar_ext(solver_data* s, intvar x, vec<int>& perm) {
   return z - offset;
 }
 
-struct gap { int l; int u; };
+struct gap_t { int l; int u; };
+
+intvar permute_intvar_sparse(solver_data* s, intvar x, vec<int>& perm) {
+  int low(x.lb(s));
+  int high(x.ub(s));
+
+  vec<gap_t> gaps;
+  vec<int> vals(perm);
+  std::sort(vals.begin(), vals.end());
+  // Remove out-of-bounds values
+  auto end = std::remove_if(vals.begin(), vals.end(), [&](int k) { return k < low || high < k; });
+  vals.shrink_(vals.end() - end);
+
+  for(int ii = 1; ii < vals.size(); ++ii) {
+    // Check the permutation has no duplicates.
+    if(vals[ii-1] == vals[ii]) {
+      fprintf(stderr, "ERROR: Called permute_intvar_ext with duplicate value %d.\n", vals[ii]);
+      ERROR;
+    }
+    if(vals[ii-1]+1 < vals[ii]) {
+      // Add a new gap.
+      gaps.push(gap_t { vals[ii-1]+1, vals[ii]-1 });
+    }
+  }
+  if(gaps.size() == 0 && vals[0] == low && vals.last() == high)
+    return permute_intvar_total(s, x, perm);
+  
+  intvar_manager* m(get_ivar_man(s));
+  
+  // Set up the variable pred.
+  intvar z(m->new_var(0, perm.size()));
+  ivar_ext* z_ext(z.ext);
+
+  add_clause(s, z <= 0, x >= vals[0]);
+  add_clause(s, z <= 0, x <= vals.last());
+
+  for(int ii : irange(perm.size())) {
+    patom_t at(x == perm[ii]);
+    ADD(z_ext->eqtable, ii+1, at);
+    add_clause(s, ~at, z >= ii+1);
+    add_clause(s, ~at, z <= ii+1);
+    add_clause(s, at, z < ii+1, z > ii+1);
+  }
+  // Now deal with the holes
+  for(gap_t g : gaps) {
+    add_clause(s, x < g.l, x > g.u, z <= 0);
+  }
+  for(gap_t g : gaps) {
+    add_clause(s, x < low, x >= g.l, z > 0);
+    low = g.u+1;
+  }
+  add_clause(s, x < low, x > vals.last(), z > 0);
+
+  return z;
+}
+
 
 intvar permute_intvar(solver_data* s, intvar x, vec<int>& perm) {
+#if 1
   return permute_intvar_ext(s, x, perm);
+#else
+  return permute_intvar_sparse(s, x, perm);
+#endif
   /*
   intvar_manager* m(get_ivar_man(s));
   
