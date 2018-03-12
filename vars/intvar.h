@@ -203,6 +203,7 @@ public:
   val_t ub_delta(const vec<pval_t>& ctx_new, const vec<pval_t>& ctx_old) const;
   val_t lb(const solver_data* s) const;
   val_t ub(const solver_data* s) const;
+  bool in_domain(const ctx_t& ctx, int k) const;
 
   bool is_fixed(const vec<pval_t>& ctx) const;
   bool is_fixed(const solver_data*) const;
@@ -269,16 +270,23 @@ public:
 
 // inline patom_t intvar_base::operator==(int64_t v) {
 
-inline bool in_domain(ctx_t& ctx, intvar x, int k) {
+inline bool in_domain(const ctx_t& ctx, intvar x, int k) {
   if(x.ub(ctx) < k)
     return false;
   if(x.lb(ctx) > k)
     return false;
 
-  // FIXME: Deal with equality atoms
+  auto it = x.ext->eqtable.find(k-x.off);
+  if(it != x.ext->eqtable.end()) {
+    // If there's an equality atom,
+    // could it be true?
+    return (*it).value.ub(ctx);
+  }
+
   return true;
 }
-inline bool in_domain(solver_data* s, intvar x, int k) {
+
+inline bool in_domain(const solver_data* s, intvar x, int k) {
   return in_domain(s->state.p_vals, x, k);
 }
 
@@ -329,6 +337,9 @@ inline intvar::val_t intvar::ub_delta(const vec<pval_t>& ctx, const vec<pval_t>&
 }
 inline intvar::val_t intvar::lb(const solver_data* s) const { return lb(s->state.p_vals); }
 inline intvar::val_t intvar::ub(const solver_data* s) const { return ub(s->state.p_vals); }
+inline bool intvar::in_domain(const ctx_t& ctx, int k) const {
+  return geas::in_domain(ctx, *this, k);
+}
 
 inline bool intvar::is_fixed(const vec<pval_t>& ctx) const {
   return pred_fixed(ctx, p);

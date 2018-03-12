@@ -56,6 +56,7 @@ typedef struct { atom at; int src; int sink; } bp_flow;
 int bipartite_flow(solver s, int* srcs, int srcs_sz, int* sinks, int sinks_sz, bp_flow* flows, int flows_sz);
 
 // Restricted form of int-value-precede-chain.
+int precede_int(solver s, int a, int b, intvar* xs, int sz);
 int precede_chain_int(solver s, intvar* xs, int sz);
 int values_precede_chain_int(solver s, int* vs, int vs_sz,
   intvar* xs, int xs_sz);

@@ -39,6 +39,9 @@ template<class T> typename T::val_t propagator::ub_delta(const T& v) const {
 template<class T> typename T::val_t propagator::ub_prev(const T& v) const {
   return v.ub(s->state.p_last);
 }
+template<class T> bool propagator::in_domain(const T& v, typename T::val_t k) const {
+  return v.in_domain(s->state.p_vals, k);
+}
 template<class T> bool propagator::set_lb(T& x, typename T::val_t v, reason r) {
   return enqueue(*s, x >= v, r); 
 }

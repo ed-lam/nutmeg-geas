@@ -68,3 +68,4 @@ quote(ml, "let bipartite_flow s srcs sinks flows = \
   I.bipartite_flow s srcs sinks (Array.map (fun (a, sr, de) -> { I.src = sr; I.sink = de; I.at = a }) flows)")
   
 boolean precede_chain_int([in] solver s, [in,size_is(sz)] intvar xs[], int sz);
+boolean precede_int([in] solver s, int a, int b, [in,size_is(sz)] intvar xs[], int sz);

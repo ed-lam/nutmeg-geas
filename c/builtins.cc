@@ -231,6 +231,15 @@ int precede_chain_int(solver s, intvar* vs, int sz) {
   return int_precede_chain(get_solver(s)->data, xs);
 }
 
+int precede_int(solver s, int pre, int post, intvar* vs, int vs_sz) {
+  vec<geas::intvar> xs;
+  intvar* end = vs+vs_sz;
+  for(; vs != end; ++vs) {
+    xs.push(*get_intvar(*vs));
+  }
+  return geas::int_value_precede(get_solver(s)->data, pre, post, xs);
+}
+
 int values_precede_chain_int(solver s, int* ks, int ks_sz,
   intvar* vs, int vs_sz) {
   vec<int> vals(ks, ks+ks_sz);

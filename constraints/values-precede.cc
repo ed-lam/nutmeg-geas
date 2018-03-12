@@ -10,10 +10,192 @@
 
 namespace geas {
 
+// Propagator for the value_precede constraint.
+// Not gonna bother to make it reified yet.
+class value_precede : public propagator,
+  public prop_inst<value_precede> {
+   struct tag_t {
+      tag_t() : p(0), q(0) { }
+      tag_t(int _p, int _q) : p(_p), q(_q) { }
+      unsigned short p;
+      unsigned short q; 
+   };
+
+   enum Change { C_FST = 1, C_SND = 2, C_LIM = 4 }; 
+   enum Status { S_Act = 1, S_Red = 2 };
+
+   watch_result wake_fst(int xi) {
+     queue_prop();
+    return Wt_Keep;
+   }
+
+   watch_result wake_pre(int xi) {
+     if(status & S_Red)
+       return Wt_Keep;
+     if(xi == fst || xi == snd) {
+       queue_prop();
+     }
+     return Wt_Keep;
+   }
+   watch_result wake_cons(int xi) {
+     if(status & S_Red)
+      return Wt_Keep;
+
+     if(xi < limit) {
+       set(limit, xi);
+       queue_prop();
+     }
+     return Wt_Keep;
+   }
+
+   watch_result wake_fix(int xi) {
+     if(status & S_Red)
+       return Wt_Keep;
+
+     if(xi < limit && lb(xs[xi]) == cons) {
+       set(limit, xi);
+       queue_prop();
+     }
+     return Wt_Keep;
+   }
+  
+   // x_i != t <- forall j < i, x_i != s.
+   void ex_t(int xi, pval_t p, vec<clause_elt>& expl) {
+     for(int ii : irange(xi)) {
+       expl.push(xs[ii] == pre);
+     }
+   }
+   
+   // x_i = s <- x_j = t & forall (k in 1..j-1, k != i) (x_k != s)
+   void ex_s(int tval, pval_t p, vec<clause_elt>& expl) {
+     tag_t tag(cast::conv<tag_t, int>(tval));
+     expl.push(xs[tag.q] != cons);
+     for(int ii : irange(tag.p))
+       expl.push(xs[ii] == pre);
+     for(int ii : irange(tag.p+1, tag.q))
+       expl.push(xs[ii] == pre);
+   }
+
+public: 
+  value_precede(solver_data* solver, int _s, int _t, vec<intvar>& _xs)
+    : propagator(solver), pre(_s), cons(_t), xs(_xs),
+      fst(0), snd(0), limit(xs.size()),
+      status(S_Act) {
+    // Find the earliest definite occurrence of lst.
+    int xi = 0;
+    for(; xi < xs.size(); ++xi) {
+      if(is_fixed(xs[xi]) && lb(xs[xi]) == cons)
+        break;
+    }
+    set(limit, xi);
+
+    int ii = 0;
+    for(; ii < limit; ++ii) {
+      if(in_domain(xs[ii], pre))
+        break;
+    }
+    if(ii >= limit)
+      throw RootFail();
+    set(fst, ii);    
+    
+    for(++ii; ii < limit; ++ii) {
+      if(in_domain(xs[ii], pre))
+        break;
+    }
+    if(ii >= limit) {
+      // Exactly one occurrence.
+      if(!set_lb(xs[fst], pre, reason()))
+        throw RootFail();
+      if(!set_ub(xs[fst], pre, reason()))
+        throw RootFail();
+      // Now redundant, so never attach.
+    } else {
+      set(snd, ii);
+
+      // Now attach.
+      // Limit changes
+      for(int xi : irange(xs.size())) {
+        xs[xi].attach(E_FIX, watch<&P::wake_fix>(xi));
+        attach(s, xs[xi] != pre, watch<&P::wake_pre>(fst));
+      }
+      // attach(s, xs[fst] != pre, watch<&P::wake_fst>(fst));
+      // fst_watched[fst] = true;
+
+      // attach(s, xs[snd] != pre, watch<&P::wake_snd>(snd));
+      // snd_watched[snd] = true;
+    }
+  }
+
+  void ex_fail(int idx, vec<clause_elt>& confl) {
+    for(int ii : irange(idx))
+      confl.push(xs[ii] == pre);
+    confl.push(xs[idx] != cons);
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    if(status & S_Red)
+      return true;
+
+    // Repair fst.
+    if(!in_domain(xs[fst],pre)) {
+      int f = fst;
+      for(++f; f < limit; ++f) {
+        if(in_domain(xs[f],pre))
+          break;
+      }
+      if(f >= limit) {
+        ex_fail(limit, confl);
+        return false;
+      }
+      for(int ii : irange(fst, f)) {
+        if(in_domain(xs[ii], cons)) {
+          if(!enqueue(*s, xs[ii] != cons, expl<&P::ex_t>(ii)))
+            return false;
+        }
+      }
+      set(fst, f);
+    }
+    // First occurrence is a definite occurrence.
+    if(is_fixed(xs[fst])) {
+      set(status, (char) S_Red);
+      return true;
+    }
+    if(snd <= fst || !in_domain(xs[snd],pre)) {
+      int g = std::max((int) fst, (int) snd);
+      for(++g; g < limit; ++g) {
+        if(in_domain(xs[g], pre)) {
+          set(snd, g);
+          goto vp_supp_found;
+        }
+      }
+      // No second support found. 
+      if(!enqueue(*s, xs[fst] == pre,
+        expl<&P::ex_s>(cast::conv<int, tag_t>(tag_t(fst, limit)))))
+        return false;
+      set(status, (char) S_Red);
+    }
+vp_supp_found:
+    return true;
+  }
+
+  // Parameters
+  int pre;
+  int cons;
+  vec<intvar> xs;
+
+  // Persistent data
+  Tint fst;  
+  Tint snd;
+  Tint limit;
+  Tchar status;
+
+  // Transient state
+  char changes;
+};
+
 // Like vals-precede-chain, but just monotonically
 // increasing.
 // Use permutation views to deal with the rest.
-
 class vals_precede_seq : public propagator,
   public prop_inst<vals_precede_seq> {
   enum { S_Nil = 0, S_Act = 1, S_Red = 2 };
@@ -180,6 +362,10 @@ protected:
 
 bool int_precede_chain(solver_data* s, vec<intvar>& xs, patom_t r = at_True) {
   return vals_precede_seq::post(s, xs, r);
+}
+
+bool int_value_precede(solver_data* s, int pre, int post, vec<intvar>& xs) {
+  return value_precede::post(s, pre, post, xs);
 }
 
 }

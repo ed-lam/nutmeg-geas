@@ -46,6 +46,7 @@ public:
   template<class T> typename T::val_t ub_prev(const T& v) const;
   template<class T> typename T::val_t lb_delta(const T& v) const;
   template<class T> typename T::val_t ub_delta(const T& v) const;
+  template<class T> bool in_domain(const T& x, typename T::val_t v) const;
   template<class T> bool set_lb(T& x, typename T::val_t v, reason r);
   template<class T> bool set_ub(T& x, typename T::val_t v, reason r);
 

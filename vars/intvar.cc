@@ -8,6 +8,8 @@
 // #define ADD(T, K, V) (T).insert(std::make_pair((K),(V)))
 #define VAL(It) (It).value
 // #define VAL(It) (It).second
+
+#define GAPVARS
 namespace geas {
 
 typedef intvar::val_t val_t;
@@ -542,7 +544,10 @@ intvar permute_intvar_sparse(solver_data* s, intvar x, vec<int>& perm) {
     add_clause(s, ~at, z <= ii+1);
     add_clause(s, at, z < ii+1, z > ii+1);
   }
-  // Now deal with the holes
+  // Now deal with the holes. Is this the right way?
+  // Or introduce a fresh variable for each non-trivial
+  // gap?
+#ifndef GAPVARS
   for(gap_t g : gaps) {
     add_clause(s, x < g.l, x > g.u, z <= 0);
   }
@@ -551,6 +556,24 @@ intvar permute_intvar_sparse(solver_data* s, intvar x, vec<int>& perm) {
     low = g.u+1;
   }
   add_clause(s, x < low, x > vals.last(), z > 0);
+#else
+  vec<clause_elt> gapclause;
+  gapclause.push(z > 0);
+  for(gap_t g : gaps) {
+    patom_t at;
+    if(g.l == g.u) {
+      at = x == g.l;
+    } else {
+      at = new_bool(*s);
+      add_clause(s, ~at, x >= g.l);
+      add_clause(s, ~at, x >= g.u);
+      add_clause(s, at, x < g.l, x > g.u); 
+    }
+    add_clause(s, z <= 0, ~at);
+    gapclause.push(at);
+  }
+  add_clause(*s, gapclause);
+#endif
 
   return z;
 }
@@ -562,53 +585,6 @@ intvar permute_intvar(solver_data* s, intvar x, vec<int>& perm) {
 #else
   return permute_intvar_sparse(s, x, perm);
 #endif
-  /*
-  intvar_manager* m(get_ivar_man(s));
-  
-  int low(x.lb(s));
-  int high(x.ub(s));
-
-  vec<int> vals(perm);
-  std::sort(vals.begin(), vals.end());
-  // Drop out-of-bounds values.
-  auto end = std::remove_if(vals.begin(), vals.end(),
-    [&](int k) { return k < low || high < k; });
-  vals.shrink_(vals.end() - end);
-
-  // Check totality and correctness.
-  vec<gap> gaps;
-  bool total = vals[0] <= low && vals.last() >= high;
-  for(int ii = 1; ii < vals.size(); ++ii) {
-    if(vals[ii-1] == vals[ii]) {
-      fprintf(stderr, "ERROR: Called permute_intvar with duplicate value %d.\n", vals[ii]);
-      ERROR;
-    }
-    if(vals[ii-1]+1 < vals[ii]) {
-      total = false;
-      gaps.push(gap { vals[ii-1]+1, vals[ii]-1 });
-    }
-  }
-
-  // Set up the variable pred.
-  intvar z(m->new_var(total, vals.size()));
-  ivar_ext* x_ext(x.ext);
-  ivar_ext* z_ext(z.ext);
-
-  vec<patom_t> atoms;
-  if(total) {
-    add_clause_(s, ~x_ext->get_eqatom(vals[0]), z <= 1);
-  } else {
-    ADD(z_ext->eqtable, 1, x_ext->get_eqatom(vals[0]));
-    // Now we need to hook up the zero value.
-    // z = 0 <-> x notin perm
-  }
-  for(int ii = 2; ii < vals.size(); ii++) {
-    patom_t at(x_ext->get_eqatom(vals[ii-1]));
-    ADD(z_ext->eqtable, ii, at);
-  }
-  // x = v_max -> z 
-  add_clause_(s, ~x_ext->get_eqatom(vals.last()), z >= vals.size());
-  */
 }
 
 }

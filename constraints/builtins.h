@@ -52,5 +52,6 @@ bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
 
 // values-precede.cc
 bool int_precede_chain(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
+bool int_value_precede(solver_data* s, int pre, int post, vec<intvar>& xs);
 }
 #endif

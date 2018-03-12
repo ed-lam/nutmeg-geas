@@ -641,6 +641,12 @@ let precede_chain_int solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   B.precede_chain_int solver xs
 
+let precede_int solver args anns =
+  let s = Pr.get_int args.(0) in
+  let t = Pr.get_int args.(1) in
+  let xs = Pr.get_array (force_ivar solver) args.(2) in
+  B.precede_int solver s t xs
+
 let value_precede_chain solver args anns =
   let cs = Pr.get_array Pr.get_int args.(0) in
   let xs = Pr.get_array (force_ivar solver) args.(1) in
@@ -696,6 +702,7 @@ let initialize () =
      "fzn_cumulative", cumulative ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
+     "value_precede_int", precede_int ;
      "geas_precede_chain", precede_chain_int ;
      "geas_value_precede_chain", value_precede_chain ;
       ] in
