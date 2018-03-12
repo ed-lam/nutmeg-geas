@@ -592,16 +592,30 @@ let increase_ivar obj_val ivar solver model =
   obj_val := Some model_val ;
   Sol.post_atom solver (Sol.ivar_gt ivar model_val)
 
+let relative_limits solver limits =
+  let s = Sol.get_statistics solver in
+  { Sol.max_time =
+      if limits.Sol.max_time > 0. then
+        max 0.001 (limits.Sol.max_time -. s.Sol.time)
+      else 0. ;
+    Sol.max_conflicts =
+      if limits.Sol.max_conflicts > 0 then
+        max 1 (limits.Sol.max_conflicts - s.Sol.conflicts)
+      else 0 }
+
 let solve_optimize print_model print_nogood constrain solver assumps =
   assert (List.length assumps = 0) ;
   let fmt = Format.std_formatter in
+  let limits =
+    let l = !Opts.limits in
+    (fun () -> relative_limits solver l) in
   let rec aux model =
     print_model fmt model ;
     if not (constrain solver model) then
       ((* print_model fmt model ; *)
        Format.fprintf fmt "==========@.")
     else
-      match Sol.solve solver !Opts.limits with
+      match Sol.solve solver (limits ()) with
       | Sol.UNKNOWN ->
          ((* print_model fmt model ; *)
           Format.fprintf fmt "INCOMPLETE@.")

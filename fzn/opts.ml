@@ -95,7 +95,7 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
      ) ;
      (
       "--time-out",
-      Arg.Int (fun t -> limits := {!limits with Solver.max_time = t }),
+      Arg.Int (fun t -> limits := {!limits with Solver.max_time = float_of_int t }),
       "<int> : maximum time (in seconds)"
      );
     ]
