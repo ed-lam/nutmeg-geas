@@ -31,6 +31,11 @@ options default_options = {
    10, // eager_threshold
 };
 
+limits no_limit = {
+  0,
+  0
+};
+
 namespace geas {
 
 /* This flag controls early solver termination */
@@ -1152,8 +1157,18 @@ void solver::abort(void) {
   data->abort_solve = 1;
 }
 
+// TODO: Implement timing properly.
+#include <ctime>
+#include <sys/time.h>
+#include <unistd.h>
+static double getTime(void) {
+  struct timeval t;
+  gettimeofday(&t, NULL);
+  return t.tv_sec + ((double) t.tv_usec)/1e6;
+}
+
 // Solving
-solver::result solver::solve(unsigned int conflict_limit) {
+solver::result solver::solve(limits l) {
 
   // Top-level failure
   sdata& s(*data);
@@ -1164,8 +1179,9 @@ solver::result solver::solve(unsigned int conflict_limit) {
   set_handlers();
 
 //  int max_conflicts = 200000;
-  int max_conflicts = conflict_limit;
-
+  int max_conflicts = l.conflicts;
+  double max_time = INFINITY;
+   
   // Activity stuff
   // FIXME: add persistence to confl_num, so we don't need
   // to reset this.
@@ -1191,6 +1207,10 @@ solver::result solver::solve(unsigned int conflict_limit) {
   if(budget)
     next_pause = std::min(next_pause, budget);
 
+  if(l.time > 0) {
+    max_time = getTime() + l.time;
+    next_pause = std::min(next_pause, 100);
+  }
 #ifdef LOG_ALL
       log_state(s.state);
 #endif
@@ -1306,6 +1326,7 @@ solver::result solver::solve(unsigned int conflict_limit) {
             bt_to_level(&s, 0);
             process_initializers(s);
           }
+          run_callbacks(s.on_restart);
 #ifdef LOG_ALL
       log_state(s.state);
 #endif
@@ -1332,6 +1353,14 @@ solver::result solver::solve(unsigned int conflict_limit) {
         next_pause = std::min(next_restart, next_gc);
         if(budget)
           next_pause = std::min(next_pause, budget);
+        if(isfinite(max_time)) {
+          if(getTime() > max_time) {
+            clear_handlers();
+            return UNKNOWN;
+          }
+          // FIXME: Do something adaptive here.
+          next_pause = std::min(next_pause, 100);
+        }
       }
       continue;
     }

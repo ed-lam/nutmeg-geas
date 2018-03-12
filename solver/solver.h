@@ -34,7 +34,8 @@ public:
   bool post(patom_t p);
 
   // Solving
-  result solve(unsigned int conflict_limit = 0);
+  // result solve(unsigned int conflict_limit = 0);
+  result solve(limits l = no_limit);
   void abort(void);
 
   // Retrieve a model

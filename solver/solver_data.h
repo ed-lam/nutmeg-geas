@@ -95,6 +95,7 @@ public:
   vec<event_callback> on_pred;
   vec<event_callback> on_branch;
   vec<event_callback> on_solution;
+  vec<event_callback> on_restart;
 
   vec<bool> polarity;
 

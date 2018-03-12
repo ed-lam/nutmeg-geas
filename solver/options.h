@@ -37,8 +37,14 @@ typedef struct {
   int eager_threshold;
 } options;
 
+typedef struct {
+  int time;
+  int conflicts;
+} limits;
+
 // static const options default_options = options();
 extern options default_options;
+extern limits no_limit;
 
 #ifdef __cplusplus
 }

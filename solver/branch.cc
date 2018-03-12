@@ -333,6 +333,38 @@ public:
 };
 brancher* limit_brancher(brancher* b) { return new limit_branch(b); }
 
+class toggle_branch : public brancher
+  /*, public evt<toggle_branch>*/ {
+  void toggle(void) {
+    ++active;
+    if(active >= bs.size())
+      active = 0;
+  }
+public:
+  toggle_branch(vec<brancher*> _bs)
+    : bs(_bs), active(0), last_restart(0) {
+    // s.on_restart.push(event<&E::toggle>());
+  }
+
+  bool is_fixed(solver_data* s) {
+    return bs[active]->is_fixed(s);
+  }
+
+  patom_t branch(solver_data* s) {
+    if(s->stats.restarts != last_restart) {
+      toggle();
+      last_restart = s->stats.restarts;
+    }
+    return bs[active]->branch(s);
+  }
+  vec<brancher*> bs;
+  int active;
+  int last_restart;
+};
+brancher* toggle_brancher(vec<brancher*>& bs) {
+  return new toggle_branch(bs);
+}
+
 brancher* select_inorder_brancher(ValChoice val_choice, vec<pid_t>& preds) {
   switch(val_choice) {
     case Val_Min:

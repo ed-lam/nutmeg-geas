@@ -409,7 +409,7 @@ let get_ann_assumps problem env anns =
 let build_branching problem env solver anns =
   let wrap b =
     if !Opts.free then
-      Sol.limit_brancher b
+      Sol.toggle_brancher [|b; Sol.get_brancher solver|]
     else
       b
   in
@@ -547,7 +547,7 @@ let solve_satisfy print_model print_nogood solver assumps =
       Format.fprintf fmt "==========@."
     end
   else
-    match Sol.solve solver !Opts.conflict_limit with
+    match Sol.solve solver !Opts.limits with
     | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
     | Sol.UNSAT ->
       begin
@@ -561,7 +561,7 @@ let solve_satisfy print_model print_nogood solver assumps =
 let solve_findall print_model print_nogood block_solution solver assumps =
   let fmt = Format.std_formatter in
   let rec aux max_sols =
-    match Sol.solve solver !Opts.conflict_limit with
+    match Sol.solve solver !Opts.limits with
     | Sol.UNKNOWN -> ()
     | Sol.UNSAT -> Format.fprintf fmt "==========@."
     | Sol.SAT ->
@@ -601,7 +601,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
       ((* print_model fmt model ; *)
        Format.fprintf fmt "==========@.")
     else
-      match Sol.solve solver !Opts.conflict_limit with
+      match Sol.solve solver !Opts.limits with
       | Sol.UNKNOWN ->
          ((* print_model fmt model ; *)
           Format.fprintf fmt "INCOMPLETE@.")
@@ -610,7 +610,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
           Format.fprintf fmt "==========@.")
       | Sol.SAT -> aux (Sol.get_model solver)
   in
-  match Sol.solve solver !Opts.conflict_limit with
+  match Sol.solve solver !Opts.limits with
   | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
   | Sol.UNSAT ->
     (* Format.fprintf fmt "UNSAT@." *)

@@ -91,8 +91,14 @@ brancher new_bool_priority_brancher(var_choice, atom*, int, brancher*, int);
 brancher seq_brancher(brancher*, int);
 brancher limit_brancher(brancher);
 void add_brancher(solver, brancher);
+brancher get_brancher(solver);
 
-result solve(solver, int);
+brancher toggle_brancher(brancher*, int);
+
+limits unlimited(void);
+limits max_time(int s);
+limits max_conflicts(int c);
+result solve(solver, limits);
 void abort_solve(solver);
 
 int post_atom(solver, atom);

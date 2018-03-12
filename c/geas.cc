@@ -164,12 +164,26 @@ brancher seq_brancher(brancher* bs, int sz) {
 brancher limit_brancher(brancher b) {
   return (brancher) geas::limit_brancher((geas::brancher*) b);
 }
+brancher toggle_brancher(brancher* ts, int sz) {
+  vec<geas::brancher*> bs;
+  brancher* end = ts + sz;
+  for(; ts != end; ++ts)
+    bs.push((geas::brancher*) (*ts));
+  return (brancher) geas::toggle_brancher(bs);
+}
 
 void add_brancher(solver s, brancher b) {
   get_solver(s)->data->branchers.push((geas::brancher*) b);
 }
+brancher get_brancher(solver s) {
+  return (brancher) get_solver(s)->data->last_branch;
+}
 
-result solve(solver s, int lim) {
+limits unlimited(void) { return limits { 0, 0 }; }
+limits time_limit(int s) { return limits { s, 0 }; }
+limits conflict_limit(int c) { return limits { 0, c }; }
+
+result solve(solver s, limits lim) {
   // Currently ignoring conflict limit
   return unget_result(get_solver(s)->solve(lim)); 
 }

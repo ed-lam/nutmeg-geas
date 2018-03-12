@@ -11,7 +11,8 @@ let pol = ref true
 let half_reify = ref false
 
 let restart_limit = ref None
-let conflict_limit = ref 0
+(* let conflict_limit = ref 0 *)
+let limits = ref (Solver.unlimited ())
 
 let check = ref false
 
@@ -79,7 +80,12 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
      ) ;
      (
       "-c",
-      Arg.Int (fun c -> conflict_limit := c),
+      Arg.Int (fun c -> limits := {!limits with Solver.max_conflicts = c }),
       "<int> : maximum number of conflicts"
      ) ;
+     (
+      "--time-out",
+      Arg.Int (fun t -> limits := {!limits with Solver.max_time = t }),
+      "<int> : maximum time (in seconds)"
+     );
     ]
