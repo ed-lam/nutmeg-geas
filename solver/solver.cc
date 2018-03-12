@@ -1181,6 +1181,7 @@ solver::result solver::solve(limits l) {
 //  int max_conflicts = 200000;
   int max_conflicts = l.conflicts;
   double max_time = INFINITY;
+  double start_time = getTime();
    
   // Activity stuff
   // FIXME: add persistence to confl_num, so we don't need
@@ -1225,6 +1226,7 @@ solver::result solver::solve(limits l) {
 
       clear_handlers();
       s.stats.conflicts += confl_num;
+      s.stats.time += getTime() - start_time;
       return UNKNOWN;
     }
 
@@ -1248,6 +1250,7 @@ solver::result solver::solve(limits l) {
 #endif
       if(decision_level(s) == 0) {
         s.stats.conflicts += confl_num;
+        s.stats.time += getTime() - start_time;
         s.infer.confl.clear();
         s.last_confl = { C_Infer, 0 };
         clear_handlers();
@@ -1298,6 +1301,7 @@ solver::result solver::solve(limits l) {
           budget -= confl_num;
           if(!budget) {
             clear_handlers();
+            s.stats.time += getTime() - start_time;
             return UNKNOWN;
           }
         }
@@ -1356,6 +1360,7 @@ solver::result solver::solve(limits l) {
         if(isfinite(max_time)) {
           if(getTime() > max_time) {
             clear_handlers();
+            s.stats.time += getTime() - start_time;
             return UNKNOWN;
           }
           // FIXME: Do something adaptive here.
@@ -1403,6 +1408,8 @@ solver::result solver::solve(limits l) {
 
         if(is_inconsistent(s, at)) {
           s.last_confl = { C_Assump, idx };
+          s.stats.conflicts += confl_num;
+          s.stats.time += getTime() - start_time;
           clear_handlers();
           return UNSAT; 
         }
@@ -1423,6 +1430,7 @@ solver::result solver::solve(limits l) {
       save_model(data);
       s.stats.conflicts += confl_num;
       s.stats.solutions++;
+      s.stats.time += getTime() - start_time;
       clear_handlers();
 
       run_callbacks(s.on_solution);
@@ -1443,6 +1451,7 @@ solver::result solver::solve(limits l) {
   }
 
   // Unreachable
+  ERROR;
   clear_handlers();
   return SAT;
 }

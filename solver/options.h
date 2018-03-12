@@ -38,7 +38,7 @@ typedef struct {
 } options;
 
 typedef struct {
-  int time;
+  double time;
   int conflicts;
 } limits;
 

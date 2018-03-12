@@ -10,6 +10,7 @@ typedef struct {
   int conflicts;
   int restarts;
   int solutions;
+  double time;
 
   int num_learnts;
   int num_learnt_lits;

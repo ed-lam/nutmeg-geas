@@ -180,7 +180,7 @@ brancher get_brancher(solver s) {
 }
 
 limits unlimited(void) { return limits { 0, 0 }; }
-limits time_limit(int s) { return limits { s, 0 }; }
+limits time_limit(int s) { return limits { (double) s, 0 }; }
 limits conflict_limit(int c) { return limits { 0, c }; }
 
 result solve(solver s, limits lim) {

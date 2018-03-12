@@ -17,6 +17,7 @@ typedef struct {
   int conflicts;
   int restarts;
   int solutions;
+  double time;
 
   int num_learnts;
   int num_learnt_lits;
@@ -41,7 +42,7 @@ typedef struct {
 } options;
 
 typedef struct {
-  [mlname(max_time)] int time;
+  [mlname(max_time)] double time;
   [mlname(max_conflicts)] int conflicts;
 } limits;
 
