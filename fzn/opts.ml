@@ -1,8 +1,13 @@
+type stats_mode = 
+  | Suppress
+  | Compact
+  | Verbose
+
 let infile = ref None
 let outfile = ref None
 let verbosity = ref 0
 
-let print_stats = ref false
+let print_stats = ref Suppress
 let quiet = ref false
 
 let max_solutions = ref 1
@@ -30,12 +35,17 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
      ) ;
      (
       "-s",
-      Arg.Unit (fun () -> print_stats := true),
+      Arg.Unit (fun () -> print_stats := Verbose),
       " : print statistics"
      ) ;
      (
+      "--compact-stats",
+      Arg.Unit (fun () -> print_stats := Compact),
+      " : report statistics in CSV form."
+     ) ;
+     (
       "-o",
-      Arg.String (fun s -> outfile := Some s) ,
+      Arg.String (fun s -> outfile := Some s),
       "<string> : file to write transformed model"
      ) ;
      (

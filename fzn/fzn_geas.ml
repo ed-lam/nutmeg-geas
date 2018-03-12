@@ -618,13 +618,28 @@ let solve_optimize print_model print_nogood constrain solver assumps =
   | Sol.SAT -> aux (Sol.get_model solver)
  
 let print_stats fmt stats obj_val =
-  if !Opts.print_stats then
+  match !Opts.print_stats with
+  | Opts.Suppress -> ()
+  | Opts.Compact ->  
+    begin
+      Format.fprintf fmt "%d,%d,%d,%d,%d,%.02f@."
+        (match obj_val with
+          | Some k -> k
+          | None -> 0)
+        stats.Sol.solutions
+        stats.Sol.restarts
+        stats.Sol.conflicts
+        stats.Sol.num_learnts
+        stats.Sol.time
+    end
+  | Opts.Verbose ->
     begin
       let _ = match obj_val with
       | Some k -> Format.fprintf fmt "objective %d@." k
       | None -> ()
       in
       Format.fprintf fmt "%d solutions, %d conflicts, %d restarts@." stats.Sol.solutions stats.Sol.conflicts stats.Sol.restarts ;
+      Format.fprintf fmt "%.02f seconds.@." stats.Sol.time ;
       Format.fprintf fmt "%d learnts, average size %f@."
         stats.Sol.num_learnts
         ((float_of_int stats.Sol.num_learnt_lits) /. (float_of_int stats.Sol.num_learnts))

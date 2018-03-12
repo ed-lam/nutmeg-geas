@@ -1,3 +1,8 @@
+type stats_mode = 
+  | Suppress
+  | Compact
+  | Verbose
+
 val infile : string option ref
 val outfile : string option ref
 
@@ -6,7 +11,8 @@ val verbosity : int ref
 val quiet : bool ref
 
 val max_solutions : int ref
-val print_stats : bool ref
+
+val print_stats : stats_mode ref
 val free : bool ref
 val pol : bool ref
 val half_reify : bool ref
