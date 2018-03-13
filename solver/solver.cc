@@ -1200,8 +1200,9 @@ solver::result solver::solve(limits l) {
   // the existing database
   int gc_lim = s.learnt_dbmax;
 
-  int next_restart = restart_lim;
-  int next_gc = gc_lim - s.infer.learnts.size();
+  int next_restart = restart_lim ? restart_lim : INT_MAX;
+  int next_gc = std::max(1, gc_lim - s.infer.learnts.size());
+  // int next_gc = gc_lim - s.infer.learnts.size();
   int budget = max_conflicts;
 
   int next_pause = std::min(next_restart, next_gc);
