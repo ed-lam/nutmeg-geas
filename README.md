@@ -24,4 +24,23 @@ Requirements:
     - `ocaml`
     - `camlidl`
 
-The easiest way to get `camlidl` is through `opam`.
+The easiest way to get `camlidl` is using `opam`.
+
+* On OSX:
+```sh
+brew install ocaml opam
+```
+* or Ubuntu:
+```sh
+sudo apt-get install ocaml opam
+```
+Then, in either case:
+```sh
+opam init
+eval `opam config env`
+opam install camlidl
+```
+Then just call `make` in the root directory of the repository.
+This builds the `Flatzinc` frontend `fzn/fzn_geas`.
+Afterwards, you can also build the interactive top-level by calling
+`make geas_top` in the `ml` subdirectory.
