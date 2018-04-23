@@ -9,13 +9,56 @@
 
 namespace geas {
 
+#if 0
 // Totally non-incremental time-table propagator.
+// ============================================
+
+typedef unsigned int task_id;
+
+enum evt_kind { ET = 0, ST = 1};
+struct pevt {
+  pevt_kind k;
+  task_id task;
+  int time;
+  int cap;
+};
+
+struct pevt_cmp {
+  bool operator()(const pevt& x, const pevt& y) {
+    if(x.time == y.time) {
+      // Process ends before starts.
+      return x.kind < y.kind;
+    }
+    return x.time < y.time;
+  }
+};
+
+
 class cumul_prop : public propagator, public prop_inst<cumul_prop> {
-  enum LmarkT { L_ST, L_EN };
-  struct landmark {
-    int xi;
-    LmarkT kind;
-  };
+  void rebuild_profile(void) {
+    profile.clear();
+    for(int ti : irange(tasks.size())) {
+      task& t(tasks[ti]);
+      if(lst(t) < ect(t)) {
+        profile.push(pevt { ST, ti, lst(t), rmin(t) });
+        profile.push(pevt { ET, ti, eet(t), rmin(t) });
+      }
+    }
+    std::sort(profile.begin(), profile.end(), pevt_cmp);
+  }
+
+  void forward_candidates(int min_avail) {
+    for(int ti : irange(tasks.size())) {
+      task& t(tasks[ti]);
+      if(is_fixed(t.s))
+        continue;
+      if(ub(t.res) <= min_avail)
+        continue;
+      candidates.push(pevt { ST, ti, est(t), rmin(t) });
+      candidates.push(pevt { ET, ti, eet(t), rmin(t) });
+    }
+    std::sort(candidates.begin(), candidates.end(), pevt_cmp);
+  }
   
   inline int m_st(int xi) {
     return ub(starts[xi]);
@@ -265,12 +308,15 @@ protected:
   Heap<res_cmp_gt> active_r;
   Heap<res_cmp_lt> blocked;
 };
+#endif
 
 bool cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& duration, vec<int>& resource, int cap) {
   // new cumul_prop(s, starts, duration, resource, cap);
   // return true;
-  return cumul_prop::post(s, starts, duration, resource, cap);
+  // return cumul_prop::post(s, starts, duration, resource, cap);
+  assert(0);
+  return false;
 }
 
 }

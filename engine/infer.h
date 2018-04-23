@@ -84,7 +84,7 @@ protected:
     pred_ineqs.push();
 
     watch_maps.push();
-    // watch_maps.last().add(0, w);
+    watch_maps.last().add(0, w);
 #else
     pred_ineqs.push();
     watch_maps.push();
@@ -121,6 +121,15 @@ protected:
   }
 
 public:
+  // Get the watch for an atom, knowing it exists.
+  watch_node* lookup_watch(pid_t p, pval_t val) {
+    uint64_t key = (uint64_t) val;
+    watch_map::iterator it = watch_maps[p].find(key);
+    if(it == watch_maps[p].end())
+      ERROR;
+    return (*it).value;
+  }
+
   // Find the appropriate watch for an atom.
   watch_node* get_watch(pid_t p, pval_t val) {
 #ifdef SPARSE_WATCHES
@@ -164,16 +173,16 @@ public:
 #endif
   }
 
-  typedef struct {
+  struct entry {
     pid_t pid;
     pval_t old_val;
     reason expl;
-  } entry;
+  };
   
-  typedef struct {
+  struct watch_head {
     pval_t val;
     watch_node* ptr;
-  } watch_head;
+  };
 
   // Tracking watch lists for predicates
   vec<watch_map> watch_maps; // (pid_t -> pval_t -> watch_node*)

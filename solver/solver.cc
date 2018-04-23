@@ -386,6 +386,11 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
 
   // Check that there's something at the current level.
 retry_level:
+#ifdef CHECK_STATE
+  for(clause_elt& e : confl) {
+    assert(s.state.is_inconsistent(e.atom));
+  }
+#endif
   for(clause_elt& e : confl) {
     if(!s.state.is_inconsistent_prev(e.atom))
       return;
@@ -576,6 +581,29 @@ static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
 #endif
   return watch->ws;
 }
+
+static vec<clause_head>& lookup_watchlist(solver_data& s, clause_elt& elt) {
+  // Find the appropriate watch_node.
+#ifdef CACHE_WATCH
+  if(elt.watch) {
+#ifdef DEBUG_WMAP
+    assert(elt.watch->curr_val == ~(elt.atom).val);
+#endif
+    return elt.watch->ws;
+  }
+#endif
+
+  patom_t p(~elt.atom);
+  watch_node* watch = s.infer.lookup_watch(p.pid, p.val);
+#ifdef DEBUG_WMAP
+  assert(watch->curr_val == ~(elt.atom).val);
+#endif
+#ifdef CACHE_WATCH
+  elt.watch = watch;
+#endif
+  return watch->ws;
+}
+
 
 static vec<patom_t>& find_bin_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
@@ -970,6 +998,7 @@ inline void detach_watch(vec<clause_head>& ws, clause* c) {
       return;
     }
   }
+  ERROR;
 }
 
 inline void replace_watch(vec<clause_head>& ws, clause* c, clause_head h) {
@@ -983,9 +1012,10 @@ inline void replace_watch(vec<clause_head>& ws, clause* c, clause_head h) {
 
 inline void detach_clause(solver_data& s, clause* c) {
   // We care about the watches for 
+  // fprintf(stderr, "%p\n", c);
   if(!c->extra.one_watch)
-    detach_watch(find_watchlist(s, (*c)[0]), c);
-  detach_watch(find_watchlist(s, (*c)[1]), c);
+    detach_watch(lookup_watchlist(s, (*c)[0]), c);
+  detach_watch(lookup_watchlist(s, (*c)[1]), c);
 }
 
 inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
@@ -1056,7 +1086,9 @@ inline void simplify_at_root(solver_data& s) {
   // deleted because it is satisfied at the root.
   // This is dealt with in simplify_clause.
   clause** cj = s.infer.clauses.begin();
-  for(clause* c : s.infer.clauses) {
+  // for(clause* c : s.infer.clauses) {
+  for(int ci = 0; ci < s.infer.clauses.size(); ci++) {
+    clause* c(s.infer.clauses[ci]);
     cj = simplify_clause(s, c, cj); 
   }
   s.infer.clauses.shrink_(s.infer.clauses.end() - cj);
@@ -1154,10 +1186,16 @@ void bump_touched(solver_data& s,
 void save_touched(solver_data& s, int touched_start) {
   for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
     pid_t p = s.persist.touched_preds[ti];
+#if 0
+    pval_t k = (p&1) ? pval_inv(s.state.p_vals[p]) : s.state.p_vals[p];
+    s.confl.pred_saved[p>>1].val += 0.01 * (s.confl.pred_saved[p>>1].val - k);
+#else
     if(p&1)
       s.confl.pred_saved[p>>1].val = pval_inv(s.state.p_vals[p]);
     else
       s.confl.pred_saved[p>>1].val = s.state.p_vals[p];
+    // s.confl.pred_saved[p>>1].val = p&1;
+#endif
   }
 }
 
@@ -1503,6 +1541,7 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
     elts[jj++] = e;
   }
   elts.shrink(elts.size()-jj);
+
   
   // False at root level
   if(elts.size() == 0)

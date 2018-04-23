@@ -67,6 +67,12 @@ public:
 protected:
   solver_data* s;
 };
+#define UPDATE_LB(X, VAL, R) do { \
+  if(lb(X) < (VAL)) { if(!set_lb(X, VAL, R)) return false; } \
+} while(0)
+#define UPDATE_UB(X, VAL, R) do { \
+  if((VAL) < ub(X)) { if(!set_ub(X, VAL, R)) return false; } \
+} while(0)
 
 typedef void (*expl_fun)(void*, int , pval_t, vec<clause_elt>&);
 

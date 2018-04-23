@@ -10,6 +10,7 @@
 #include "utils/defs.h"
 #include "engine/geas-types.h"
 
+// #define DEBUG_CLAUSE
 // #define SPARSE_WATCHES
 
 namespace geas {
@@ -41,9 +42,19 @@ public:
 
 struct clause_extra {
   clause_extra(void)
-    : depth(0), one_watch(0), is_learnt(0), act(0) { }
+    : depth(0), one_watch(0), is_learnt(0), act(0)
+  {
+#ifdef DEBUG_CLAUSE 
+    static unsigned int num_clauses = 0;
+    clause_id = num_clauses++;
+#endif
+  }
 //  bool is_learnt;
 //  int depth;
+#ifdef DEBUG_CLAUSE
+  unsigned int clause_id;
+#endif
+
   int depth : 30;
   unsigned one_watch : 1;
   unsigned is_learnt : 1;
@@ -60,7 +71,8 @@ public:
   clause(void) : extra(), sz(0) { }
 
   // As usual, don't use this directly...
-  template<class T> clause(T& elts) {
+  template<class T> clause(T& elts)
+    : extra() {
     sz = 0;
     for(clause_elt e : elts)
       data[sz++] = e;

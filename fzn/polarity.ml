@@ -171,7 +171,7 @@ let polarity_rules model ((id, args), ann) =
     let handler = H.find handlers id in
     handler model args ann
   with Not_found ->
-    (print_warning "WARNING: Using default polarity handler for: %s@." id ;
+    ( (* print_warning "WARNING: Using default polarity handler for: %s@." id ; *)
      H.add handlers id default_handler ;
      default_handler model args ann )
 

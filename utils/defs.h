@@ -8,8 +8,8 @@
 
 #include "mtl/Vec.h"
 
-// #define forceinline __attribute__((always_inline))
-#define forceinline 
+#define forceinline __attribute__((always_inline))
+// #define forceinline 
 #ifdef LOG_ALL
 #ifndef LOG_PROP
 #define LOG_PROP

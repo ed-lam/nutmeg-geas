@@ -139,6 +139,18 @@ let array_bool_or args =
 let bool_rel rel args =
   rel (Pr.get_bool args.(0)) (Pr.get_bool args.(1))
 
+let all_different args =
+  let xs = Pr.get_array Pr.get_int args.(0) in
+  Array.sort compare xs ;
+  let sz = Array.length xs in
+  let rec aux k =
+    if k >= sz then
+      true
+    else
+      xs.(k-1) <> xs.(k) && aux (k+1)
+  in
+  aux 1
+  
 (* Initialize the checkers *)
 let check_funs =
 (*
@@ -192,6 +204,7 @@ let check_funs =
        "array_var_bool_element", array_bool_element ;
        "array_bool_and", array_bool_and ; 
        "array_bool_or", array_bool_or ; 
+       "all_different_int", all_different ;
      ]
 let init () =
   List.iter (fun (id, checker) -> H.add checkers id checker) check_funs

@@ -146,6 +146,9 @@ int int_eq(solver s, atom r, intvar x, intvar y) {
 }
 
 int all_different_int(solver s, intvar* xs, int sz) {
+  if(sz == 0)
+    return true;
+
   vec<geas::intvar> p_xs;
   for(intvar* v = xs; v != xs+sz; ++v) {
     p_xs.push(*get_intvar(*v));

@@ -48,6 +48,7 @@ inline void remove_watch(watch_node* watch, clause* cl) {
       return;
     }
   }
+  ERROR;
 }
 
 inline watch_node* find_watchlist(solver_data* s, clause_elt& elt) {

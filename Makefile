@@ -32,7 +32,7 @@ COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-
 #COPTIMIZE = -O2
 #COPTIMIZE = -O1
 #COPTIMIZE = -O0
-#COPTIMIZE += -DNDEBUG
+COPTIMIZE += -DNDEBUG
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
 CXXFLAGS += -g -ggdb

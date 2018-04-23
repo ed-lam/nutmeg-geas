@@ -62,6 +62,7 @@ struct branch_val {
       case Val_Saved:
         {
           // pval_t saved = s->confl.pred_saved[p].val;
+#if 1
           pval_t saved = p&1 ? pval_inv(s->confl.pred_saved[p>>1].val)
                              : s->confl.pred_saved[p>>1].val;
           if(saved <= lb(s, p))
@@ -73,6 +74,11 @@ struct branch_val {
           // return patom_t(p, saved);
           // return ge_atom(p, saved);
           return le_atom(p, saved);
+#else
+          p = p&~1;
+          return s->confl.pred_saved[p>>1].val&1 ? le_atom(p, lb(s, p)) : ge_atom(p, ub(s, p));
+          // return s->confl.pred_saved[p>>1].val&1 ? ge_atom(p, ub(s, p)) : le_atom(p, lb(s, p));
+#endif
         }
       default:
         NOT_YET; 

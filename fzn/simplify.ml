@@ -375,7 +375,8 @@ let simp_bool_eq st args anns =
   | Pr.Bv_bool x, Pr.Bv_bool y -> if x <> y then failwith "Found toplevel conflict in bool_eq" 
   | (Pr.Bv_bool b, Pr.Bv_var x
   |  Pr.Bv_var x, Pr.Bv_bool b) ->
-    Dy.add st.cons (("bool_eq", [|Pr.Bvar x ; Pr.Blit b|]), anns)
+    (* Dy.add st.cons (("bool_eq", [|Pr.Bvar x ; Pr.Blit b|]), anns) *)
+    apply_bdef st x (Bv_const b)
   | Pr.Bv_var x, Pr.Bv_var y -> apply_bdef st x (Bv_eq y)
   (*
   | Pr.Bv_var x, Pr.Bv_var y -> 
@@ -388,8 +389,8 @@ let simp_bool_eq st args anns =
   | (Pr.Bv_bool b, Pr.Bv_var x
   |  Pr.Bv_var x, Pr.Bv_bool b) ->
     (* Dy.add st.cons (("bool_ne", [|Pr.Bvar x ; Pr.Blit (not b)|]), anns) *)
-    apply_bdef st x (Bv_const b)
-  | Pr.Bv_var x, Pr.Bv_var y -> apply_bdef st x (Bv_eq y)
+    apply_bdef st x (Bv_const (not b))
+  | Pr.Bv_var x, Pr.Bv_var y -> apply_bdef st x (Bv_neg y)
 
 let simp_bool_eq_reif st args anns =
   match Pr.get_bval args.(2), Pr.get_bval args.(0), Pr.get_bval args.(1) with

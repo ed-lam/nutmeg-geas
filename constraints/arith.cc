@@ -421,10 +421,9 @@ void imul_decomp(solver_data* s, intvar z, intvar x, intvar y) {
   }
 }
 
-class iabs : public propagator {
-  static watch_result wake(void* ptr, int xi) {
-    iabs* p(static_cast<iabs*>(ptr)); 
-    p->queue_prop();
+class iabs : public propagator, public prop_inst<iabs> {
+  watch_result wake(int xi) {
+    queue_prop();
     return Wt_Keep;
   }
 
@@ -480,8 +479,8 @@ public:
   iabs(solver_data* s, intvar _z, intvar _x)
     : propagator(s), z(_z), x(_x)
   {
-    z.attach(E_LU, watch_callback(wake, this, 0));
-    x.attach(E_LU, watch_callback(wake, this, 1));
+    z.attach(E_LU, watch<&P::wake>(0, Wt_IDEM));
+    x.attach(E_LU, watch<&P::wake>(1, Wt_IDEM));
   }
  
   bool propagate(vec<clause_elt>& confl) {
@@ -917,78 +916,97 @@ protected:
   char status;
 };
 
-/*
 class ineq_s : public propagator, public prop_inst<ineq_s> {
-  watch_result wake(int _xi, int _ci) {
-    if(!satisfied)
-      queue_prop();
+public:
+  ineq_s(solver_data* s, intvar z, intvar x, patom_t _r = at_True)
+    : propagator(s), r(_r), satisfied(false), fixed(0) {
+    assert(ub(r)); // Not already redundant.
+    vs[0] = z;
+    vs[1] = x;
+
+    z.attach(E_FIX, watch<&P::wake_xs>(0, Wt_IDEM));
+    x.attach(E_FIX, watch<&P::wake_xs>(1, Wt_IDEM));
+    attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
+    attach(s, ~r, watch<&P::wake_nr>(0, Wt_IDEM));
+  }
+
+  watch_result wake_r(int _xi) {
+    for(int ii : irange(2)) {
+      if(is_fixed(vs[ii])) {
+        fixed = ii;
+        queue_prop();
+      }
+    }
     return Wt_Keep;
   }
 
-  void expl_lb(int xi, vec<clause_elt>& ex) {
-    trigger t = trigs[active];
-    ex.push(~r);
-    ex.push(vs[t.idx] < prop_val);
-    ex.push(vs[1 - t.idx] < prop_val);
-    ex.push(vs[1 - t.idx] > prop_val);
-    return;
+  watch_result wake_nr(int _xi) {
+    set(satisfied, (char) true);
+    return Wt_Keep;
   }
 
-  void expl_ub(int xi, vec<clause_elt>& ex) {
-    trigger t = trigs[active];
-    ex.push(~r);
-    ex.push(vs[t.idx] > prop_val);
-    ex.push(vs[1 - t.idx] < prop_val);
-    ex.push(vs[1 - t.idx] > prop_val);
-    return;
+  void ex_r(int _xi, pval_t _p, vec<clause_elt>& expl) {
+    assert(is_fixed(vs[0]) && is_fixed(vs[1]));
+    assert(lb(vs[0]) == lb(vs[1]));
+    int k = lb(vs[0]);
+    expl.push(vs[0] != k);
+    expl.push(vs[1] != k);
   }
 
-public:
-  ineq_s(solver_data* s, intvar _z, intvar _x, patom_t _r)
-    : propagator(s), r(_r), satisfied(0) {
-    vs[0] = _z;
-    vs[1] = _x; 
-
-    _z.attach(E_FIX, watch<&P::wake>(0, Wt_IDEM));
-    _x.attach(E_FIX, watch<&P::wake>(1, Wt_IDEM));
-    attach(s, r, watch<&P::wake>(2, Wt_IDEM));
+  void ex_xs(int xi, pval_t _p, vec<clause_elt>& expl) {
+    expl.push(~r);
+    int k = lb(vs[1-xi]);
+    expl.push(vs[1-xi] != k);
   }
 
+  watch_result wake_xs(int xi) {
+    if(!satisfied) {
+      if(in_domain(vs[1-xi], lb(vs[xi]))) {
+        fixed = xi;
+        queue_prop();
+      } else {
+        set(satisfied, (char) true);
+      }
+    }
+    return Wt_Keep;
+  }
 
   bool propagate(vec<clause_elt>& confl) {
-#ifdef LOG_PROP
-    std::cout << "[[Running ineq]]" << std::endl;
-#endif
     if(satisfied)
       return true;
+    // Can only happen with first run.
+    if(!is_fixed(vs[fixed]))
+      return true;
 
-    if(!ub(r) || ub(vs[0]) < lb(vs[1]) || ub(vs[1]) < lb(vs[0])) {
-      satisfied = true;
+    if(!lb(r)) {
+      // Not yet active
+      if(!is_fixed(vs[1 - fixed]))
+        return true;
+      if(lb(vs[0]) == lb(vs[1])) {
+        if(!enqueue(*s, ~r, expl<&P::ex_r>(0)))
+          return false;
+      }
+      set(satisfied, (char) true);
       return true;
     }
-    
-    
+
+    // r is enforced.
+    int k = lb(vs[fixed]);
+    if(in_domain(vs[1-fixed], k)) {
+      if(!enqueue(*s, vs[1-fixed] != k, expl<&P::ex_xs>(1-fixed)))
+        return false;
+    }
+    set(satisfied, (char) true);
+    return true;
   }
 
-  void root_simplify(void) { }
-
-  void cleanup(void) {
-    is_queued = false;
-  }
-
-protected:
   intvar vs[2];
   patom_t r;
+    
+  Tchar satisfied;
 
-  // Persistent state
-  trigger trigs[3];
-  int active;
-  intvar::val_t prop_val;
-
-  unsigned int gen;
-  char status;
+  int fixed;
 };
-*/
 
 // Half-reified disequality
 bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
@@ -1005,8 +1023,8 @@ bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
         return false;
     }
   } else {
-    // new ineq(s, x, y, r);
     return ineq::post(s, x, y, r);
+    // return ineq_s::post(s, x, y, r);
   }
   return true;
 }
@@ -1461,6 +1479,7 @@ public:
   int cut;
   Tchar status;
 };
+
 class int_eq_hr : public propagator, public prop_inst<int_eq_hr> {
   enum Status { S_None = 0, S_Active = 1, S_Red = 2 };
   enum Change { C_None = 0, C_LB = 1, C_UB = 2, C_DIS = 4 };
@@ -1882,8 +1901,6 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   // new int_le_hr(s, r, x, y+k);
   return true;
   */
-  assert(x.off == 0);
-  assert(y.off == 0);
   return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
   // return int_le_hr::post(s, x, y, k, r);
 }
@@ -1946,8 +1963,6 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   pred_le(s, x.pid^1, z.pid, -IVAR_INV_OFFSET, at_True);
   pred_le(s, z.pid, x.pid^1, IVAR_INV_OFFSET, at_True);
   */
-  assert(x.off == 0);
-  assert(z.off == 0);
   pred_le(s, x.p, z.p, z.off - x.off, at_True);
   // (WARNING: Offsets here are fragile wrt offset changes)
   // (-x) <= z
@@ -2090,6 +2105,65 @@ bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   // return true;
   return iprod::post(s, z, x, y);
 }
+
+// z = x div k. k must be strictly positive.
+class idiv_xk : public propagator, public prop_inst<idiv_xk> {
+  void ex_z_lb(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int zlb = z.lb_of_pval(p);
+    expl.push(x < k * zlb);
+  }
+  void ex_z_ub(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int zub = z.ub_of_pval(p);
+    expl.push(x >= k * (zub + 1));
+  }
+  void ex_x_lb(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int xlb = x.lb_of_pval(p);
+    expl.push(z < xlb/k);
+  }
+  void ex_x_ub(int _xi, pval_t p, vec<clause_elt>& expl) {
+    int xub = x.ub_of_pval(p);
+    expl.push(z > xub/k);
+  }
+
+  watch_result wake(int xi) {
+    if(xi)
+      z_change = true;
+    else
+      x_change = true;
+    queue_prop();
+    return Wt_Keep;
+  }
+
+public:
+  idiv_xk(solver_data* s, intvar _z, intvar _x, int _k) 
+    : propagator(s), z(_z), x(_x), k(_k) {
+    x.attach(E_LU, watch<&P::wake>(0, Wt_IDEM));
+    z.attach(E_LU, watch<&P::wake>(1, Wt_IDEM));
+  }
+  void cleanup(void) {
+    is_queued = false;
+    x_change = z_change = false;
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    if(x_change) {
+      UPDATE_LB(z, lb(x)/k, expl<&P::ex_z_lb>(0));
+      UPDATE_UB(z, ub(x)/k, expl<&P::ex_z_ub>(0));
+    }
+    if(z_change) {
+      UPDATE_LB(x, k * lb(z), expl<&P::ex_x_lb>(0));
+      UPDATE_UB(x, k * ub(z) + k-1, expl<&P::ex_x_ub>(0));
+    }
+    return true;
+  }
+
+  intvar z;
+  intvar x;
+  int k;
+
+  bool x_change;
+  bool z_change;
+};
 
 class idiv_nonneg : public propagator, public prop_inst<idiv_nonneg> {
   // Queueing
@@ -2278,6 +2352,15 @@ bool int_div(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
 
   if(!enqueue(*s, y != 0, reason()))
     return false;
+  
+  if(y.is_fixed(s)) {
+    // Constant
+    int k = y.lb(s);
+    if(y.lb(s) > 0)
+      return idiv_xk::post(s, z, x, k);
+    else
+      return idiv_xk::post(s, -z, x, -k);
+  }
 
   // Check the sign cases.
   // TODO: This doesn't handle the case when, say, z & x are fixed-sign.
