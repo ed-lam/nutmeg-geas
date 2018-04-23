@@ -23,6 +23,7 @@ brancher* atom_act_branch(solver_data* s);
 brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>& preds);
 brancher* seq_brancher(vec<brancher*>& branchers);
 brancher* limit_brancher(brancher* b);
+brancher* warmstart_brancher(vec<patom_t>& decs);
 brancher* toggle_brancher(vec<brancher*>& bs);
 
 // brancher* priority_brancher(VarChoice choice, vec<intvar>& sel, vec<brancher*>& br);

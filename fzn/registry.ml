@@ -462,7 +462,7 @@ let post_int_diff s r x y k =
   | Pr.Ivar x, Pr.Ilit c -> S.post_clause s [|At.neg r; S.ivar_le x (c+k)|]
   | Pr.Ilit c, Pr.Ivar y -> S.post_clause s [|At.neg r; S.ivar_ge y (c-k)|]
   | Pr.Ilit c1, Pr.Ilit c2 ->
-     (Format.fprintf Format.err_formatter "{r} -> %d <= %d + %d@." c1 c2 k ;
+     ((* Format.fprintf Format.err_formatter "{r} -> %d <= %d + %d@." c1 c2 k ; *)
     if c1 > c2 + k then
       S.post_atom s (At.neg r)
     else true)

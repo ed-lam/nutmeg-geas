@@ -34,9 +34,14 @@ type ('b, 'i) bdef =
 type idefn = (bval_id, ival_id) idef
 type bdefn = (bval_id, ival_id) bdef
 
+val string_of_bdefn : bdefn -> string
+
 type t = ((idefn array) * (bdefn array) * Problem.t)
+
 
 val simplify : Problem.t -> t
 
 val map_idef : ('b -> 'fb) -> ('i -> 'fi) -> ('b, 'i) idef -> ('fb, 'fi) idef
 val map_bdef : ('b -> 'fb) -> ('i -> 'fi) -> ('b, 'i) bdef -> ('fb, 'fi) bdef
+
+val log_reprs : idefn array -> bdefn array -> unit

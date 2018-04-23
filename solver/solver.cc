@@ -1,11 +1,15 @@
 #include <iostream>
+#include <algorithm>
 #include <csignal>
+#include <climits>
+#include <math.h>
 #include "solver/solver.h"
 #include "solver/solver_data.h"
 #include "solver/solver_debug.h"
 #include "solver/stats.h"
 #include "solver/options.h"
 #include "engine/conflict.h"
+
 
 #define KEEP_GLUE
 // #define RESTART_LUBY
@@ -35,6 +39,10 @@ limits no_limit = {
   0,
   0
 };
+
+using std::min;
+using std::max;
+using std::sort;
 
 namespace geas {
 
@@ -1201,17 +1209,17 @@ solver::result solver::solve(limits l) {
   int gc_lim = s.learnt_dbmax;
 
   int next_restart = restart_lim ? restart_lim : INT_MAX;
-  int next_gc = std::max(1, gc_lim - s.infer.learnts.size());
+  int next_gc = max(1, gc_lim - s.infer.learnts.size());
   // int next_gc = gc_lim - s.infer.learnts.size();
   int budget = max_conflicts;
 
-  int next_pause = std::min(next_restart, next_gc);
+  int next_pause = min(next_restart, next_gc);
   if(budget)
-    next_pause = std::min(next_pause, budget);
+    next_pause = min(next_pause, budget);
 
   if(l.time > 0) {
     max_time = getTime() + l.time;
-    next_pause = std::min(next_pause, 100);
+    next_pause = min(next_pause, 100);
   }
 #ifdef LOG_ALL
       log_state(s.state);
@@ -1355,9 +1363,9 @@ solver::result solver::solve(limits l) {
 #endif
         }
 
-        next_pause = std::min(next_restart, next_gc);
+        next_pause = min(next_restart, next_gc);
         if(budget)
-          next_pause = std::min(next_pause, budget);
+          next_pause = min(next_pause, budget);
         if(isfinite(max_time)) {
           if(getTime() > max_time) {
             clear_handlers();
@@ -1365,7 +1373,7 @@ solver::result solver::solve(limits l) {
             return UNKNOWN;
           }
           // FIXME: Do something adaptive here.
-          next_pause = std::min(next_pause, 100);
+          next_pause = min(next_pause, 100);
         }
       }
       continue;
@@ -1475,6 +1483,15 @@ void solver::get_conflict(vec<patom_t>& confl) {
   retrieve_assumption_nogood(data, confl);
 }
 
+// For subsumption detection
+struct {
+  bool operator()(const clause_elt& x, const clause_elt& y) const {
+    if(x.atom.pid == y.atom.pid)
+      return x.atom.val < y.atom.val; 
+    return x.atom.pid < y.atom.pid;
+  }
+} cmp_clause_elt;
+
 // Add a clause at the root level.
 bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   int jj = 0;
@@ -1490,6 +1507,17 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
   // False at root level
   if(elts.size() == 0)
     return false;
+
+  // Now check for subsumption
+  sort(elts.begin(), elts.end(), cmp_clause_elt);
+  jj = 1;
+  for(int ii = 1; ii < elts.size(); ++ii) {
+    if(elts[ii-1].atom.pid != elts[ii].atom.pid) {
+      elts[jj++] = elts[ii];
+    }
+  }
+  elts.shrink(elts.size()-jj);
+
   // Unit at root level
   if(elts.size() == 1)
     return enqueue(s, elts[0].atom, reason()); 

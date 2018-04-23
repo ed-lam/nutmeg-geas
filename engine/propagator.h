@@ -60,9 +60,9 @@ public:
 
   bool is_idempotent;
   bool is_queued;
-#ifdef PROOF_LOG
+// #ifdef PROOF_LOG
   int cons_id;
-#endif
+// #endif
   int prop_id;
 protected:
   solver_data* s;

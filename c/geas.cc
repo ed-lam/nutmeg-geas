@@ -164,6 +164,15 @@ brancher seq_brancher(brancher* bs, int sz) {
 brancher limit_brancher(brancher b) {
   return (brancher) geas::limit_brancher((geas::brancher*) b);
 }
+brancher warmstart_brancher(atom* xs, int sz) {
+  vec<geas::patom_t> decs; 
+  for(atom at : range(xs, xs+sz)) {
+    decs.push(get_atom(at));
+  }
+
+  return (brancher) geas::warmstart_brancher(decs);
+}
+
 brancher toggle_brancher(brancher* ts, int sz) {
   vec<geas::brancher*> bs;
   brancher* end = ts + sz;

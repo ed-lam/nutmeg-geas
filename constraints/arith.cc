@@ -449,6 +449,7 @@ class iabs : public propagator {
     expl.push(p->x < -ival);
   }
 
+  // FIXME
   static void ex_lb(void* ptr, int sign,
                         pval_t val, vec<clause_elt>& expl) {
     iabs* p(static_cast<iabs*>(ptr));
@@ -712,7 +713,9 @@ protected:
   // Transient state
   char new_fix;
 };
+
 #endif
+
 class ineq : public propagator, public prop_inst<ineq> {
   enum Vtag { Var_X = 1, Var_Z = 2 };
   enum TrigKind { T_Atom, T_Var };
@@ -783,17 +786,17 @@ class ineq : public propagator, public prop_inst<ineq> {
     }
     switch(t.kind) {
       case T_Atom:
-        return enqueue(*s, ~r, ex_thunk(ex_nil<&P::expl>,ii));
+        return enqueue(*s, ~r, ex_thunk(ex_nil<&P::expl>,ii, expl_thunk::Ex_BTPRED));
       case T_Var:
       {
         intvar::val_t val = vs[1 - t.idx].lb(s);
         prop_val = val;
 
         if(vs[t.idx].lb(s) == val) {
-          return set_lb(vs[t.idx], val+1, ex_thunk(ex_nil<&P::expl_lb>, ii));
+          return set_lb(vs[t.idx], val+1, ex_thunk(ex_nil<&P::expl_lb>, ii, expl_thunk::Ex_BTPRED));
         }
         if(vs[t.idx].ub(s) == val) {
-          return set_ub(vs[t.idx], val-1, ex_thunk(ex_nil<&P::expl_ub>, ii));
+          return set_ub(vs[t.idx], val-1, ex_thunk(ex_nil<&P::expl_ub>, ii, expl_thunk::Ex_BTPRED));
         }
         // Otherwise, add LB and UB watches
         ++gen;
@@ -913,6 +916,79 @@ protected:
   unsigned int gen;
   char status;
 };
+
+/*
+class ineq_s : public propagator, public prop_inst<ineq_s> {
+  watch_result wake(int _xi, int _ci) {
+    if(!satisfied)
+      queue_prop();
+    return Wt_Keep;
+  }
+
+  void expl_lb(int xi, vec<clause_elt>& ex) {
+    trigger t = trigs[active];
+    ex.push(~r);
+    ex.push(vs[t.idx] < prop_val);
+    ex.push(vs[1 - t.idx] < prop_val);
+    ex.push(vs[1 - t.idx] > prop_val);
+    return;
+  }
+
+  void expl_ub(int xi, vec<clause_elt>& ex) {
+    trigger t = trigs[active];
+    ex.push(~r);
+    ex.push(vs[t.idx] > prop_val);
+    ex.push(vs[1 - t.idx] < prop_val);
+    ex.push(vs[1 - t.idx] > prop_val);
+    return;
+  }
+
+public:
+  ineq_s(solver_data* s, intvar _z, intvar _x, patom_t _r)
+    : propagator(s), r(_r), satisfied(0) {
+    vs[0] = _z;
+    vs[1] = _x; 
+
+    _z.attach(E_FIX, watch<&P::wake>(0, Wt_IDEM));
+    _x.attach(E_FIX, watch<&P::wake>(1, Wt_IDEM));
+    attach(s, r, watch<&P::wake>(2, Wt_IDEM));
+  }
+
+
+  bool propagate(vec<clause_elt>& confl) {
+#ifdef LOG_PROP
+    std::cout << "[[Running ineq]]" << std::endl;
+#endif
+    if(satisfied)
+      return true;
+
+    if(!ub(r) || ub(vs[0]) < lb(vs[1]) || ub(vs[1]) < lb(vs[0])) {
+      satisfied = true;
+      return true;
+    }
+    
+    
+  }
+
+  void root_simplify(void) { }
+
+  void cleanup(void) {
+    is_queued = false;
+  }
+
+protected:
+  intvar vs[2];
+  patom_t r;
+
+  // Persistent state
+  trigger trigs[3];
+  int active;
+  intvar::val_t prop_val;
+
+  unsigned int gen;
+  char status;
+};
+*/
 
 // Half-reified disequality
 bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
@@ -1149,6 +1225,9 @@ class pred_le_hr : public propagator, public prop_inst<pred_le_hr> {
       queue_prop();
     }
     if(ub(y) + ky < ub(x) + kx) {
+      mode |= P_UB;
+      queue_prop();
+    }
     return Wt_Keep;
   }
 
@@ -1263,7 +1342,6 @@ protected:
   Tchar state;
 };
 #endif
-
 class int_le_hr : public propagator, public prop_inst<int_le_hr> {
   enum Status { S_None = 0, S_Active = 1, S_Red = 2 };
   enum Change { C_None = 0, C_LB = 1, C_UB = 2, C_DIS = 4 };
@@ -1804,7 +1882,10 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   // new int_le_hr(s, r, x, y+k);
   return true;
   */
-  return pred_le_hr_s::post(s, x.p, y.p, k, r);
+  assert(x.off == 0);
+  assert(y.off == 0);
+  return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
+  // return int_le_hr::post(s, x, y, k, r);
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
@@ -1862,32 +1943,34 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   */
   // x <= z
   /*
-  pred_le(s, x.pid^1, z.pid, -2, at_True);
-  pred_le(s, z.pid, x.pid^1, 2, at_True);
+  pred_le(s, x.pid^1, z.pid, -IVAR_INV_OFFSET, at_True);
+  pred_le(s, z.pid, x.pid^1, IVAR_INV_OFFSET, at_True);
   */
-  pred_le(s, x.p, z.p, 0, at_True);
+  assert(x.off == 0);
+  assert(z.off == 0);
+  pred_le(s, x.p, z.p, z.off - x.off, at_True);
   // (WARNING: Offsets here are fragile wrt offset changes)
   // (-x) <= z
-  pred_le(s, x.p^1, z.p, -2, at_True);
+  pred_le(s, x.p^1, z.p, -IVAR_INV_OFFSET + z.off + x.off, at_True);
 
   // x >= 0 -> (z <= x)
-  pred_le(s, z.p, x.p, 0, x >= 0);
+  pred_le(s, z.p, x.p, 0 + x.off - z.off, x >= 0);
   // x <= 0 -> (z <= -x)
   if(!enqueue(*s, x <= z.ub(s), reason ()))
      return false;
    /*
-   pred_le(s, x.pid^1, z.pid, -2, at_True);
-   pred_le(s, z.pid, x.pid^1, 2, at_True);
+   pred_le(s, x.pid^1, z.pid, -IVAR_INV_OFFSET, at_True);
+   pred_le(s, z.pid, x.pid^1, IVAR_INV_OFFSET, at_True);
    */
-  pred_le(s, x.p, z.p, 0, at_True);
+  pred_le(s, x.p, z.p, 0 + z.off - x.off, at_True);
   // (WARNING: Offsets here are fragile wrt offset changes)
   // (-x) <= z
-  pred_le(s, x.p^1, z.p, -2, at_True);
+  pred_le(s, x.p^1, z.p, -IVAR_INV_OFFSET + z.off + x.off, at_True);
 
   // x >= 0 -> (z <= x)
-  pred_le(s, z.p, x.p, 0, x >= 0);
+  pred_le(s, z.p, x.p, 0 + x.off - z.off, x >= 0);
   // x <= 0 -> (z <= -x)
-  pred_le(s, z.p, x.p^1, 2, x <= 0);
+  pred_le(s, z.p, x.p^1, IVAR_INV_OFFSET - x.off - z.off, x <= 0);
   return true;
 }
 

@@ -118,7 +118,9 @@ let bool2int args =
   let x = Pr.get_int args.(1) in
   x = if b then 1 else 0
 
+let cl_id = ref 0
 let bool_clause args =
+  incr cl_id ;
   let pos = Pr.get_array Pr.get_bool args.(0) in
   let neg = Pr.get_array Pr.get_bool args.(1) in
   Array.fold_left (||) false
@@ -182,6 +184,7 @@ let check_funs =
        "int_lin_eq", int_linear_rel (=) ;
        "int_lin_eq_reif", reif (int_linear_rel (=)) ;
        "bool_eq", bool_rel (=) ;
+       "bool_eq_reif", reif (bool_rel (=)) ;
        "bool_lin_le", bool_linear_rel (<=) ;
        "array_int_element", array_int_element ;
        "array_var_int_element", array_int_element ;

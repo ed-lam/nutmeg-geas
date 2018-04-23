@@ -41,10 +41,10 @@ annotation int_priority(array[int] of var int: xs,
 annotation bool_priority(array[int] of var bool: xs,
   array[int] of ann: br, ann: sel);
 
-predicate cumulative(array[int] of var int: s,
-  array[int] of int: d,
-  array[int] of int: r,
-  int: b) = fzn_cumulative(s, d, r, b);
+%predicate cumulative(array[int] of var int: s,
+%  array[int] of int: d,
+%  array[int] of int: r,
+%  int: b) = fzn_cumulative(s, d, r, b);
 predicate fzn_cumulative(array[int] of var int: s,
   array[int] of int: d,
   array[int] of int: r,

@@ -227,6 +227,7 @@ let make_vars s model ctxs idefs bdefs =
     | Open -> failwith "Error: cyclic definitions." 
     | Pending ->
       begin
+        (* Format.fprintf Format.err_formatter "b%d := %s@." bv (Simp.string_of_bdefn bdefs.(bv)) ; *)
         bvars.(bv) <- Open ;
         let ctx = ctxs.Pol.bvars.(bv) in
         let v = build_bdef s make_ivar make_bvar ctx bdefs.(bv) in
@@ -343,7 +344,7 @@ let is_search_ann ann =
 
 let rec parse_branching problem env solver ann =
   match ann with  
-  | Pr.Ann_call ("seq_search", args) ->
+  | Pr.Ann_call ("seq_search", args) | Pr.Ann_call ("warm_start_array", args) ->
       let sub = get_ann_array (fun x -> x) args.(0) in
       Sol.seq_brancher (Array.map (parse_branching problem env solver) sub)
   | Pr.Ann_call ("int_search", args) ->
@@ -366,6 +367,12 @@ let rec parse_branching problem env solver ann =
     let sel = force_array_bvars env (Pr.resolve_ann problem args.(0)) in
     let sub = get_ann_array (parse_branching problem env solver) args.(1) in
     Sol.new_bool_priority_brancher varb sel sub
+  | Pr.Ann_call ("warm_start", args) ->
+    let xs = force_array_ivars env solver (Pr.resolve_ann problem args.(0)) in
+    let cs = Pr.get_array Pr.get_int (Pr.resolve_ann problem args.(1)) in
+    assert (Array.length xs = Array.length cs) ;
+    Sol.warmstart_brancher
+      (Array.init (Array.length xs) (fun i -> Sol.ivar_eq xs.(i) cs.(i)))
   | _ -> failwith "Unknown search annotation"
 
 let rec parse_branchings problem env solver anns =
@@ -705,7 +712,6 @@ let main () =
   (* let pol_ctxs = Polarity.polarity orig_problem in *)
   let s_problem = Simplify.simplify orig_problem in
   let ctxs = Polarity.polarity s_problem in
-  let (idefs, bdefs, problem) = s_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
   (* Construct the problem *)
@@ -715,6 +721,8 @@ let main () =
       Half_reify.half_reify ~ctxs:pol_ctxs problem 
     else problem in
   *)
+  let (idefs, bdefs, problem) = s_problem in
+  (* Simp.log_reprs idefs bdefs ; *)
   let env = build_problem solver problem ctxs idefs bdefs in
   (* Perform polarity analysis, to set branching *)
   let _ = if !Opts.pol then

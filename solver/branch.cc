@@ -46,8 +46,10 @@ struct branch_val {
         return patom_t(p, ub(s, p));
       case Val_Split:
         {
-          pval_t mid = lb(s, p) + ((ub(s, p) - lb(s, p) + 1)/2);
-          return patom_t(p, mid);
+          // pval_t mid = lb(s, p) + ((ub(s, p) - lb(s, p) + 1)/2);
+          // return patom_t(p, mid);
+          pval_t mid = lb(s, p) + ((ub(s, p) - lb(s, p))/2);
+          return le_atom(p, mid);
         }
       case Val_Pol:
         {
@@ -285,6 +287,8 @@ public:
   }
 
   patom_t branch(solver_data* s) {
+    for(brancher* b : range(branchers.begin(), branchers.begin()+start))
+      assert(b->is_fixed(s));
     brancher** end = branchers.end();
     brancher** b = branchers.begin() + start;
 
@@ -332,6 +336,83 @@ public:
   brancher* b;
 };
 brancher* limit_brancher(brancher* b) { return new limit_branch(b); }
+
+class warmstart_branch : public brancher {
+public:
+  enum State { Done = 0, Active = 1, Idle = 2 };
+  warmstart_branch(vec<patom_t>& _decs)
+    : decs(_decs), state(Idle), idx(0)
+  { }
+
+  inline bool atom_fixed(solver_data* s, patom_t at) {
+    /*
+    if(s->state.is_inconsistent(at)) {
+      fprintf(stderr, "fskip.\n");
+      return true;
+    }
+    if(s->state.is_entailed(at)) {
+      fprintf(stderr, "sskip.\n");
+      return true;
+    }
+    */
+    return s->state.is_entailed(at) || s->state.is_inconsistent(at);
+  }
+
+  bool is_fixed(solver_data* s) {
+    if(state == Done)
+      return true;
+    
+    if(idx < decs.size()) {
+      if(!atom_fixed(s, decs[idx]))
+        return false;
+      int ii = idx;      
+      for(; ii < decs.size(); ++ii) {
+        patom_t at(decs[ii]);
+        if(atom_fixed(s, at))
+          continue;
+        idx.set(s->persist, ii); 
+        return false;
+      }
+    }
+    state = Done;
+    return true;
+  }
+
+  patom_t branch(solver_data* s) {
+    if(state == Done)
+      return at_Undef;
+    if(state == Idle) {
+      // s->persist.bt_flags.push(&state);
+      state = Active;
+    }
+
+    static unsigned int c = 0;
+    if(idx < decs.size()) {
+      if(!atom_fixed(s, decs[idx]))
+        return decs[idx];
+      int ii = idx;
+      for(; ii < decs.size(); ++ii) {
+        patom_t at(decs[ii]);
+        if(atom_fixed(s, at))
+          continue;
+
+        idx.set(s->persist, ii);
+        // fprintf(stderr, "A(%d)\n", ++c);
+        return at;
+      }
+    }
+    // fprintf(stderr, "Finished after: %d\n", c);
+    state = Done;
+    return at_Undef;
+  }
+
+  vec<patom_t> decs;
+  char state;
+  Tint idx;
+};
+
+brancher* warmstart_brancher(vec<patom_t>& decs) { return new warmstart_branch(decs); }
+
 
 class toggle_branch : public brancher
   /*, public evt<toggle_branch>*/ {

@@ -10,7 +10,7 @@ struct model {
 
   pval_t get(pid_t pi) const {
     if(pi&1) {
-      return pval_max - vals[pi>>1];
+      return pval_inv(vals[pi>>1]);
     } else {
       return vals[pi>>1];
     }
@@ -23,7 +23,7 @@ struct model {
 
   bool value(patom_t at) {
     if(at.pid&1) {
-      return vals[at.pid>>1] <= pval_max - at.val;
+      return vals[at.pid>>1] < pval_contra(at.val);
     } else {
       return vals[at.pid>>1] >= at.val;
     }

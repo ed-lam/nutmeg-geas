@@ -5,9 +5,9 @@ namespace geas {
 
 propagator::propagator(solver_data* _s)
     : is_queued(false), prop_id(_s->propagators.size()), s(_s) {
-#ifdef PROOF_LOG
+//#ifdef PROOF_LOG
     cons_id = s->log.scope_constraint;
-#endif
+//#endif
     s->propagators.push(this);
 //    queue_prop(); 
   }

@@ -36,14 +36,14 @@ static const lbool l_True = lbool::of_int(1);
 #ifdef PVAL_32
 typedef uint32_t pval_t;
 typedef int32_t spval_t;
-static const pval_t pval_max = UINT32_MAX-1;
-static const pval_t pval_err = UINT32_MAX;
+static const pval_t pval_max = UINT32_MAX-2;
+static const pval_t pval_err = UINT32_MAX-1;
 static const pval_t pval_min = 0;
 #else
 typedef uint64_t pval_t;
 typedef int64_t spval_t;
-static const pval_t pval_max = UINT64_MAX-1;
-static const pval_t pval_err = UINT64_MAX;
+static const pval_t pval_max = UINT64_MAX-2;
+static const pval_t pval_err = UINT64_MAX-1;
 static const pval_t pval_min = 0;
 #endif
 
@@ -52,6 +52,7 @@ typedef uint32_t pid_t;
 typedef vec<pval_t> ctx_t;
 
 forceinline inline pval_t pval_inv(pval_t v) { return pval_max - v; }
+forceinline inline pval_t pval_contra(pval_t v) { return pval_err - v; }
 forceinline inline pval_t pred_val(const ctx_t& ctx, pid_t p) {
   return ctx[p];
 }
@@ -83,14 +84,15 @@ public:
   }
 
   patom_t operator~(void) const {
-    return patom_t(pid^1, pval_max - val + 1);
+    // return patom_t(pid^1, pval_inv(val) + 1);
+    return patom_t(pid^1, pval_contra(val));
   }
 
   inline bool lb(const vec<pval_t>& ctx) const {
     return ctx[pid] >= val;
   }
   inline bool ub(const vec<pval_t>& ctx) const {
-    return ctx[pid^1] <= pval_max - val;
+    return ctx[pid^1] <= pval_inv(val);
   }
 
   pid_t pid;

@@ -130,6 +130,16 @@ let rel_str = function
   | Ieq -> "="
   | Ine -> "!="
 
+let string_of_bdefn b =
+  match b with
+  | Bv_none -> "none"
+  | Bv_const b -> string_of_bool b
+  | Bv_eq b -> Format.sprintf "[b%d]" b
+  | Bv_neg b -> Format.sprintf "~[b%d]" b
+  | At (x, r, k) -> Format.sprintf "[x%d %s %d]" x (rel_str r) k
+  | Bv_or xs -> "[or ...]"
+  | Bv_and xs -> "[and ...]"
+
 let fzn_irel rel x y =
   match rel with
   | Ile -> (("int_le", [|x; y|]), [])
@@ -237,6 +247,12 @@ let evict_bdef st invert x y =
    fzn_assert_beq st y ry)
  
 let rec resolve_bdefs st v d d' = 
+  (*
+  match d, d' with
+  | Bv_none, d
+  | d, Bv_none -> Format.fprintf Format.err_formatter "%d : A (%s)@." v (string_of_bdefn d)
+  | _, _ -> Format.fprintf Format.err_formatter "%d : B@." v ;
+  *)
   match d, d' with
   (* No conflict *)
   | Bv_none, def
@@ -336,6 +352,8 @@ let simp_irel_reif rel st args anns =
           | Ieq -> u = v
           | Igt -> u > v
           | Ine -> u <> v in
+        (* (Format.fprintf Format.err_formatter "%d,%d|%s@." u v (if res then "true" else "false") ;
+        set_bool st b res) *)
         set_bool st b res
       | Pr.Iv_var x, Pr.Iv_int k ->
         apply_bdef st b (At (x, rel, k))
@@ -416,16 +434,13 @@ let simplify_constraint state id args anns =
 
 let log_reprs idefs bdefs =
   if !Opts.verbosity > 0 then
-    (*
+    let sub = Array.sub bdefs 0 (min 100 (Array.length bdefs - 1)) in
     Util.print_array ~post:"|]@." (fun fmt def ->
-      match def with
-      | None -> Format.fprintf fmt "_"
-      | Some (Bv_eq b) -> Format.fprintf fmt "%d" b
-      | Some (Bv_neg b) -> Format.fprintf fmt "~%d" b
-      | Some (At (x, r, k)) -> Format.fprintf fmt "x%d %s %d" x (rel_str r) k
-    ) Format.std_formatter defs
-    *)
+      Format.pp_print_string fmt (string_of_bdefn def)
+    ) Format.std_formatter (* bdefs *) sub
+    (*
     ()
+    *)
   else ()
 
 let simplify problem =
@@ -435,9 +450,9 @@ let simplify problem =
   *)
   let state = init_state problem in
   Dy.iter
-    (fun ((id, args), anns) -> simplify_constraint state id args anns)
+    (fun ((id, args), anns) -> simplify_constraint state id args anns (*; log_reprs state.idefs state.bdefs *))
     problem.Pr.constraints ;
-  log_reprs state.idefs state.bdefs ;
+  (* log_reprs state.idefs state.bdefs ; *)
   (state.idefs, state.bdefs, { problem with Pr.constraints = state.cons })
 
 (* Register all the simplifiers. *)

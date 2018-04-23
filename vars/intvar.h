@@ -18,6 +18,8 @@ enum ivar_kind { IV_EAGER, IV_SPARSE, IV_LAZY };
 
 intvar_manager* get_ivar_man(solver_data* s);
 
+#define IVAR_INV_OFFSET 3
+
 // Extra bookkeeping for intvars
 #if 0
 struct ivar_emap {
@@ -185,7 +187,7 @@ public:
   }
 
   intvar operator-(void) const {
-    return intvar(p^1, -off+2, ext);
+    return intvar(p^1, -off+IVAR_INV_OFFSET, ext);
   }
 
   intvar operator+(int k) const {
