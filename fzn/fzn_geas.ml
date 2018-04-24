@@ -617,9 +617,12 @@ let solve_optimize print_model print_nogood constrain solver assumps =
     let l = !Opts.limits in
     (fun () -> relative_limits solver l) in
   let rec aux model =
-    print_model fmt model ;
+    (if !Opts.max_solutions < 1 then print_model fmt model) ;
     if not (constrain solver model) then
-      ((* print_model fmt model ; *)
+      (begin
+        if !Opts.max_solutions > 0 then
+          print_model fmt model
+       end ;
        Format.fprintf fmt "==========@.")
     else
       match Sol.solve solver (limits ()) with
