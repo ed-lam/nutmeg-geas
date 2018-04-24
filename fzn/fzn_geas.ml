@@ -473,12 +473,18 @@ let is_output problem expr e_anns =
   | Pr.Arr _ -> Pr.ann_has_call e_anns "output_array"
   | _ -> false
   
+let is_output_id problem id =
+  try
+    let (_, anns) = Hashtbl.find problem.Pr.symbols id in
+    Pr.ann_has_id anns "output_var" || Pr.ann_has_call anns "output_array"    
+  with Not_found -> false
+
 let print_solution fmt problem env model =
   if !Opts.check then
     Check.check_exn problem env.ivars env.bvars model
   else () ;
   Hashtbl.iter (fun id (expr, anns) ->
-                if is_output problem expr anns then
+                if is_output_id problem id || is_output problem expr anns then
                   print_binding fmt id (eval_expr env model expr) anns
                 else
                   ()) problem.Pr.symbols
@@ -627,10 +633,17 @@ let solve_optimize print_model print_nogood constrain solver assumps =
     else
       match Sol.solve solver (limits ()) with
       | Sol.UNKNOWN ->
-         ((* print_model fmt model ; *)
+         (begin
+            if !Opts.max_solutions > 0 then
+              print_model fmt model
+            end ;
           Format.fprintf fmt "INCOMPLETE@.")
       | Sol.UNSAT ->
          ((* print_model fmt model ; *)
+          begin
+            if !Opts.max_solutions > 0 then
+              print_model fmt model
+            end ;
           Format.fprintf fmt "==========@.")
       | Sol.SAT -> aux (Sol.get_model solver)
   in

@@ -234,8 +234,8 @@ let read_bvar_decl model toks =
     begin
       S.junk toks ;
       match S.next toks with
-      | Bool b -> M.bind model id (M.Blit b) []
-      | Id id' -> M.bind model id (M.resolve model id')  []
+      | Bool b -> M.bind model id (M.Blit b) anns
+      | Id id' -> M.bind model id (M.resolve model id')  anns
       | _ -> failwith "Unexpected token in binding."
     end
   else
@@ -256,8 +256,8 @@ let read_ivar_decl model toks =
     begin
       S.junk toks ;
       match S.next toks with
-      | Int k -> M.bind model id (M.Ilit k) []
-      | Id id' -> M.bind model id (M.resolve model id') []
+      | Int k -> M.bind model id (M.Ilit k) anns
+      | Id id' -> M.bind model id (M.resolve model id') anns
       | _ -> failwith "Unexpected token in binding."
     end
   else
