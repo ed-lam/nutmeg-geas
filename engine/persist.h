@@ -164,6 +164,7 @@ struct trailed {
   char saved;
 };
 typedef trailed<int> Tint;
+typedef trailed<unsigned int> Tuint;
 typedef trailed<char> Tbool;
 typedef trailed<char> Tchar;
 typedef trailed<double> Tdouble;

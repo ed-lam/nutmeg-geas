@@ -9,13 +9,13 @@
 
 namespace geas {
 
-#if 0
 // Totally non-incremental time-table propagator.
 // ============================================
 
 typedef unsigned int task_id;
 
 enum evt_kind { ET = 0, ST = 1};
+/*
 struct pevt {
   pevt_kind k;
   task_id task;
@@ -23,300 +23,361 @@ struct pevt {
   int cap;
 };
 
-struct pevt_cmp {
-  bool operator()(const pevt& x, const pevt& y) {
-    if(x.time == y.time) {
-      // Process ends before starts.
-      return x.kind < y.kind;
-    }
-    return x.time < y.time;
-  }
-};
+*/
 
-
-class cumul_prop : public propagator, public prop_inst<cumul_prop> {
-  void rebuild_profile(void) {
-    profile.clear();
-    for(int ti : irange(tasks.size())) {
-      task& t(tasks[ti]);
-      if(lst(t) < ect(t)) {
-        profile.push(pevt { ST, ti, lst(t), rmin(t) });
-        profile.push(pevt { ET, ti, eet(t), rmin(t) });
-      }
-    }
-    std::sort(profile.begin(), profile.end(), pevt_cmp);
-  }
-
-  void forward_candidates(int min_avail) {
-    for(int ti : irange(tasks.size())) {
-      task& t(tasks[ti]);
-      if(is_fixed(t.s))
-        continue;
-      if(ub(t.res) <= min_avail)
-        continue;
-      candidates.push(pevt { ST, ti, est(t), rmin(t) });
-      candidates.push(pevt { ET, ti, eet(t), rmin(t) });
-    }
-    std::sort(candidates.begin(), candidates.end(), pevt_cmp);
-  }
-  
-  inline int m_st(int xi) {
-    return ub(starts[xi]);
-  }
-  inline int m_en(int xi) {
-    return lb(starts[xi]) + dur[xi];
-  }
-
-  int pos(landmark l) {
-    switch(l.kind) {
-      case L_EN:
-        return 2*m_en(l.xi);
-      case L_ST:
-        return 2*m_st(l.xi)+1;
-      default:
-        NEVER;
-    }
-  }
-
-  // explain start[xi] >= k.
-  void ex_lb(int xi, pval_t p, vec<clause_elt>& expl) {
-    int x_lb(starts[xi].lb_of_pval(p));
-
-    int x_prev(lb(starts[xi]));
-    // Need to explain why x <- [x_prev, x_lb) is infeasible.
-    // Collect things
-    int usage = res[xi];
-    for(int xj : irange(starts.size())) {
-      if(xj == xi)
-        continue;
-      if(m_st(xj) <= x_prev && x_lb <= m_en(xj)) {
-        open.insert(xj);
-        usage += res[xj];
-      }
-    }
-    int slack = usage - (cap+1);
-    int x_needed = 0;
-    for(int xj : open) {
-      if(res[xj] <= slack) {
-        slack -= res[xj];
-        continue;
-      }
-      int xj_time = x_lb - dur[xj];
-      x_needed = std::max(x_needed, xj_time);
-      expl.push(starts[xj] < xj_time);
-    }
-    open.clear();
-    expl.push(starts[xi] < x_needed);
-  }
-
-  struct lmark_cmp {
-    bool operator()(landmark x, landmark y) {
-      return p->pos(x) < p->pos(y); 
-    }
-
-    cumul_prop* p;    
-  };
-
-  watch_result wake_s(int xi) {
-    if(m_st(xi) < m_en(xi))
-      queue_prop();
-
-    return Wt_Keep;
-  }
-
+// V is the type of resource consumption.
+template <class V>
+class cumul {
 public:
-  cumul_prop(solver_data* s, vec<intvar>& _starts, vec<int>& _dur, vec<int>& _res, int _cap)
-    : propagator(s), starts(_starts), dur(_dur), res(_res), cap(_cap),
-      open(_starts.size()),
-      active_t(cmp_eet {this}), active_r(res_cmp_gt {res}),
-      blocked(res_cmp_lt {res}) {
+  class cumul_val : public propagator, public prop_inst<cumul_val> {
+    typedef prop_inst<cumul_val> I;
+    typedef cumul_val P;
 
-    for(int xi: irange(starts.size()))
-      starts[xi].attach(E_LU, watch<&P::wake_s>(xi, Wt_IDEM));
+    // Typedefs
+    typedef unsigned int task_id;
+    typedef trailed<V> TrV;
+    struct task_info {
+      intvar s;
+      int d;
+      V r;
+    };
 
-    for(int ii : irange(starts.size())) {
-      var_perm.push(ii);
-    }
-  }
+    struct evt_info {
+      evt_kind kind;  
+      task_id task;
+      int t;
+      V level;
+    };
 
-  bool check_sat(void) {
-    return true; 
-  }
-
-  // Relevant landmarks
-  inline int est(int xi) const { return lb(starts[xi]); }
-  inline int let(int xi) const { return ub(starts[xi]) + dur[xi]; }
-
-  inline int m_st(int xi) const { return ub(starts[xi]); }
-  inline int m_ed(int xi) const { return lb(starts[xi]) + dur[xi]; }
-
-  struct cmp_est {
-    bool operator()(int xi, int yi) { return p->est(xi) < p->est(yi); }
-    P* p;
-  };
-  struct cmp_eet {
-    bool operator()(int xi, int yi) { return p->m_ed(xi) < p->m_ed(yi); }
-    P* p;
-  };
-  struct cmp_let {
-    bool operator()(int xi, int yi) { return p->let(xi) > p->let(yi); }
-    P* p;
-  };
-  struct cmp_lst {
-    bool operator()(int xi, int yi) { return p->m_st(xi) > p->m_st(yi); }
-    P* p;
-  };
-
-  struct res_cmp_gt {
-    bool operator()(int xi, int yi) { return res[xi] > res[yi]; }
-    vec<int>& res;
-  };
-  struct res_cmp_lt {
-    bool operator()(int xi, int yi) { return res[xi] < res[yi]; }
-    vec<int>& res;
-  };
-
-  void push_nonoverlap(int xi, int time, vec<clause_elt>& confl) {
-    confl.push(starts[xi] > time);
-    confl.push(starts[xi] <= time - dur[xi]);
-  }
-
-  bool propagate(vec<clause_elt>& confl) {
-    // Set up the consumption profile  
-    vec<landmark> lmarks;
-    for(int xi : irange(starts.size())) {
-      if(m_st(xi) < m_en(xi)) {
-        lmarks.push(landmark { xi, L_ST });
-        lmarks.push(landmark { xi, L_EN });
+    struct {
+      bool operator()(const evt_info& x, const evt_info& y) const {
+        if(x.t == y.t) {
+          // Process ends before starts.
+          return x.kind < y.kind;
+        }
+        return x.t < y.t;
       }
-    }
-    std::sort(lmarks.begin(), lmarks.end(), lmark_cmp {this});
-    std::sort(var_perm.begin(), var_perm.end(), cmp_est {this});
-    
-    int* v(var_perm.begin());
-    int* ve(var_perm.end());
-    
-    // For now, just check: run a sweep, make sure capacity
-    // is not exceeded.
-    int margin = cap;
-    for(int li : irange(lmarks.size())) {
-      landmark l(lmarks[li]);
-      switch(l.kind) {
-        case L_ST:  
-          {
-            int time = m_st(l.xi);
-            // Check for any active tasks which are
-            // now finished.
-            while(!active_t.empty() && m_en(active_t.getMin()) < time) {
-              int r = active_t.removeMin();
-              active_r.remove(r);
-            }
+    } pevt_cmp;
 
-            margin -= res[l.xi];
-            
-            if(margin < 0) {
-              // Build the explanation.
-              // Scan again to collect the open
-              // activities.
-              for(int lj = 0; lj < li; lj++) {
-                switch(lmarks[lj].kind) {
-                  case L_ST:
-                    open.insert(lmarks[lj].xi);
-                    break;
-                  case L_EN:
-                    open.remove(lmarks[lj].xi);
-                    break;
-                  default:
-                    NEVER;
-                }
-              }
-              open.insert(l.xi);
-              int slack = -margin - 1; 
-              for(int xi : open) {
-                if(res[xi] <= slack) {
-                  slack -= res[xi];
-                  continue;
-                }
-                push_nonoverlap(xi, time, confl);    
-              }
-              open.clear();
-              blocked.clear(); active_r.clear(); active_t.clear();
+    // Parameters
+    vec<task_info> tasks; // We order tasks by decreasing r.
+    V cap; // Maximum resource capacity
+
+    // Persistent state
+    Tuint active_end;
+
+    p_sparseset profile_tasks;
+    p_sparseset active_tasks;
+
+    // Transient state.
+    vec<evt_info> profile;
+    boolset lb_change;
+    boolset ub_change;
+    bool profile_changed;
+
+    // Helper functions
+    inline int est(int xi) const { return lb(tasks[xi].s); }
+    inline int eet(int xi) const { return lb(tasks[xi].s) + tasks[xi].d; }
+    inline int lst(int xi) const { return ub(tasks[xi].s); }
+    inline int let(int xi) const { return ub(tasks[xi].s) + tasks[xi].d; }
+
+    inline V mreq(int xi) const { return tasks[xi].r; }
+    inline int dur(int xi) const { return tasks[xi].d; }
+
+    watch_result wake_lb(int ti) {
+      if(profile_tasks.elem(ti)) {
+        profile_changed = true;
+        queue_prop();
+      } else {
+        if(lst(ti) < eet(ti)) {
+          trail_push(s->persist, profile_tasks.sz);
+          profile_tasks.insert(ti);
+          profile_changed = true;
+          queue_prop();
+        } else if(active_tasks.elem(ti)) {
+          lb_change.add(ti);
+          queue_prop();
+        }
+      }
+      return Wt_Keep;
+    }
+
+    watch_result wake_ub(int ti) {
+      if(profile_tasks.elem(ti)) {
+        profile_changed = true;
+        queue_prop();
+      } else {
+        if(lst(ti) < eet(ti)) {
+          trail_push(s->persist, profile_tasks.sz);
+          profile_tasks.insert(ti);
+          profile_changed = true;
+          queue_prop();
+        } else if(active_tasks.elem(ti)) {
+          ub_change.add(ti);
+          queue_prop();
+        }
+      }
+      return Wt_Keep;
+    }
+
+    void log_ptasks(void) {
+      std::cerr << "{";
+      for(task_id ti : profile_tasks) {
+        std::cerr << ti << ":[" << lst(ti) << "," << eet(ti) << ")|"
+          << mreq(ti) << " ";
+      }
+      std::cerr << "}" << std::endl;
+    }
+
+    void log_profile(void) {
+      for(evt_info e : profile) {
+        std::cerr << e.t << ":" << e.task << ":" << (e.kind == ST ? "+" : "-") << e.level << " ";
+      }
+      std::cerr << std::endl;
+    }
+
+    bool rebuild_profile(vec<clause_elt>& confl) {
+#ifdef LOG_PROFILE
+      std::cout << "Building profile." << std::endl << "-------------------" << std::endl;
+      log_ptasks();
+#endif
+
+      profile.clear();
+      for(task_id ti : profile_tasks) {
+        profile.push(evt_info { ST, ti, lst(ti), mreq(ti) });
+        profile.push(evt_info { ET, ti, eet(ti), mreq(ti) });
+      }
+      std::sort(profile.begin(), profile.end(), pevt_cmp);
+
+      // Now replace the deltas with actual values
+
+#ifdef LOG_PROFILE
+      log_profile();
+#endif
+
+      V cumul(0);
+      V p_max(0);
+      for(evt_info& e : profile) {
+        if(e.kind == ST) {
+          cumul += e.level;
+          if(cumul > p_max) {
+            if(cumul > cap) {
+              explain_overload(e.t, confl);
               return false;
             }
+            p_max = cumul;
+          }
+        } else {
+          cumul -= e.level;
+        }
+        e.level = cumul;
+      }
 
-            // Usage has increased, so check if anything is
-            // violated. 
-            while(!active_r.empty() && res[active_r.getMin()] > margin) {
-              int r = active_r.removeMin();
-              active_t.remove(r);
-              blocked.insert(r);
-            }
+#ifdef LOG_PROFILE
+      log_profile();
+      std::cerr << std::endl;
+#endif
 
-            // Finally, check for any new tasks which need
-            // to be activated
-            for(; v != ve && est(*v) <= time; ++v) {
-              // Already covered.
-              if(m_ed(*v) <= time)
+      // Activate any remaining tasks which might
+      // be shifted.
+      V req_max(cap - p_max);
+      unsigned int ti = active_end;
+      if(ti < tasks.size() && mreq(ti) > req_max) {
+        trail_push(s->persist, active_tasks.sz);
+        active_tasks.insert(ti);
+        for(++ti; ti < tasks.size(); ++ti) {
+          if(mreq(ti) <= req_max)
+            break;
+          active_tasks.insert(ti);
+        }
+        set(active_end, ti);
+      }
+      return true;
+    }
+
+    bool sweep_fwd(task_id ti) {
+      // Find the starting interval
+      const task_info& t(tasks[ti]);
+
+      evt_info* s = std::upper_bound(profile.begin(), profile.end(),
+        est(ti), [](const int& t, const evt_info& e /*, const int& t*/) { return e.t + (e.kind == ST) < t; });
+      if(s == profile.end())
+        return true;
+      // Task stats in the previous interval   
+      V lev_max = cap - mreq(ti);
+
+      int end_time = est(ti) + t.d;
+      if(s[-1].task == ti)
+        return true;
+      V seg_level = s[-1].level;
+
+      while(s->t < end_time) {
+        if(seg_level > lev_max) {
+          // Shift start and reset.
+          if(!set_lb(t.s, s->t, this->template expl<&P::ex_est>(ti, expl_thunk::Ex_BTPRED)))
+            return false;
+          end_time = s->t + t.d;
+        }
+        // The profile's going to be updated anyway.
+        if(s->task == ti)
+          return true;
+        seg_level = s->level;
+        ++s;
+      }
+      return true;
+    }
+
+    void ex_est(int ti, pval_t p, vec<clause_elt>& expl) {
+      const task_info& t(tasks[ti]);
+      // int t_est(t.s.lb_of_pval(p));
+      int t_est(std::max(t.s.lb_of_pval(p), eet(ti)));
+
+      // Assumption: we're doing stepwise-propagation.
+      // So at this point, lb(t.s) < est, and every task
+      // active at (est-1) was active from lb(t.s) + dur - 1.
+      
+      // So, we collect a sufficient set of tasks, active at
+      // (est-1).
+      V e_req = (cap - t.r);
+      vec<task_id> etasks;
+      for(task_id p : profile_tasks) {
+        if(lst(p) < t_est && t_est <= eet(p)) {
+          assert(p != ti);
+          // assert(lst(p) >= lb(t.s));
+
+          etasks.push(p);
+          if(e_req < mreq(p)) {
+            // Found a cover. Minimize, and find a relaxed
+            // lb for t.
+            V slack = mreq(p) - e_req;
+            
+            int jj = 0;
+            int earliest = 0;
+            for(int ii = 0; ii < etasks.size(); ++ii) {
+              if(mreq(p) < slack) {
+                slack -= mreq(p);
                 continue;
-              if(res[*v] > margin) {
-                blocked.insert(*v);
-              } else {
-                active_r.insert(*v);
-                active_t.insert(*v);
               }
+              earliest = std::max(earliest, lst(etasks[ii]));
+              etasks[jj++] = etasks[ii];
             }
+            etasks.shrink_(etasks.size() - jj);
+            // Now construct the actual explanation
+            // Either t is entirely before earliest...
+            expl.push(t.s <= earliest - t.d);
+            // ...or some member of etasks doesn't cover.
+            for(task_id p : etasks) {
+              expl.push(tasks[p].s > earliest);
+              // FIXME: Probably an off-by-one here.
+              expl.push(tasks[p].s < t_est - tasks[p].d);
+            }
+            return;
           }
-          break;
-        case L_EN:
-          {
-            int time = m_en(l.xi);
-            margin += res[l.xi];
-            while(!blocked.empty() && res[blocked.getMin()] <= margin) {
-              int r = blocked.removeMin();
-              assert(lb(starts[r]) < time);
-              // Update the bound.
-              if(!set_lb(starts[r], time, ex_thunk(ex<&P::ex_lb>, r, expl_thunk::Ex_BTPRED))) {
-                blocked.clear(); active_t.clear(); active_r.clear();
-                return false;
+          e_req -= mreq(p);
+        }
+      }
+      // Should be unreachable
+      ERROR;
+    }
+
+    void explain_overload(int t, vec<clause_elt>& confl) {
+      // Usual trick: collect a sufficient set of tasks, then
+      // discard until we have a minimal set.
+      vec<task_id> e_tasks;
+      V to_cover(cap);
+      for(task_id p : profile_tasks) {
+        if(lst(p) <= t && t < eet(p)) {
+          e_tasks.push(p);
+          if(to_cover < mreq(p)) {
+            // Found a sufficient cover.
+            V slack(mreq(p) - to_cover);
+            for(task_id q : e_tasks) {
+              // Can be omitted; we have sufficient
+              // slack later on.
+              if(mreq(q) < slack) {
+                slack -= mreq(q);
+                continue;
               }
-              active_t.insert(r);
-              active_r.insert(r);
+              confl.push(tasks[q].s <= t - tasks[q].d);
+              confl.push(tasks[q].s > t);
             }
+            return;
           }
-          break;
-        default:
-          NEVER;
+          to_cover -= mreq(p);
+        }
+      }
+      ERROR;
+    }
+
+  public:
+    cumul_val(solver_data* s, vec<intvar>& starts, vec<int>& dur, vec<V>& res, V _cap)
+      : propagator(s), cap(_cap)
+      , active_end(0)
+      , profile_tasks(starts.size())
+      , active_tasks(starts.size())
+      , lb_change(starts.size())
+      , ub_change(starts.size())
+      , profile_changed(false) {
+      for(int xi: irange(starts.size())) {
+        task_info t(task_info { starts[xi], dur[xi], res[xi] });
+        t.s.attach(E_LB, this->template watch<&P::wake_lb>(xi));
+        t.s.attach(E_UB, this->template watch<&P::wake_ub>(xi));
+        tasks.push(t);
+        if(lst(xi) < eet(xi)) {
+          profile_tasks.insert(xi);
+          profile_changed = true;
+        }
       }
     }
 
-    blocked.clear(); active_r.clear(); active_t.clear();
-    return true;
-  }
+    bool propagate(vec<clause_elt>& confl) {
+      if(profile_changed) {
+        if(!rebuild_profile(confl))
+          return false;
+        
+        /*
+        for(task_id t : active_tasks) {
+          if(!sweep_fwd(t))
+            return false;
+          // if(!sweep_bwd(t))
+          //   return false;   
+        }
+        */
+      } else {
+        // If the profile hasn't changed, only sweep
+        // variables with updated bounds.
+        /*
+        for(task_id t : lb_change) {
+          if(!sweep_fwd(t))
+            return false;
+        }
+        */
+        /*
+        for(task_id t : ub_change) {
+          if(!sweep_bwd(t))
+            return false;
+        }
+        */
+      }
+      return true;
+    }
 
-protected:
-  // Variables/static data
-  vec<intvar> starts;
-  vec<int> dur;
-  vec<int> res;
-  int cap;
-
-  vec<int> var_perm;
-  p_sparseset open;
-
-  // Transient information during propagation
-  Heap<cmp_eet> active_t;
-  Heap<res_cmp_gt> active_r;
-  Heap<res_cmp_lt> blocked;
+    void cleanup(void) {
+      lb_change.clear();
+      ub_change.clear();
+      profile_changed = false;
+      is_queued = false;
+    }
+  };
 };
-#endif
 
 bool cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& duration, vec<int>& resource, int cap) {
   // new cumul_prop(s, starts, duration, resource, cap);
   // return true;
-  // return cumul_prop::post(s, starts, duration, resource, cap);
-  assert(0);
-  return false;
+  return cumul<int>::cumul_val::post(s, starts, duration, resource, cap);
+  // assert(0);
+  // return false;
 }
 
 }

@@ -293,8 +293,10 @@ public:
   }
 
   patom_t branch(solver_data* s) {
+#ifndef NDEBUG
     for(brancher* b : range(branchers.begin(), branchers.begin()+start))
       assert(b->is_fixed(s));
+#endif
     brancher** end = branchers.end();
     brancher** b = branchers.begin() + start;
 
@@ -392,7 +394,7 @@ public:
       state = Active;
     }
 
-    static unsigned int c = 0;
+    // static unsigned int c = 0;
     if(idx < decs.size()) {
       if(!atom_fixed(s, decs[idx]))
         return decs[idx];
