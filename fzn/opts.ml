@@ -19,6 +19,8 @@ let restart_limit = ref None
 (* let conflict_limit = ref 0 *)
 let limits = ref (Solver.unlimited ())
 
+let obj_probe_limit = ref None
+
 let check = ref false
 
 let native = ref false
@@ -77,6 +79,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
        "-nof_solutions",
        Arg.Int (fun k -> max_solutions := k),
        " : maximum number of solutions to report"
+     ) ;
+     (
+      "--obj-probe",
+      Arg.Int (fun k -> obj_probe_limit := Some k),
+      " : number of conflicts to give speculative objective tightening."
      ) ;
      (
       "-a",

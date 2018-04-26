@@ -20,6 +20,7 @@ val half_reify : bool ref
 val restart_limit : int option ref
 (* val conflict_limit : int ref *)
 val limits : Solver.limits ref
+val obj_probe_limit : int option ref
 
 val check : bool ref
 

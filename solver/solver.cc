@@ -477,7 +477,7 @@ void solver::retract(void) {
   if(data->assump_end == data->assumptions.size()) { 
     bt_to_level(data, data->assump_level.last());
   }
-  assert(data->assump_end < data->assumptions.size());
+  assert(data->assump_end <= data->assumptions.size());
 
   data->assumptions.pop();
   data->assump_level.pop();

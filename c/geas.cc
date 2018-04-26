@@ -282,11 +282,11 @@ pid_t ivar_pid(intvar v) { return get_intvar(v)->p; }
 
 int ivar_lb(intvar v) {
   geas::solver_data* s = get_intvar(v)->ext->s;
-  return get_intvar(v)->lb(s);
+  return get_intvar(v)->lb(s->state.p_root);
 }
 int ivar_ub(intvar v) {
   geas::solver_data* s = get_intvar(v)->ext->s;
-  return get_intvar(v)->ub(s);
+  return get_intvar(v)->ub(s->state.p_root);
 }
 
 int atom_value(model m, atom at) {

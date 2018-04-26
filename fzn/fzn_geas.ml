@@ -616,6 +616,95 @@ let relative_limits solver limits =
         max 1 (limits.Sol.max_conflicts - s.Sol.conflicts)
       else 0 }
 
+let probe_objective solver model obj =
+  (* Compute bounds *)
+  match !Opts.obj_probe_limit with
+  | None -> model (* Don't probe *)
+  | Some probe_lim ->
+    (* Set up limits for probe steps. *)
+    let limits =
+      let l = !Opts.limits in
+      if l.Sol.max_conflicts > 0 then
+        (fun () ->
+          let rlim = relative_limits solver l in
+          { rlim with
+              Sol.max_conflicts = min probe_lim (rlim.Sol.max_conflicts) })
+      else
+        (fun () -> { (relative_limits solver l)
+                     with Sol.max_conflicts = probe_lim })
+    in
+    (* Do some probing *)
+    let rec aux model lb ub step =
+      if lb = ub then
+        model
+      else begin
+        let mid = max lb (ub - step) in
+        if not (Sol.assume solver (Sol.ivar_le obj mid)) then
+          (Sol.retract solver ; model)
+        else
+          match Sol.solve solver (limits ()) with
+          | Sol.SAT ->
+            let m' = Sol.get_model solver in 
+            let ub' = Sol.int_value m' obj in
+            (Sol.retract solver ; aux m' lb ub' (2*step))
+          | Sol.UNSAT ->
+            (Sol.retract solver ; aux model (mid+1) ub 1)
+          | Sol.UNKNOWN -> (Sol.retract solver; model)
+      end
+    in
+    aux model (Sol.ivar_lb obj) (Sol.int_value model obj) 1
+      
+let solve_minimize print_model print_nogood solver obj assumps =
+  assert (List.length assumps = 0) ;
+  let fmt = Format.std_formatter in
+  let limits =
+    let l = !Opts.limits in
+    (fun () -> relative_limits solver l) in
+  let rec aux model =
+    (if !Opts.max_solutions < 1 then print_model fmt model) ;
+    let obj_val = Sol.int_value model obj in
+    if not (Sol.post_atom solver (Sol.ivar_lt obj obj_val)) then
+      (begin
+        if !Opts.max_solutions > 0 then
+          print_model fmt model
+       end ;
+       Format.fprintf fmt "==========@." ;
+       model)
+    else
+      match Sol.solve solver (limits ()) with
+      | Sol.UNKNOWN ->
+         (begin
+            if !Opts.max_solutions > 0 then
+              print_model fmt model
+            end ;
+          Format.fprintf fmt "INCOMPLETE@." ;
+          model)
+      | Sol.UNSAT ->
+         ((* print_model fmt model ; *)
+          begin
+            if !Opts.max_solutions > 0 then
+              print_model fmt model
+            end ;
+          Format.fprintf fmt "==========@." ;
+          model)
+      | Sol.SAT ->
+        (* )
+        aux (Sol.get_model solver)
+        ( *)
+        let m' = probe_objective solver (Sol.get_model solver) obj in
+        aux m'
+        (* *)
+  in
+  match Sol.solve solver !Opts.limits with
+  | Sol.UNKNOWN -> (Format.fprintf fmt "UNKNOWN@." ; None)
+  | Sol.UNSAT ->
+    (* Format.fprintf fmt "UNSAT@." *)
+    (Format.fprintf fmt "==========@." ; None)
+  | Sol.SAT ->
+    (* Some (aux (Sol.get_model solver)) *)
+    Some (aux (probe_objective solver (Sol.get_model solver) obj))
+
+(*
 let solve_optimize print_model print_nogood constrain solver assumps =
   assert (List.length assumps = 0) ;
   let fmt = Format.std_formatter in
@@ -653,6 +742,7 @@ let solve_optimize print_model print_nogood constrain solver assumps =
     (* Format.fprintf fmt "UNSAT@." *)
     Format.fprintf fmt "==========@."
   | Sol.SAT -> aux (Sol.get_model solver)
+  *)
  
 let print_stats fmt stats obj_val =
   match !Opts.print_stats with
@@ -774,11 +864,26 @@ let main () =
        let block = block_solution problem env in
        solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
+     (*
      solve_optimize print_model print_nogood
        (decrease_ivar obj_val env.ivars.(obj)) solver assumps
+       *)
+     begin
+     match solve_minimize print_model print_nogood solver env.ivars.(obj) assumps with
+     | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
+     | None -> ()
+     end
   | Pr.Maximize obj ->
+    (* 
      solve_optimize print_model print_nogood
        (increase_ivar obj_val env.ivars.(obj)) solver assumps
+       *)
+     begin
+     match solve_minimize print_model print_nogood solver
+              (Sol.intvar_neg (env.ivars.(obj))) assumps with
+     | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
+     | None -> ()
+     end
   end ;
   (* let fmt = Format.std_formatter in *)
   let fmt = Format.err_formatter in
