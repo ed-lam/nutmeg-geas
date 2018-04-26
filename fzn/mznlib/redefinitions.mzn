@@ -125,4 +125,3 @@ predicate set_in_reif(var int: x, set of int: s, var bool: r) =
   else
     bool_clause([x = k | k in s], [r]) /\ forall (k in s) (x = k -> r)
   endif;
-

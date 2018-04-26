@@ -49,6 +49,11 @@ public:
       V level;
     };
 
+    struct ex_info {
+      task_id t;
+      int ex_time;
+    };
+
     struct {
       bool operator()(const evt_info& x, const evt_info& y) const {
         if(x.t == y.t) {
@@ -64,10 +69,13 @@ public:
     V cap; // Maximum resource capacity
 
     // Persistent state
-    Tuint active_end;
+    Tint active_end;
 
     p_sparseset profile_tasks;
     p_sparseset active_tasks;
+
+    vec<ex_info> exs;
+    char exs_saved;
 
     // Transient state.
     vec<evt_info> profile;
@@ -83,6 +91,13 @@ public:
 
     inline V mreq(int xi) const { return tasks[xi].r; }
     inline int dur(int xi) const { return tasks[xi].d; }
+
+    int make_ex(task_id t, int time) {
+      this->template save(exs._size(), exs_saved);
+      int id = exs.size();
+      exs.push(ex_info { t, time });
+      return id;
+    }
 
     watch_result wake_lb(int ti) {
       if(profile_tasks.elem(ti)) {
@@ -181,7 +196,7 @@ public:
       // Activate any remaining tasks which might
       // be shifted.
       V req_max(cap - p_max);
-      unsigned int ti = active_end;
+      int ti = active_end;
       if(ti < tasks.size() && mreq(ti) > req_max) {
         trail_push(s->persist, active_tasks.sz);
         active_tasks.insert(ti);
@@ -209,28 +224,37 @@ public:
       int end_time = est(ti) + t.d;
       if(s[-1].task == ti)
         return true;
+      int ex_time = s[-1].t;
       V seg_level = s[-1].level;
 
       while(s->t < end_time) {
         if(seg_level > lev_max) {
           // Shift start and reset.
-          if(!set_lb(t.s, s->t, this->template expl<&P::ex_est>(ti, expl_thunk::Ex_BTPRED)))
+          if(!set_lb(t.s, s->t, this->template expl<&P::ex_est>(make_ex(ti, ex_time), expl_thunk::Ex_BTPRED)))
             return false;
           end_time = s->t + t.d;
         }
         // The profile's going to be updated anyway.
         if(s->task == ti)
           return true;
+        ex_time = s->t;
         seg_level = s->level;
         ++s;
       }
       return true;
     }
 
-    void ex_est(int ti, pval_t p, vec<clause_elt>& expl) {
+    inline void EX_PUSH(vec<clause_elt>& expl, patom_t at) {
+      assert(!ub(at));
+      expl.push(at);
+    }
+
+    void ex_est(int ex_id, pval_t p, vec<clause_elt>& expl) {
+      ex_info e(exs[ex_id]);
+      task_id ti(e.t);
       const task_info& t(tasks[ti]);
-      // int t_est(t.s.lb_of_pval(p));
-      int t_est(std::max(t.s.lb_of_pval(p), eet(ti)));
+      int t_est(std::max(t.s.lb_of_pval(p), e.ex_time+1));
+      // int t_est(std::max(t.s.lb_of_pval(p), e.ex_time+1));
 
       // Assumption: we're doing stepwise-propagation.
       // So at this point, lb(t.s) < est, and every task
@@ -241,7 +265,7 @@ public:
       V e_req = (cap - t.r);
       vec<task_id> etasks;
       for(task_id p : profile_tasks) {
-        if(lst(p) < t_est && t_est <= eet(p)) {
+        if(lst(p) <= e.ex_time && e.ex_time < eet(p)) {
           assert(p != ti);
           // assert(lst(p) >= lb(t.s));
 
@@ -252,25 +276,33 @@ public:
             V slack = mreq(p) - e_req;
             
             int jj = 0;
-            int earliest = 0;
             for(int ii = 0; ii < etasks.size(); ++ii) {
               if(mreq(p) < slack) {
                 slack -= mreq(p);
                 continue;
               }
-              earliest = std::max(earliest, lst(etasks[ii]));
               etasks[jj++] = etasks[ii];
             }
             etasks.shrink_(etasks.size() - jj);
             // Now construct the actual explanation
             // Either t is entirely before earliest...
-            expl.push(t.s <= earliest - t.d);
+#if 1
+            // EX_PUSH(expl, t.s <= e.ex_time - t.d);
+            // EX_PUSH(expl, t.s < lb(t.s));
             // ...or some member of etasks doesn't cover.
             for(task_id p : etasks) {
-              expl.push(tasks[p].s > earliest);
+              EX_PUSH(expl, tasks[p].s > e.ex_time);
               // FIXME: Probably an off-by-one here.
-              expl.push(tasks[p].s < t_est - tasks[p].d);
+              EX_PUSH(expl, tasks[p].s < t_est - tasks[p].d);
             }
+#else
+            // Semi-naive explanation
+            expl.push(t.s < lb(t.s));
+            for(task_id p : etasks) {
+              expl.push(tasks[p].s < lb(tasks[p].s));
+              expl.push(tasks[p].s > ub(tasks[p].s));
+            }
+#endif
             return;
           }
           e_req -= mreq(p);
@@ -335,29 +367,29 @@ public:
         if(!rebuild_profile(confl))
           return false;
         
-        /*
+#if 0
         for(task_id t : active_tasks) {
           if(!sweep_fwd(t))
             return false;
           // if(!sweep_bwd(t))
           //   return false;   
         }
-        */
+#endif
       } else {
         // If the profile hasn't changed, only sweep
         // variables with updated bounds.
-        /*
+#if 0
         for(task_id t : lb_change) {
           if(!sweep_fwd(t))
             return false;
         }
-        */
         /*
         for(task_id t : ub_change) {
           if(!sweep_bwd(t))
             return false;
         }
         */
+#endif
       }
       return true;
     }

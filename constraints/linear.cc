@@ -73,42 +73,11 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
 #endif
   }
 
-#ifdef EXPL_EAGER
-  static void ex_eager(void* ptr, int pi, pval_t pval,
-                       vec<clause_elt>& expl) {
-    int_linear_le* p(static_cast<int_linear_le*>(ptr));
-
-    for(patom_t at : p->expls[pi])
-      expl.push(at);
-  }
-
-  // Allocate a new reason (to be garbage collected)
-  int make_eager_expl(int var) {
-    trail_push(s->persist, expls_sz);
-    int pi = expls_sz++;
-    if(expls.size() < expls_sz)
-      expls.push();
-    vec<patom_t>& expl(expls[pi]);
-    expl.clear();
-
-    for(int ii = 0; ii < xs.size(); ii++) {
-      if(ii != var) {
-        elt e = xs[ii];
-        expl.push(e.x < e.x.lb(s));
-      }
-    }
-    
-    return pi;
-  }
-#endif
 
   public: 
 
     int_linear_le(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& vs, int _k)
       : propagator(s), k(_k)
-#ifdef EXPL_EAGER
-        , expls_sz(0)
-#endif 
       {
         if(!s->state.is_entailed_l0(_r))
           assert(0 && "int_linear_le doesn't support reification!");
@@ -215,10 +184,6 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           make_expl(2*xi, slack - e.c * x_diff, ex);
           if(!e.x.set_ub(x_ub, *ex))
           */
-#ifdef EXPL_EAGER
-          if(!set_ub(e.x, x_ub,
-              expl_thunk { ex_eager, this, make_eager_expl(xi) }))
-#else
           if(!set_ub(e.x, x_ub,
               expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
 //            if(!e.x.set_ub(x_ub,
@@ -323,42 +288,11 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 #endif
   }
 
-#ifdef EXPL_EAGER
-  void ex_eager(int pi, pval_t pval,
-                       vec<clause_elt>& expl) {
-    lin_le_inc* p(static_cast<lin_le_inc*>(ptr));
-
-    for(patom_t at : expls[pi])
-      expl.push(at);
-  }
-
-  // Allocate a new reason (to be garbage collected)
-  int make_eager_expl(int var) {
-    trail_push(s->persist, expls_sz);
-    int pi = expls_sz++;
-    if(expls.size() < expls_sz)
-      expls.push();
-    vec<patom_t>& expl(expls[pi]);
-    expl.clear();
-
-    for(int ii = 0; ii < xs.size(); ii++) {
-      if(ii != var) {
-        elt e = xs[ii];
-        expl.push(e.x < e.x.lb(s));
-      }
-    }
-    
-    return pi;
-  }
-#endif
 
   public: 
 
     lin_le_inc(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& vs, int _k)
       : propagator(s), r(_r), k(_k), slack(k), threshold(0), status(0)
-#ifdef EXPL_EAGER
-        , expls_sz(0)
-#endif 
       {
       for(int ii = 0; ii < vs.size(); ii++) {
         elt e = ks[ii] > 0 ? elt(ks[ii], vs[ii]) : elt(-ks[ii], -vs[ii]);

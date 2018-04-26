@@ -10,6 +10,11 @@ inline void propagator::set(trailed<T>& x, T k) {
   x.set(s->persist, k);
 }
 
+template<class T>
+inline void propagator::save(T& t, char& flag) {
+  trail_save(s->persist, t, flag);
+}
+
 template<class T> bool propagator::is_fixed(const T& v) const {
   return v.is_fixed(s->state.p_vals);
 }

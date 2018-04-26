@@ -698,7 +698,7 @@ let initialize () =
      "array_bool_element", array_bool_element ;
      "array_var_bool_element", array_var_bool_element ;
      "bool_lin_le", bool_lin_le ;
-     "all_different_int", all_different_int ;
+     "fzn_all_different_int", all_different_int ;
      "fzn_cumulative", cumulative ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
