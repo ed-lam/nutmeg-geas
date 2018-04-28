@@ -342,9 +342,19 @@ let cumulative solver args anns =
   let res = Pr.get_array Pr.get_int args.(2) in
   let cap = Pr.get_int args.(3) in
   let ts = Array.init (Array.length xs) (fun ii ->
-    { B.start = xs.(ii) ; B.dur = dur.(ii); B.res = res.(ii) }
+    xs.(ii), dur.(ii), res.(ii)
   ) in
   B.cumulative solver ts cap
+
+let cumulative_var solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  let dur = Pr.get_array (force_ivar solver) args.(1) in
+  let res = Pr.get_array (force_ivar solver) args.(2) in
+  let cap = force_ivar solver args.(3) in
+  let ts = Array.init (Array.length xs) (fun ii ->
+    xs.(ii), dur.(ii), res.(ii)
+  ) in
+  B.cumulative_var solver ts cap
 
 let disjunctive s args anns =
   let xs = Pr.get_array (force_ivar s) args.(0) in
@@ -700,6 +710,7 @@ let initialize () =
      "bool_lin_le", bool_lin_le ;
      "fzn_all_different_int", all_different_int ;
      "fzn_cumulative", cumulative ;
+     "fzn_cumulative_var", cumulative_var ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
      "value_precede_int", precede_int ;

@@ -56,7 +56,20 @@ boolean var_int_element([in] solver s, atom r,
 
 boolean all_different_int([in] solver s, [in,size_is(sz)] intvar elts[], int sz);
 
-boolean cumulative([in] solver s, [in,size_is(sz)] task ts[], int sz, int cap);
+/* boolean cumulative([in] solver s, [in,size_is(sz)] task ts[], int sz, int cap); */
+quote(mli, "val cumulative : \
+  Solver.t -> (Solver.intvar * int * int) array -> int -> bool");
+quote(ml, "let cumulative s xs c = \
+  I.cumulative s (Array.map (fun (x, d, r) -> { I.cs = x ; I.cd = d ; I.cr = r }) xs) c");
+quote(mli, "val cumulative_var : \
+  Solver.t -> (Solver.intvar * Solver.intvar * Solver.intvar) array -> Solver.intvar -> bool");
+quote(ml, "let cumulative_var s xs c = \
+  I.cumulative_var s (Array.map (fun (x, d, r) -> { I.vs = x ; I.vd = d ; I.vr = r }) xs) c");
+quote(mli, "val cumulative_float : \
+  Solver.t -> (Solver.intvar * int * float) array -> float -> bool");
+quote(ml, "let cumulative_float s xs c = \
+  I.cumulative_float s (Array.map (fun (x, d, r) -> { I.fs = x ; I.fd = d ; I.fr = r }) xs) c");
+
 quote(mli, "val disjunctive : \
   Solver.t -> (Solver.intvar * int) array -> bool");
 quote(ml, "let disjunctive s xs = \

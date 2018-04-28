@@ -215,6 +215,30 @@ int cumulative(solver s, task* ts, int sz, int cap) {
   return geas::cumulative(get_solver(s)->data, xs, ds, rs, cap);
 }
 
+int cumulative_var(solver s, vtask* ts, int sz, intvar cap) {
+  vec<geas::intvar> xs;
+  vec<geas::intvar> ds;
+  vec<geas::intvar> rs;
+  for(vtask t : range(ts, ts+sz)) {
+    xs.push(*get_intvar(t.start));
+    ds.push(*get_intvar(t.dur));
+    rs.push(*get_intvar(t.res));
+  }
+  return geas::cumulative_var(get_solver(s)->data, xs, ds, rs, *get_intvar(cap));
+}
+
+int cumulative_float(solver s, ftask* ts, int sz, float cap) {
+  vec<geas::intvar> xs;
+  vec<int> ds;
+  vec<float> rs;
+  for(ftask t : range(ts, ts+sz)) {
+    xs.push(*get_intvar(t.start));
+    ds.push(t.dur);
+    rs.push(t.res);
+  }
+  return geas::cumulative_float(get_solver(s)->data, xs, ds, rs, cap);
+}
+
 int disjunctive(solver s, dtask* ts, int sz) {
   vec<geas::intvar> xs;
   vec<int> ds;

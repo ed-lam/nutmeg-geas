@@ -188,7 +188,6 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
               expl_thunk { ex_x, this, xi, expl_thunk::Ex_BTPRED }))
 //            if(!e.x.set_ub(x_ub,
 //                ex_thunk(ex_nil<&P::ex_naive>, 2*xi, expl_thunk::Ex_BTPRED)))
-#endif
             return false;
         }
       }

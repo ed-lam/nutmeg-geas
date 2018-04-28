@@ -42,17 +42,36 @@ annotation bool_priority(array[int] of var bool: xs,
   array[int] of ann: br, ann: sel);
 
 %predicate cumulative(array[int] of var int: s,
+%  array[int] of var int: d,
+%  array[int] of var int: r,
+%  var int: b) =
+%    fzn_cumulative_var(s, d, r, b);
+%
+%predicate cumulative(array[int] of var int: s,
 %  array[int] of int: d,
 %  array[int] of int: r,
-%  int: b) = fzn_cumulative(s, d, r, b);
-predicate fzn_cumulative(array[int] of var int: s,
-  array[int] of int: d,
-  array[int] of int: r,
-  int: b);
+%  int: b) =
+%    fzn_cumulative(s, d, r, b);
+%%  if b = 1 /\ forall (i in index_set(r)) (r[i] = 1) then
+%%    fzn_disjunctive(s, d)
+%%  else
+%%    fzn_cumulative(s, d, r, b)
+%%  endif;
+%
+%predicate fzn_cumulative_var(array[int] of var int: s,
+%  array[int] of var int: d,
+%  array[int] of var int: r,
+%  var int: b);
+%predicate fzn_cumulative(array[int] of var int: s,
+%  array[int] of int: d,
+%  array[int] of int: r,
+%  int: b);
 
-predicate disjunctive(array[int] of var int: s, array[int] of int: d) =
-  fzn_disjunctive(s, d);
-predicate fzn_disjunctive(array[int] of var int: s, array[int] of int: d);
+%% TODO: Fix disjunctive propagator
+%predicate disjunctive(array[int] of var int: s, array[int] of int: d) =
+%  % fzn_disjunctive(s, d);
+%  fzn_cumulative(s, d, [1 | i in index_set(s)], 1);
+%predicate fzn_disjunctive(array[int] of var int: s, array[int] of int: d);
 % Sums over Boolean variables
 %predicate bool_lin_eq(array[int] of int: a, array[int] of var bool: x,
 %                      var int: c);

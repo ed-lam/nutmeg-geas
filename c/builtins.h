@@ -49,6 +49,12 @@ int all_different_int(solver s, intvar* xs, int sz);
 typedef struct { intvar start; int dur; int res; } task;
 int cumulative(solver s, task* ts, int sz, int cap);
 
+typedef struct { intvar start; intvar dur; intvar res; } vtask;
+int cumulative_var(solver s, vtask* ts, int sz, intvar cap);
+
+typedef struct { intvar start; int dur; float res; } ftask;
+int cumulative_float(solver s, ftask* ts, int sz, float cap);
+
 typedef struct { intvar start; int dur; } dtask;
 int disjunctive(solver s, dtask* ts, int sz);
 

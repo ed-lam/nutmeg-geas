@@ -25,6 +25,28 @@ typedef struct {
 boolean disjunctive([in] solver s, [in,size_is(sz)] dtask ts[], int sz);
 
 typedef struct {
+  [mlname(cs)] intvar start;
+  [mlname(cd)] int dur;
+  [mlname(cr)] int res;
+} task;
+
+typedef struct {
+  [mlname(vs)] intvar start;
+  [mlname(vd)] intvar dur;
+  [mlname(vr)] intvar res;
+} vtask;
+
+typedef struct {
+  [mlname(fs)] intvar start;
+  [mlname(fd)] int dur;
+  [mlname(fr)] float res;
+} ftask;
+
+boolean cumulative([in] solver s, [in,size_is(sz)] task ts[], int sz, int cap);
+boolean cumulative_var([in] solver s, [in,size_is(sz)] vtask ts[], int sz, intvar cap);
+boolean cumulative_float([in] solver s, [in,size_is(sz)] ftask ts[], int sz, float cap);
+
+typedef struct {
   [mlname(at)] atom at;
   [mlname(src)] int src;
   [mlname(sink)] int sink;

@@ -1380,7 +1380,7 @@ class int_le_hr : public propagator, public prop_inst<int_le_hr> {
     if(status&S_Red)
       return Wt_Keep;
     if(status&S_Active) {
-      if(lb(x) > lb(x)) {
+      if(lb(x) > lb(y)) {
         change |= C_LB;
         queue_prop();
       }
@@ -1901,8 +1901,9 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   // new int_le_hr(s, r, x, y+k);
   return true;
   */
+  // return pred_le_hr::post(s, x.p, y.p, k - x.off + y.off, r);
   return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
-  // return int_le_hr::post(s, x, y, k, r);
+  // return int_le_hr::post(s, r, x, y + k);
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {

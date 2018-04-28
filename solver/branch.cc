@@ -558,9 +558,9 @@ public:
 
         // Choose a value to branch on. Currently [| pi = lb(pi) |]
         // return ~patom_t(pi, pred_val(s, pi<<1)+1);
-        // return branch_val<Val_Min>::branch(s, pi<<1);
         // return branch_val<Val_Pol>::branch(s, pi<<1);
 //        return valb.branch(s, pi<<1);
+        // return branch_val<Val_Min>::branch(s, pi<<1);
         // return branch_val<Val_Max>::branch(s, pi<<1);
         return branch_val<Val_Saved>::branch(s, pi<<1);
       }

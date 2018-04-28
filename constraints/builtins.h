@@ -31,6 +31,10 @@ bool disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du);
 // cumulative.cc
 bool cumulative(solver_data* s,
   vec<intvar>& starts, vec<int>& durations, vec<int>& resources, int cap);
+bool cumulative_var(solver_data* s,
+  vec<intvar>& starts, vec<intvar>& durations, vec<intvar>& resources, intvar cap);
+bool cumulative_float(solver_data* s,
+  vec<intvar>& starts, vec<int>& durations, vec<float>& resources, float cap);
 
 // arith.cc
 bool int_max(solver_data* s, intvar z, vec<intvar>& xs, patom_t r = at_True);
