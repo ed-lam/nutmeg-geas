@@ -20,6 +20,7 @@ let restart_limit = ref None
 let limits = ref (Solver.unlimited ())
 
 let obj_probe_limit = ref None
+let core_opt = ref false
 
 let check = ref false
 
@@ -84,6 +85,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "--obj-probe",
       Arg.Int (fun k -> obj_probe_limit := Some k),
       " : number of conflicts to give speculative objective tightening."
+     ) ;
+     (
+      "--core-opt",
+      Arg.Bool (fun b -> core_opt := b) ,
+      " : use an unsat-core driven optimization."
      ) ;
      (
       "-a",

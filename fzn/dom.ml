@@ -67,3 +67,11 @@ let ub d = match d with
 let size d = match d with
   | Range (l, u) -> if l <= u then u - l + 1 else 0
   | Set xs -> List.length xs
+
+let neg d = match d with
+  | Range (l, u) -> Range (-u, -l)
+  | Set xs -> Set (List.map ((-) 0) xs |> List.rev)
+
+let add d k = match d with
+  | Range (l, u) -> Range (l+k, u+k)
+  | Set xs -> Set (List.map ((+) k) xs)

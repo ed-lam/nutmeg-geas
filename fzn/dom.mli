@@ -14,3 +14,6 @@ val holes : t -> (int * int) list
 val lb : t -> int
 val ub : t -> int
 val size : t -> int
+
+val neg : t -> t
+val add : t -> int -> t

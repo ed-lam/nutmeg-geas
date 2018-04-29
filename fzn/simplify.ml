@@ -36,7 +36,7 @@ type ('b, 'i) idef =
   (* Arithmetic functions *)
   (* Maybe make this linear, rather than sum. *)
   | Iv_elem of ('i array * 'i)
-  | Iv_lin of (int * 'i) array
+  | Iv_lin of (int * 'i) array * int
   | Iv_prod of 'i array
   | Iv_max of 'i array
   | Iv_min of 'i array
@@ -49,7 +49,7 @@ let eval_idef z def =
   | Iv_eq x -> x
   | Iv_opp x -> -x
   | Iv_elem (ys, x) -> ys.(x)
-  | Iv_lin ts -> Array.fold_left (fun s (c, x) -> s + c*x) 0 ts
+  | Iv_lin (ts, k) -> Array.fold_left (fun s (c, x) -> s + c*x) k ts
   | Iv_prod xs -> Array.fold_left ( * ) 1 xs
   | Iv_min xs -> Array.fold_left min max_int xs
   | Iv_max xs -> Array.fold_left max min_int xs
@@ -59,7 +59,7 @@ let negate_idef = function
   | Iv_const k -> Some (Iv_const (-k))
   | Iv_eq x -> Some (Iv_opp x)
   | Iv_opp x -> Some (Iv_eq x)
-  | Iv_lin ts -> Some (Iv_lin (Array.map (fun (k, x) -> (-k, x)) ts))
+  | Iv_lin (ts, k) -> Some (Iv_lin (Array.map (fun (k, x) -> (-k, x)) ts, -k))
   | _ -> None
 
 type ('b, 'i) bdef =
@@ -100,7 +100,7 @@ let map_idef fb fi def =
   | Iv_eq x -> Iv_eq (fi x)
   | Iv_opp x -> Iv_opp (fi x)
   | Iv_elem (ys, x) -> Iv_elem (Array.map fi ys, fi x)
-  | Iv_lin ts -> Iv_lin (Array.map (apply_snd fi) ts)
+  | Iv_lin (ts, k) -> Iv_lin (Array.map (apply_snd fi) ts, k)
   | Iv_prod xs -> Iv_prod (Array.map fi xs)
   | Iv_max xs -> Iv_max (Array.map fi xs)
   | Iv_min xs -> Iv_min (Array.map fi xs)
@@ -139,6 +139,19 @@ let string_of_bdefn b =
   | At (x, r, k) -> Format.sprintf "[x%d %s %d]" x (rel_str r) k
   | Bv_or xs -> "[or ...]"
   | Bv_and xs -> "[and ...]"
+
+let string_of_idefn d =
+  match d with
+  | Iv_none -> "nil"
+  | Iv_const k -> "const"
+  | Iv_eq x -> "alias"
+  | Iv_opp x -> "neg"
+  | Iv_elem (ys, x) -> "elem"
+  | Iv_lin (ts, k) -> "lin"
+  | Iv_prod xs -> "prod"
+  | Iv_max xs -> "max"
+  | Iv_min xs -> "min"
+  | Iv_b2i b -> "b2i"
 
 let fzn_irel rel x y =
   match rel with
@@ -231,7 +244,7 @@ let fzn_assert_ieq st x def =
   | Iv_opp _ -> failwith "fzn_assert_ieq called on alias."
   (* Arithmetic functions *)
   | Iv_elem (ys, x) -> failwith "FIXME"
-  | Iv_lin ts -> failwith "FIXME"
+  | Iv_lin (ts, k) -> failwith "FIXME"
   | Iv_prod xs -> failwith "FIXME"
   | Iv_max xs -> (("array_int_maximum", [| Pr.Ivar x; to_ivars xs |]), [])
   | Iv_min xs -> (("array_int_minimum", [| Pr.Ivar x; to_ivars xs |]), [])
@@ -334,7 +347,7 @@ let set_int st x k = resolve_idefs st x st.idefs.(x) (Iv_const k)
 let apply_bdef st x d = resolve_bdefs st x st.bdefs.(x) d
 let apply_idef st x d = resolve_idefs st x st.idefs.(x) d
  
-let simp_irel_reif rel st args anns =
+let simp_irel_reif rel pr st args anns =
   let r = Pr.get_bval args.(2) in
   match r with
   | Pr.Bv_bool true ->
@@ -370,7 +383,7 @@ let simp_irel_reif rel st args anns =
       (* | _, _ -> Dy.add st.cons (fzn_irel_reif rel (Pr.Bvar b) args.(0) args.(1)) *)
     end
 
-let simp_bool_eq st args anns =
+let simp_bool_eq pr st args anns =
   match Pr.get_bval args.(0), Pr.get_bval args.(1) with
   | Pr.Bv_bool x, Pr.Bv_bool y -> if x <> y then failwith "Found toplevel conflict in bool_eq" 
   | (Pr.Bv_bool b, Pr.Bv_var x
@@ -383,7 +396,7 @@ let simp_bool_eq st args anns =
     Dy.add st.cons (("bool_eq", [|Pr.Bvar x; Pr.Bvar y|]), anns)
     *)
 
- let simp_bool_ne st args anns =
+ let simp_bool_ne pr st args anns =
   match Pr.get_bval args.(0), Pr.get_bval args.(1) with
   | Pr.Bv_bool x, Pr.Bv_bool y -> if x = y then failwith "Found toplevel conflict in bool_ne" 
   | (Pr.Bv_bool b, Pr.Bv_var x
@@ -392,7 +405,7 @@ let simp_bool_eq st args anns =
     apply_bdef st x (Bv_const (not b))
   | Pr.Bv_var x, Pr.Bv_var y -> apply_bdef st x (Bv_neg y)
 
-let simp_bool_eq_reif st args anns =
+let simp_bool_eq_reif pr st args anns =
   match Pr.get_bval args.(2), Pr.get_bval args.(0), Pr.get_bval args.(1) with
   | Pr.Bv_bool z, Pr.Bv_bool x, Pr.Bv_bool y ->
     if z <> (x = y) then failwith "Found toplevel conflict in bool_eq_reif."
@@ -407,7 +420,7 @@ let simp_bool_eq_reif st args anns =
   | Pr.Bv_var z, Pr.Bv_var x, Pr.Bv_var y ->
     Dy.add st.cons (("bool_eq_reif", [|Pr.Bvar x; Pr.Bvar y; Pr.Bvar z|]), anns)
 
-let simp_int_eq st args anns =
+let simp_int_eq pr st args anns =
   match Pr.get_ival args.(0), Pr.get_ival args.(1) with
   | (Pr.Iv_int x, Pr.Iv_int y) -> if x <> y then failwith "Found toplevel conflict in int_eq."
   | ( Pr.Iv_var x, Pr.Iv_int k
@@ -415,7 +428,7 @@ let simp_int_eq st args anns =
       apply_idef st x (Iv_const k)
   | (Pr.Iv_var x, Pr.Iv_var y) -> apply_idef st x (Iv_eq y)
 
-let simp_bool2int st args anns =
+let simp_bool2int pr st args anns =
   match Pr.get_bval args.(0), Pr.get_ival args.(1) with
   | Pr.Bv_bool b, Pr.Iv_int y ->
     if b <> (y = 1) then failwith "Toplevel conflict in bool2int."
@@ -427,10 +440,77 @@ let simp_bool2int st args anns =
     (* apply_idef st y (Iv_b2i b) *)
     apply_bdef st b (At (y, Igt, 0))
 
-let simplify_constraint state id args anns =
+let simp_linterms st cs xs k =
+  let ts = ref [] in
+  let k' = ref k in
+  Array.iteri (fun i x ->
+    match x with
+      | Pr.Iv_var x' -> 
+        begin
+        (* TODO: Proper alias resolution here. *)
+        match st.idefs.(x') with
+        | Iv_const cx -> k' := !k' - cx * cs.(i)
+        | Iv_eq x'' -> ts := (cs.(i), x'') :: !ts
+        | Iv_opp x'' -> ts := (- cs.(i), x'') :: !ts
+        | _ -> ts := (cs.(i), x') :: !ts
+        end
+      | Pr.Iv_int cx -> k' := !k' - cx * cs.(i)
+    ) xs ;
+  (* TODO: Combine duplicates. *)
+  (* let ts' = List.sort (fun (k, x) (k', x') -> compare x x') !ts in *)
+  !ts, !k'
+
+let rebuild_lin_args ts k =
+  let cs = Array.map (fun (k, x) -> Pr.Ilit k) ts in
+  let xs = Array.map (fun (k, x) -> Pr.Ivar x) ts in
+  [|Pr.Arr cs ; Pr.Arr xs ; Pr.Ilit k|]
+
+let defined_var problem anns = 
+  match Pr.ann_call_args anns "defines_var" with
+  | Some [| v |] ->
+    begin match Pr.resolve_ann  problem v with
+    | Ivar v' -> Some v'
+    | _ -> None
+    end
+  | _ -> None
+
+let def_of_lineq x ts k =
+  let rec aux ts acc =
+    match ts with
+    | [] -> None
+    | (1, y) :: ts' when x = y -> 
+      (* Negate terms *)
+      let ds = List.append acc ts' |> List.map (fun (c, z) -> (-c, z)) in
+      Some (Array.of_list ds, k)
+    | (-1, y) :: ts' when x = y ->
+      (* Negate constant *)
+      let ds = List.append acc ts' in
+      Some (Array.of_list ds, -k)
+    | (_, y) :: _ when x = y -> None
+    | t :: ts' -> aux ts' (t :: acc)
+  in
+  aux ts [] 
+      
+let simp_lin_eq pr st args anns =
+  let cs = Pr.get_array Pr.get_int args.(0) in
+  let xs = Pr.get_array Pr.get_ival args.(1) in
+  let k = Pr.get_int args.(2) in
+  let ts', k' = simp_linterms st cs xs k in
+  match defined_var pr anns with
+  | Some v ->
+    begin
+      match def_of_lineq v ts' k' with
+      | Some (ds, c) -> apply_idef st v (Iv_lin (ds, c))
+      | None -> 
+        Dy.add st.cons (("int_lin_eq", rebuild_lin_args (Array.of_list ts') k'), anns)
+    end
+  | None ->
+      Dy.add st.cons (("int_lin_eq", rebuild_lin_args (Array.of_list ts') k'), anns)
+
+let simplify_constraint problem state id args anns =
   try
     let simplifier = H.find registry id in
-    simplifier state args anns
+    simplifier problem state args anns
   with Not_found -> Dy.add state.cons ((id, args), anns)
 
 let log_reprs idefs bdefs =
@@ -451,7 +531,7 @@ let simplify problem =
   *)
   let state = init_state problem in
   Dy.iter
-    (fun ((id, args), anns) -> simplify_constraint state id args anns (*; log_reprs state.idefs state.bdefs *))
+    (fun ((id, args), anns) -> simplify_constraint problem state id args anns (*; log_reprs state.idefs state.bdefs *))
     problem.Pr.constraints ;
   (* log_reprs state.idefs state.bdefs ; *)
   (state.idefs, state.bdefs, { problem with Pr.constraints = state.cons })
@@ -463,6 +543,7 @@ let init () =
       "int_le_reif", simp_irel_reif Ile ; 
       "int_eq_reif", simp_irel_reif Ieq ;
       "int_ne_reif", simp_irel_reif Ine ;
+      "int_lin_eq", simp_lin_eq ;
       "int_eq", simp_int_eq ;
       "bool_eq", simp_bool_eq ; 
       "bool_ne", simp_bool_ne ;

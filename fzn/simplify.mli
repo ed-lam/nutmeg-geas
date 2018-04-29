@@ -16,7 +16,7 @@ type ('b, 'i) idef =
   | Iv_opp of 'i
   (* Arithmetic functions *)
   | Iv_elem of ('i array * 'i)
-  | Iv_lin of (int * 'i) array
+  | Iv_lin of (int * 'i) array * int
   | Iv_prod of 'i array
   | Iv_max of 'i array
   | Iv_min of 'i array
@@ -35,6 +35,7 @@ type idefn = (bval_id, ival_id) idef
 type bdefn = (bval_id, ival_id) bdef
 
 val string_of_bdefn : bdefn -> string
+val string_of_idefn : idefn -> string
 
 type t = ((idefn array) * (bdefn array) * Problem.t)
 

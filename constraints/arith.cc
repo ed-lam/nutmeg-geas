@@ -1758,7 +1758,6 @@ protected:
   // Persistent state
   char mode;
   char state;
-
 };
 
 
@@ -1902,8 +1901,8 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   return true;
   */
   // return pred_le_hr::post(s, x.p, y.p, k - x.off + y.off, r);
-  return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
-  // return int_le_hr::post(s, r, x, y + k);
+  // return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
+  return int_le_hr::post(s, r, x, y + k);
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
@@ -1964,6 +1963,7 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   pred_le(s, x.pid^1, z.pid, -IVAR_INV_OFFSET, at_True);
   pred_le(s, z.pid, x.pid^1, IVAR_INV_OFFSET, at_True);
   */
+#if 0
   pred_le(s, x.p, z.p, z.off - x.off, at_True);
   // (WARNING: Offsets here are fragile wrt offset changes)
   // (-x) <= z
@@ -1988,6 +1988,14 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   // x <= 0 -> (z <= -x)
   pred_le(s, z.p, x.p^1, IVAR_INV_OFFSET - x.off - z.off, x <= 0);
   return true;
+#else
+  if(!enqueue(*s, x <= z.ub(s), reason ()))
+    return false;
+  return int_le(s, x, z, 0, r)
+    && int_le(s, -x, z, 0, r)
+    && int_le(s, z, x, 0, x >= 0)
+    && int_le(s, z, -x, 0, x <= 0);
+#endif
 }
 
 bool is_binary(solver_data* s, intvar x) { return x.lb(s) == 0 && x.ub(s) == 1; }

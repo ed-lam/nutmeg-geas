@@ -561,7 +561,7 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   }
 
   void ex_y_lb(int yi, pval_t p, vec<clause_elt>& expl) {
-    int lb = z.lb_of_pval(p);
+    int lb = ys[yi].lb_of_pval(p);
     // expl.push(p->x != yi + p->base);
     expl.push(x < yi + base);
     expl.push(x > yi + base);
@@ -569,7 +569,7 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
   }
 
   void ex_y_ub(int yi, pval_t p, vec<clause_elt>& expl) {
-    int ub = z.ub_of_pval(p);
+    int ub = ys[yi].ub_of_pval(p);
     expl.push(x < yi + base);
     expl.push(x > yi + base);
     expl.push(z > ub);

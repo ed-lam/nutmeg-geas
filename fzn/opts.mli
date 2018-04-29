@@ -21,6 +21,7 @@ val restart_limit : int option ref
 (* val conflict_limit : int ref *)
 val limits : Solver.limits ref
 val obj_probe_limit : int option ref
+val core_opt : bool ref
 
 val check : bool ref
 

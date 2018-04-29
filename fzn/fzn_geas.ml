@@ -36,6 +36,12 @@ let make_intvar solver dom =
   (* Then return the constructed variable *)
   v
 
+let prune_intvar s x dom =
+  match dom with
+  | Dom.Range (l, u) ->
+    Sol.post_atom s (Sol.ivar_ge x l) && Sol.post_atom s (Sol.ivar_le x u)
+  | Dom.Set ks -> Sol.make_sparse x (Array.of_list ks)
+
 type env = { ivars : Sol.intvar array ; bvars : Atom.atom array }
 
 let print_atom problem env =
@@ -43,7 +49,7 @@ let print_atom problem env =
   let ivar_names = H.create 17 in
   let atom_names = H.create 17 in
   Dy.iteri (fun idx info ->
-    H.add ivar_names (Sol.ivar_pid env.ivars.(idx)) info.Pr.id
+    H.add ivar_names (Sol.ivar_pred env.ivars.(idx)) info.Pr.id
   ) problem.Pr.ivals ;
   Dy.iteri (fun idx (id, _) -> H.add atom_names env.bvars.(idx) id) problem.Pr.bvals ;
   (* Now, the actual function *)
@@ -122,15 +128,19 @@ type 'a val_inst =
 let linterm k x = (k, x)
 let neg_coeff (k, x) = (-k, x)
 
-let apply_lindef s ctx z ts =
+let apply_lindef s ctx z ts k =
   let terms =
     Array.append
       [| linterm (-1) z |]
       (Array.map (fun (k, x) -> linterm k x) ts) in
-  if ctx.Pol.neg then
-    ignore @@ B.linear_le s At.at_True terms 0 ;
-  if ctx.Pol.pos then
-    ignore @@ B.linear_le s At.at_True (Array.map neg_coeff terms) 0
+  if (* ctx.Pol.neg *) true then
+    ignore @@ B.linear_le s At.at_True terms (- k) ;
+  if (* ctx.Pol.pos *) true then
+    ignore @@ B.linear_le s At.at_True (Array.map neg_coeff terms) k
+    (*
+  ignore @@ B.linear_le s At.at_True (Array.map neg_coeff terms)
+  *)
+
 
 let apply_max s ctx z xs =
   match ctx with
@@ -154,16 +164,29 @@ let build_idef s make_ivar make_bvar dom ctx def =
     match def with
     | Simp.Iv_eq x -> make_ivar x
     | Simp.Iv_opp x -> Sol.intvar_neg (make_ivar x)
+    | Simp.Iv_lin ([|1, x|], k) ->
+      let x' = make_ivar x in
+      (* Format.fprintf Format.err_formatter "[.] := [%d] + %d@." x k ; *)
+      (* let _ = prune_intvar s x' (Dom.add dom (-k)) in *)
+      Sol.intvar_plus x' k
+    | Simp.Iv_lin ([|-1, x|], k) ->
+      let x' = make_ivar x in
+      (* Format.fprintf Format.err_formatter "[.] := -[%d] + %d@." x k ; *)
+      let _ = prune_intvar s x' (Dom.neg (Dom.add dom (-k))) in
+      Sol.intvar_plus (Sol.intvar_neg x') k
     | _ -> make_intvar s dom in
   let _ = match Simp.map_idef make_bvar make_ivar def with
     (* Should instead resolve const references *)
     | ( Simp.Iv_none
       | Simp.Iv_const _
-      | Simp.Iv_eq _ ) -> ()
-    | Simp.Iv_opp x -> apply_lindef s ctx z [| (-1, x) |]
+      | Simp.Iv_eq _
+      | Simp.Iv_lin ([|1, _|], _)
+      | Simp.Iv_lin ([|-1, _|], _)
+      ) -> ()
+    | Simp.Iv_opp x -> ()
     (* Arithmetic functions *)
     | Simp.Iv_elem (ys, x) -> failwith "Implement"
-    | Simp.Iv_lin ts -> apply_lindef s ctx z ts
+    | Simp.Iv_lin (ts, k) -> apply_lindef s ctx z ts k
     | Simp.Iv_prod ys -> failwith "Implement"
     | Simp.Iv_b2i b -> 
       ignore @@ 
@@ -172,6 +195,7 @@ let build_idef s make_ivar make_bvar dom ctx def =
     | Simp.Iv_max xs -> apply_max s ctx z xs
     | Simp.Iv_min xs -> apply_min s ctx z xs
   in
+  let _ = prune_intvar s z dom in
   z
 
 let build_bdef s make_ivar make_bvar ctx def =
@@ -704,45 +728,99 @@ let solve_minimize print_model print_nogood solver obj assumps =
     (* Some (aux (Sol.get_model solver)) *)
     Some (aux (probe_objective solver (Sol.get_model solver) obj))
 
-(*
-let solve_optimize print_model print_nogood constrain solver assumps =
-  assert (List.length assumps = 0) ;
-  let fmt = Format.std_formatter in
-  let limits =
-    let l = !Opts.limits in
-    (fun () -> relative_limits solver l) in
-  let rec aux model =
-    (if !Opts.max_solutions < 1 then print_model fmt model) ;
-    if not (constrain solver model) then
-      (begin
-        if !Opts.max_solutions > 0 then
-          print_model fmt model
-       end ;
-       Format.fprintf fmt "==========@.")
-    else
-      match Sol.solve solver (limits ()) with
-      | Sol.UNKNOWN ->
-         (begin
-            if !Opts.max_solutions > 0 then
-              print_model fmt model
-            end ;
-          Format.fprintf fmt "INCOMPLETE@.")
-      | Sol.UNSAT ->
-         ((* print_model fmt model ; *)
-          begin
-            if !Opts.max_solutions > 0 then
-              print_model fmt model
-            end ;
-          Format.fprintf fmt "==========@.")
-      | Sol.SAT -> aux (Sol.get_model solver)
-  in
-  match Sol.solve solver !Opts.limits with
-  | Sol.UNKNOWN -> Format.fprintf fmt "UNKNOWN@."
-  | Sol.UNSAT ->
-    (* Format.fprintf fmt "UNSAT@." *)
-    Format.fprintf fmt "==========@."
-  | Sol.SAT -> aux (Sol.get_model solver)
-  *)
+(* Assumption: obj is a list of intvars. *)
+let post_thresholds solver thresholds =
+  H.fold (fun x b r -> r && Sol.assume solver (Sol.ivar_le x b)) thresholds true
+
+let build_pred_map solver vars =
+  let map = H.create 17 in
+  List.iter (fun x -> H.add map (Sol.ivar_pred x) x) vars ;
+  map
+
+let lb_of_atom pred_map at =
+  (* Find the var corresponding to the atom. *)
+  let pred = at.At.pid in
+  let x = H.find pred_map pred in
+  let at0 = Sol.ivar_ge x 0 in
+  assert (at0.At.pid = pred) ;
+  let delta = Int64.sub at.At.value at0.At.value in
+  (x, Int64.to_int delta)
+  
+(* TODO: Build proper bool-sum constraint, rather than using
+ * bool2int. *)
+let post_bool_sum_leq solver bs r =
+  let xs = Array.map (fun b ->
+    let x = Sol.new_intvar solver 0 1 in
+    let at = Sol.ivar_ge x 1 in
+    let _ = Sol.post_clause solver [|b ; At.neg at|] in
+    let _ = Sol.post_clause solver [|At.neg b ; at|] in
+    1, x) bs in
+  B.linear_le solver At.at_True (Array.append [|-1, r|] xs) 0
+  
+let process_core solver pred_map thresholds core =
+  if Array.length core = 1 then
+    let _ = Sol.post_atom solver core.(0) in
+    ()
+  else
+    begin
+      (* Create penalty var *)
+      let p = Sol.new_intvar solver 0 (Array.length core - 1) in
+      (* Relate penalty to core *)
+      let _ = post_bool_sum_leq solver core (Sol.intvar_plus p 1) in
+      (* Now update thresholds *)
+      let bounds = Array.map (lb_of_atom pred_map) core in    
+      Array.iter (fun (x, b) -> H.replace thresholds x b) bounds ;
+      H.add thresholds p 0
+    end
+
+let rec solve_core' solver pred_map thresholds =
+  let _ = post_thresholds solver thresholds in
+  let limits = relative_limits solver !Opts.limits in
+  match Sol.solve solver limits with
+  | Sol.SAT ->
+    begin
+      let m = Sol.get_model solver in
+      Sol.retract_all solver ;
+      Some m
+    end
+  | Sol.UNSAT -> 
+    let core = Sol.get_conflict solver in
+    begin
+      Sol.retract_all solver ;
+      process_core solver pred_map thresholds core ;
+      solve_core' solver pred_map thresholds
+    end
+  | Sol.UNKNOWN ->
+    begin
+      Sol.retract_all solver ;
+      None
+    end
+
+type core_result = 
+  | Sat of Sol.model
+  | Opt of Sol.model
+  | Unsat
+  | Unknown
+
+let solve_core solver obj =
+  (* Post penalty thresholds *)
+  let limits () = relative_limits solver !Opts.limits in
+  match Sol.solve solver (limits ()) with
+  | Sol.SAT ->
+    (* Found a first model. *)
+    let m = Sol.get_model solver in
+    begin
+      (* Thresholds records how much of each 
+       * variable is 'free'. *)
+      let pred_map = build_pred_map solver obj in
+      let thresholds = H.create 17 in
+      List.iter (fun x -> H.add thresholds x (Sol.ivar_lb x)) obj ;
+      match solve_core' solver pred_map thresholds with
+      | Some m -> Opt m
+      | None -> Sat m
+    end
+  | Sol.UNSAT -> Unsat
+  | Sol.UNKNOWN -> Unknown
  
 let print_stats fmt stats obj_val =
   match !Opts.print_stats with
@@ -864,21 +942,15 @@ let main () =
        let block = block_solution problem env in
        solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
-     (*
-     solve_optimize print_model print_nogood
-       (decrease_ivar obj_val env.ivars.(obj)) solver assumps
-       *)
      begin
+     (* Format.fprintf Format.err_formatter "Obj def: %s@." (Simp.string_of_idefn idefs.(obj)) ; *)
      match solve_minimize print_model print_nogood solver env.ivars.(obj) assumps with
      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
      | None -> ()
      end
   | Pr.Maximize obj ->
-    (* 
-     solve_optimize print_model print_nogood
-       (increase_ivar obj_val env.ivars.(obj)) solver assumps
-       *)
      begin
+     (* Format.fprintf Format.err_formatter "Obj def: %s@." (Simp.string_of_idefn idefs.(obj)) ; *)
      match solve_minimize print_model print_nogood solver
               (Sol.intvar_neg (env.ivars.(obj))) assumps with
      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))

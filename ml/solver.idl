@@ -98,7 +98,7 @@ fpvar new_floatvar([in] solver s, float lb, float ub);
 void set_bool_polarity([in] solver s, [in] atom at, [in] boolean pol);
 void set_int_polarity([in] intvar x, [in] boolean pol);
 
-[int32] unsigned long ivar_pid([in] intvar v);
+[int32,mlname(ivar_pred)] pred_t ivar_pid([in] intvar v);
 int ivar_lb([in] intvar v);
 int ivar_ub([in] intvar v);
 

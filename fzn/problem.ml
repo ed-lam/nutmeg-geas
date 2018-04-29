@@ -160,7 +160,7 @@ let ann_has_call ann id =
                           | _ -> false) ann
 
 let rec ann_call_args ann id =
-  let rec aux anns =
+  let rec aux ann =
     match ann with
     | [] -> None
     | Ann_call (id', args) :: _ when id = id' -> Some args
