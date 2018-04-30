@@ -54,6 +54,7 @@ int linear_ne(solver s, atom r, int_linterm* ts, int sz, int k) {
   return geas::linear_ne(get_solver(s)->data, ks, xs,  k, get_atom(r));
 }
 
+/*
 int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k) {
   vec<int> ks;
   vec<geas::patom_t> xs;
@@ -63,6 +64,26 @@ int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k) {
   }
   return geas::bool_linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
 }
+*/
+int bool_linear_le(solver s, intvar z, at_linterm* ts, int sz, int k) {
+  vec<int> ks;
+  vec<geas::patom_t> xs;
+  for(int ii = 0; ii < sz; ii++) {
+    ks.push(ts[ii].c);
+    xs.push(get_atom(ts[ii].x));
+  }
+  return geas::bool_linear_le(get_solver(s)->data, *get_intvar(z), ks, xs,  k);
+}
+int bool_linear_ge(solver s, intvar z, at_linterm* ts, int sz, int k) {
+  vec<int> ks;
+  vec<geas::patom_t> xs;
+  for(int ii = 0; ii < sz; ii++) {
+    ks.push(ts[ii].c);
+    xs.push(get_atom(ts[ii].x));
+  }
+  return geas::bool_linear_ge(get_solver(s)->data, *get_intvar(z), ks, xs,  k);
+}
+
 int atmost_1(solver s, atom r, atom* xs, int sz) {
   vec<geas::patom_t> ys;
   for(int ii : irange(sz))

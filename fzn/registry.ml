@@ -146,6 +146,7 @@ let post_lin_le s r cs xs k =
   | ts, k -> B.linear_le s r (Array.of_list ts) k
 
 (* Specialized bool_lin_le *)
+(*
 let post_bool_lin_le solver cs xs k =
    let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
   match simplify_bool_linterms terms k with
@@ -168,6 +169,7 @@ let bool_lin_le solver args anns =
   let xs = Pr.get_array (fun x -> x) args.(1) in
   let k = Pr.get_int args.(2) in
   post_bool_lin_le solver cs xs k
+  *)
 
 let post_lin_eq s r cs xs k =
   post_lin_le s r cs xs k
@@ -707,7 +709,7 @@ let initialize () =
      "array_var_int_element", array_var_int_element ;
      "array_bool_element", array_bool_element ;
      "array_var_bool_element", array_var_bool_element ;
-     "bool_lin_le", bool_lin_le ;
+     (* "bool_lin_le", bool_lin_le ; *)
      "fzn_all_different_int", all_different_int ;
      "fzn_cumulative", cumulative ;
      "fzn_cumulative_var", cumulative_var ;

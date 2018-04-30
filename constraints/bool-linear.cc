@@ -3,19 +3,161 @@
 #include "mtl/Vec.h"
 #include "solver/solver_data.h"
 #include "constraints/builtins.h"
+#include "engine/propagator_ext.h"
 
 namespace geas {
+
+// z >= k + sum_{c_i b_i}.
+template<class V, class R>
+class bool_lin_ge : public propagator, public prop_inst<bool_lin_ge<V, R> > {
+  typedef bool_lin_ge<V, R> P;
+
+public:
+  struct term {
+    V c; 
+    patom_t x;
+  };
+protected:
+  typedef trailed<V> TrV;
+  
+  
+  // Parameters
+  R z;
+  vec<term> xs; // Sorted by _decreasing_ weight
+  V k;
+  
+  // Persistent state  
+  TrV low;
+  Tint idx;
+
+  watch_result wake_z(int _xi) {
+    queue_prop();
+    return Wt_Keep; 
+  }
+  watch_result wake_x(int ti) {
+    set(low, low + xs[ti].c);
+    return Wt_Keep;
+  }
+  
+  void ex_z(int _z, pval_t p, vec<clause_elt>& expl) {
+    V cap = z.lb_of_pval(p);
+    // Now collect a sufficient set of terms.
+    vec<int> ex_terms;
+    int ii = 0;
+    for(; ii < xs.size(); ii++) {
+      if(!lb(xs[ii].x)) {
+        ex_terms.push(ii);
+        if(cap <= xs[ii].c)
+          goto cover_found; 
+        else
+          cap -= xs[ii].c;
+      }
+    }
+    ERROR;
+cover_found:
+    V slack = xs[ii].c - cap;
+    for(int ti : ex_terms) {
+      if(xs[ti].c <= slack) {
+        slack -= xs[ti].c;
+        continue;
+      }
+      expl.push(~xs[ti].x);
+    }
+  }
+
+  void ex_x(int xi, pval_t _p, vec<clause_elt>& expl) {
+    V cap = ub(z);
+    // Now collect a sufficient set of terms.
+    vec<int> ex_terms;
+    int ii = 0;
+    for(; ii < xs.size(); ii++) {
+      if(!lb(xs[ii].x)) {
+        ex_terms.push(ii);
+        if(cap <= xs[ii].c)
+          goto cover_found; 
+        else
+          cap -= xs[ii].c;
+      }
+    }
+    ERROR;
+cover_found:
+    V slack = xs[ii].c - cap;
+    for(int ti : ex_terms) {
+      if(xs[ti].c <= slack) {
+        slack -= xs[ti].c;
+        continue;
+      }
+      expl.push(~xs[ti].x);
+    }
+    expl.push(z > ub(z) + slack);
+  }
+
+public:
+  bool_lin_ge(solver_data* s, R _z, vec<term>& _ts, V _k)
+    : propagator(s), z(_z), k(_k), low(k), idx(0) {
+    // Make sure all coefficients are positive, and remove
+    // any fixed values.
+    for(term t : _ts) {
+      if(!ub(t.x))
+        continue;
+      if(lb(t.x)) {
+        k += t.c;
+        continue;
+      }
+      if(t.c < 0) {
+        // Rewrite in terms of ~x.
+        k += t.c;
+        t = term { -t.c, ~t.x };
+      }
+      xs.push(t);
+    }
+    set(low, k);   
+
+    std::sort(xs.begin(), xs.end(),
+      [](const term& t, const term& u) { return t.c > u.c; });
+
+    // Now add attachments.
+    z.attach(E_UB, this->template watch<&P::wake_z>(0, P::Wt_IDEM));
+    for(int ti : irange(xs.size())) {
+      attach(s, xs[ti].x, this->template watch<&P::wake_x>(ti, P::Wt_IDEM));
+    }
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    if(lb(z) < low) {
+      if(!set_lb(z, low, this->template expl<&P::ex_z>(0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+
+    V slack = ub(z) - low;
+    int ii = idx;  
+    for(; ii < xs.size() && xs[ii].c > slack; ++ii) {
+      if(!ub(xs[ii].x))
+        continue;
+      if(!lb(xs[ii].x)) {
+        if(!enqueue(*s, ~xs[ii].x, this->template expl<&P::ex_x>(ii, expl_thunk::Ex_BTPRED)))
+          return false;
+      }
+    }
+    if(ii != idx)
+      set(idx, ii);
+
+    return true;
+  }
+};
 
 struct term {
   int c;
   patom_t x;
 };
 
+/*
 struct {
   int operator()(const term& a, const term& b) const {
     return a.c > b.c;
   }
 } term_lt;
+*/
 
 bool atmost_1(solver_data* s, vec<patom_t>& xs, patom_t r) {
   // ps[ii] is the index of the true element.
@@ -64,6 +206,32 @@ int normalize_terms(vec<int>& cs, vec<patom_t>& xs, vec<term>& ts) {
   return shift;
 }
 
+template<class V, class R>
+bool post_bool_lin_ge(solver_data* s, R z, vec<V>& cs, vec<patom_t>& xs, V k) {
+  vec< typename bool_lin_ge<V, R>::term > ts;
+  assert(cs.size() == xs.size());
+  for(int ii : irange(xs.size()))
+    ts.push(typename bool_lin_ge<V, R>::term { cs[ii], xs[ii] });
+  return bool_lin_ge<V, R>::post(s, z, ts, k);
+}
+template<class V, class R>
+bool post_bool_lin_le(solver_data* s, R z, vec<V>& cs, vec<patom_t>& xs, V k) {
+  vec< typename bool_lin_ge<V, R>::term > ts;
+  assert(cs.size() == xs.size());
+  for(int ii : irange(xs.size()))
+    ts.push(typename bool_lin_ge<V, R>::term { -cs[ii], xs[ii] });
+  return bool_lin_ge<V, R>::post(s, -z, ts, -k);
+}
+
+
+bool bool_linear_ge(solver_data* s, intvar z, vec<int>& cs, vec<patom_t>& xs, int k) {
+  return post_bool_lin_ge(s, z, cs, xs, k);
+}
+bool bool_linear_le(solver_data* s, intvar z, vec<int>& cs, vec<patom_t>& xs, int k) {
+  return post_bool_lin_le(s, z, cs, xs, k);
+}
+
+/*
 bool bool_linear_le(solver_data* s, vec<int>& cs, vec<patom_t>& xs, int k, patom_t r) {
   // Normalize coefficients to positive
   vec<term> ts;
@@ -98,6 +266,7 @@ bool bool_linear_le(solver_data* s, vec<int>& cs, vec<patom_t>& xs, int k, patom
 
   return true; 
 }
+*/
 
 bool bool_linear_ne(solver_data* s, vec<int>& ks, vec<patom_t>& xs, int k, patom_t r) {
   assert(0);

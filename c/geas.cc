@@ -77,6 +77,19 @@ void destroy_intvar(intvar v) {
   delete get_intvar(v);
 }
 
+int compare_intvar(intvar x, intvar y) {
+  if(get_intvar(x)->p == get_intvar(y)->p)
+    return get_intvar(x)->off - get_intvar(y)->off;
+  return get_intvar(x)->p - get_intvar(y)->p;
+}
+
+long hash_intvar(intvar x) {
+  unsigned long hash = 5381;
+  hash = ((hash<<5) + hash) + get_intvar(x)->p;
+  hash = ((hash<<5) + hash) + get_intvar(x)->off;
+  return hash;
+}
+
 fpvar new_floatvar(solver s, float lb, float ub) {
   geas::solver* ps(get_solver(s));
   geas::fp::fpvar* v(new geas::fp::fpvar(ps->new_floatvar(lb, ub)));

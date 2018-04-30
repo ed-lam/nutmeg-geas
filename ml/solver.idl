@@ -9,6 +9,9 @@ quote(c, "void free_model(model* m) { destroy_model(*m); }");
 quote(c, "void free_intvar(intvar* v) { destroy_intvar(*v); }");
 quote(c, "void free_floatvar(fpvar* v) { destroy_floatvar(*v); }");
 
+quote(c, "int cmp_intvar(intvar* x, intvar* y) { return compare_intvar(*x, *y); }");
+quote(c, "int hsh_intvar(intvar* x) { return hash_intvar(*x); }");
+
 typedef enum { SAT, UNSAT, UNKNOWN } result;
 typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
 typedef enum { VAL_MIN, VAL_MAX, VAL_SPLIT } val_choice;
@@ -48,7 +51,7 @@ typedef struct {
 
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
 typedef [abstract,ptr,finalize(free_model)] struct model_s* model;
-typedef [abstract,ptr,finalize(free_intvar)] struct intvar_s* intvar;
+typedef [abstract,ptr,finalize(free_intvar),compare(cmp_intvar),hash(hsh_intvar)] struct intvar_s* intvar;
 typedef [abstract,ptr,finalize(free_floatvar)] struct fpvar_s* fpvar;
 typedef [abstract,ptr] struct brancher_s* brancher;
 

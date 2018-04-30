@@ -67,6 +67,8 @@ int make_sparse(intvar, int* vals, int sz);
 intvar intvar_neg(intvar);
 intvar intvar_plus(intvar, int);
 
+int compare_intvar(intvar, intvar);
+long hash_intvar(intvar);
 /*
 opt_intvar new_opt_intvar(solver, int lb, int ub);
 opt_intvar intvar_make_opt(solver, intvar v);

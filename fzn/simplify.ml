@@ -469,7 +469,7 @@ let defined_var problem anns =
   match Pr.ann_call_args anns "defines_var" with
   | Some [| v |] ->
     begin match Pr.resolve_ann  problem v with
-    | Ivar v' -> Some v'
+    | Pr.Ivar v' -> Some v'
     | _ -> None
     end
   | _ -> None
