@@ -128,7 +128,7 @@ static void remove(solver_data* s, pid_t p) {
 static void add(solver_data* s, clause_elt elt) {
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
-  pval_t val = pval_max - elt.atom.val + 1;
+  pval_t val = pval_contra(elt.atom.val);
   assert(s->state.is_entailed(patom_t(pid, val)));
   if(!s->confl.pred_seen.elem(pid)) {
     // Not yet in the explanation
@@ -359,7 +359,7 @@ inline bool l_needed(solver_data* s, persistence::pred_entry entry) {
 
 inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   return clause_elt(
-    patom_t(p^1, pval_max - s->confl.pred_eval[p] + 1)
+    patom_t(p^1, pval_contra(s->confl.pred_eval[p]))
 #ifdef CACHE_WATCH
     , s->confl.pred_hint[p]
 #endif
@@ -520,7 +520,7 @@ static inline bool aconfl_needed(solver_data* s, infer_info::entry& entry) {
 static inline void aconfl_add(solver_data* s, clause_elt elt) {
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
-  pval_t val = pval_max - elt.atom.val + 1;
+  pval_t val = pval_contra(elt.atom.val);
   assert(s->state.is_entailed(patom_t(pid, val)));
   if(s->state.is_entailed_l0(patom_t(pid, val)))
     return;
@@ -591,6 +591,8 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
         if(r.eth.flags) {
           // Deal with Ex_BTPRED and Ex_BTGEN
           if(r.eth.flags&expl_thunk::Ex_BTPRED) {
+            while(pos < s->infer.trail_lim.last())
+              bt_to_level(s, s->infer.trail_lim.size()-1);
             bt_infer_to_pos(s, pos);
           }
           if(r.eth.flags&expl_thunk::Ex_BTGEN) {
@@ -644,7 +646,7 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
         // Weaken the failed assumption.
         // patom_t at = s->assumptions[s->last_confl.assump_idx];
         pid_t pid = s->assumptions[s->last_confl.assump_idx].pid;
-        patom_t at(pid, pval_inv(s->state.p_vals[pid^1]) + 1);
+        patom_t at(pid, pval_contra(s->state.p_vals[pid^1]));
         aconfl_add(s, at);
         confl.push(~at);
       }

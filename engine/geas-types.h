@@ -92,7 +92,7 @@ public:
     return ctx[pid] >= val;
   }
   inline bool ub(const vec<pval_t>& ctx) const {
-    return ctx[pid^1] <= pval_inv(val);
+    return ctx[pid^1] < pval_contra(val);
   }
 
   pid_t pid;

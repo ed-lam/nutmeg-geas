@@ -36,6 +36,15 @@ protected:
   }
   watch_result wake_x(int ti) {
     set(low, low + xs[ti].c);
+#if 0
+    // Check consistency
+    V l(0);
+    for(term t : xs) {
+      l += t.c * lb(t.x);
+    }
+    assert(l == low);
+#endif
+    queue_prop();
     return Wt_Keep;
   }
   
@@ -45,7 +54,7 @@ protected:
     vec<int> ex_terms;
     int ii = 0;
     for(; ii < xs.size(); ii++) {
-      if(!lb(xs[ii].x)) {
+      if(lb(xs[ii].x)) {
         ex_terms.push(ii);
         if(cap <= xs[ii].c)
           goto cover_found; 
@@ -66,14 +75,18 @@ cover_found:
   }
 
   void ex_x(int xi, pval_t _p, vec<clause_elt>& expl) {
-    V cap = ub(z);
+    if(ub(z) < xs[xi].c) {
+      expl.push(z >= xs[xi].c);
+      return;
+    }
+    V cap = ub(z) - xs[xi].c;
     // Now collect a sufficient set of terms.
     vec<int> ex_terms;
     int ii = 0;
     for(; ii < xs.size(); ii++) {
-      if(!lb(xs[ii].x)) {
+      if(lb(xs[ii].x)) {
         ex_terms.push(ii);
-        if(cap <= xs[ii].c)
+        if(cap < xs[ii].c)
           goto cover_found; 
         else
           cap -= xs[ii].c;
@@ -83,7 +96,7 @@ cover_found:
 cover_found:
     V slack = xs[ii].c - cap;
     for(int ti : ex_terms) {
-      if(xs[ti].c <= slack) {
+      if(xs[ti].c < slack) {
         slack -= xs[ti].c;
         continue;
       }
@@ -113,6 +126,9 @@ public:
     }
     set(low, k);   
 
+    if(!set_lb(z, k, reason()))
+      throw new RootFail {};
+
     std::sort(xs.begin(), xs.end(),
       [](const term& t, const term& u) { return t.c > u.c; });
 
@@ -132,6 +148,7 @@ public:
     V slack = ub(z) - low;
     int ii = idx;  
     for(; ii < xs.size() && xs[ii].c > slack; ++ii) {
+      assert(low + xs[ii].c > ub(z));
       if(!ub(xs[ii].x))
         continue;
       if(!lb(xs[ii].x)) {

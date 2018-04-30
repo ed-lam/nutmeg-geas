@@ -265,6 +265,12 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     make_expl(Var_None, ex_slack, expl);
   }
 
+  template<class T>
+  inline void EX_PUSH(T& expl, patom_t at) {
+    assert(!ub(at));
+    expl.push(at);
+  }
+
   void ex_x(int xi, pval_t pval, vec<clause_elt>& expl) {
 #ifndef EXPL_NAIVE
     intvar::val_t ival(xs[xi].x.ub_of_pval(pval));
@@ -275,7 +281,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
       sum += xs[xj].c * xs[xj].x.lb(s);
     for(int xj : irange(xi+1, xs.size()))
       sum += xs[xj].c * xs[xj].x.lb(s);
-    expl.push(~r);
+    EX_PUSH(expl, ~r);
     make_expl(xi, sum - lim, expl);
 #else
     // Naive explanation
@@ -381,7 +387,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         int diff_p = e.c * (x_lb - x_lb_p);
         if(diff_p <= slack) {
           slack -= diff_p;
-          ex.push(e.x < x_lb_p); 
+          EX_PUSH(ex, e.x < x_lb_p); 
           continue;
         }
         *xp = xi; ++xp;
@@ -393,7 +399,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
       for(int xi : xs_pending) {
         elt e = xs[xi];
         int diff = slack/e.c;
-        ex.push(e.x < e.x.lb(s) - diff);
+        EX_PUSH(ex, e.x < e.x.lb(s) - diff);
         slack -= e.c * diff;
         assert(slack >= 0);
       }
