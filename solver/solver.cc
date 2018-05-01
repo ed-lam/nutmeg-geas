@@ -173,7 +173,7 @@ patom_t solver::new_boolvar(void) { return new_bool(*data); }
 // For debugging
 std::ostream& operator<<(std::ostream& o, const patom_t& at) {
   if(at.pid&1) {
-    o << "p" << (at.pid>>1) << " <= " << to_int(pval_max - at.val);
+    o << "p" << (at.pid>>1) << " <= " << to_int(pval_inv(at.val));
   } else {
     o << "p" << (at.pid>>1) << " >= " << to_int(at.val);
   }
@@ -363,7 +363,8 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
        break;
      case reason::R_Thunk:
      {
-       pval_t fail_val = pval_max - s.state.p_vals[p.pid^1] + 1;
+       // pval_t fail_val = pval_max - s.state.p_vals[p.pid^1] + 1;
+       pval_t fail_val = pval_contra(s.state.p_vals[p.pid^1]);
        // pval_t fail_val = p.val;
        assert(fail_val <= p.val);
        confl.push(patom_t {p.pid, fail_val});
@@ -415,9 +416,14 @@ bool solver::post(patom_t p) {
   return enqueue(*data, p, reason());
 }
 
-static forceinline bool propagate_assumps(solver_data& s) {
-  int idx = s.assump_end; 
+void clear_reset_flags(solver_data& s) {
+  for(char* c : s.persist.reset_flags)
+    *c = 0;
+  s.persist.reset_flags.clear();
+}
 
+static forceinline bool propagate_assumps(solver_data& s) {
+  int idx = s.assump_end;
   for(; idx < s.assumptions.size(); ++idx) {
     s.assump_level[idx] = decision_level(s);
     patom_t at(s.assumptions[idx]);
@@ -435,9 +441,11 @@ static forceinline bool propagate_assumps(solver_data& s) {
     trail_change(s.persist, s.assump_end, idx+1);
     if(!enqueue(s, at, reason())) {
       // Should be unreachable
+      ERROR;
       return false;
     }
 
+    s.infer.confl.clear();
     if(!propagate(s)) {
       s.last_confl = { C_Infer, idx+1 };
       return false;
@@ -803,12 +811,6 @@ forceinline void wakeup_pred(solver_data& s, pid_t p) {
 void attach(solver_data* s, patom_t p, const watch_callback& cb) {
   watch_node* watch = s->infer.get_watch(p.pid, p.val);
   watch->callbacks.push(cb);
-}
-
-void clear_reset_flags(solver_data& s) {
-  for(char* c : s.persist.reset_flags)
-    *c = 0;
-  s.persist.reset_flags.clear();
 }
 
 void prop_cleanup(solver_data& s) {

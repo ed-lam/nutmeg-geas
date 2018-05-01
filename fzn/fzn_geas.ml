@@ -937,6 +937,34 @@ let set_polarity solver env pol_info =
     | _ -> ()
   ) pol_info.Pol.ivars
 
+let minimize_uc print_model print_nogood solver obj xs =
+    let fmt = Format.std_formatter in
+    (* Format.fprintf fmt "[ k = %d ]@." k ; *)
+    match solve_core print_nogood solver (Array.to_list xs) with
+    | Sat m ->
+      (print_model fmt m ;
+       Format.fprintf fmt "----------@." ;
+       Some m)
+    | Opt m ->
+      (print_model fmt m ;
+       Format.fprintf fmt "==========@." ;
+       Some m)
+    | Unsat ->
+       (Format.fprintf fmt "==========@." ; None)
+    | Unknown -> None
+
+let minimize_linear print_model print_nogood solver obj ts =
+  if !Opts.core_opt then
+    (* Solve using unsat cores. *)
+    let xs = Array.map (fun (c, x) ->
+      if c > 0 then
+        c, x
+      else
+        -c, Sol.intvar_neg x) ts in
+    minimize_uc print_model print_nogood solver obj xs
+  else
+    solve_minimize print_model print_nogood solver obj []
+
 let main () =
   (* Parse the command-line arguments *)
   Arg.parse
@@ -1002,48 +1030,31 @@ let main () =
        let block = block_solution problem env in
        solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
-     begin
-     (* Format.fprintf Format.err_formatter "Obj def: %s@." (Simp.string_of_idefn idefs.(obj)) ; *)
-     match idefs.(obj) with
-     (* )
-     | Simp.Iv_lin (ts, k) ->
-      let xs = Array.map (fun (c, x) ->
-        if c > 0 then
-          c, env.ivars.(x)
-        else
-          -c, Sol.intvar_neg env.ivars.(x)) ts in
+      let r : Sol.model option = match idefs.(obj) with
+        | Simp.Iv_lin (ts, k) ->
+          let xs = Array.map (fun (c, x) -> c, env.ivars.(x)) ts in
+          minimize_linear print_model print_nogood solver env.ivars.(obj) xs
+        | _ ->
+          solve_minimize print_model print_nogood solver env.ivars.(obj) []
+      in
       begin
-        let fmt = Format.std_formatter in
-        (* Format.fprintf fmt "[ k = %d ]@." k ; *)
-        match solve_core print_nogood solver (Array.to_list xs) with
-        | Sat m ->
-          (print_model fmt m ;
-           obj_val := Some (Sol.int_value m env.ivars.(obj)) ;
-           Format.fprintf fmt "----------@.")
-        | Opt m ->
-          (print_model fmt m ;
-           obj_val := Some (Sol.int_value m env.ivars.(obj)) ;
-           Format.fprintf fmt "==========@.")
-        | Unsat ->
-           Format.fprintf fmt "==========@."
-        | Unknown -> ()
+      match r with
+      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
+      | None -> ()
       end
-      ( *)
-     | _ ->
-      begin
-       match solve_minimize print_model print_nogood solver env.ivars.(obj) assumps with
-       | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
-       | None -> ()
-      end
-     end
   | Pr.Maximize obj ->
-     begin
-     (* Format.fprintf Format.err_formatter "Obj def: %s@." (Simp.string_of_idefn idefs.(obj)) ; *)
-     match solve_minimize print_model print_nogood solver
-              (Sol.intvar_neg (env.ivars.(obj))) assumps with
-     | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
-     | None -> ()
-     end
+      let r = match idefs.(obj) with
+        | Simp.Iv_lin (ts, k) ->
+          let xs = Array.map (fun (c, x) -> -c, env.ivars.(x)) ts in
+          minimize_linear print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj)) xs
+        | _ ->
+          solve_minimize print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj)) []
+      in
+      begin
+      match r with
+      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
+      | None -> ()
+      end
   end ;
   (* let fmt = Format.std_formatter in *)
   let fmt = Format.err_formatter in

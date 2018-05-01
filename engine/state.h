@@ -64,7 +64,8 @@ public:
   }
   forceinline
   bool is_inconsistent(patom_t atom) const {
-    return pval_max - p_vals[atom.pid^1] < atom.val;
+    // return pval_max - p_vals[atom.pid^1] < atom.val;
+    return p_vals[atom.pid^1] >= pval_contra(atom.val);
     // return is_entailed(~atom);
   }
 

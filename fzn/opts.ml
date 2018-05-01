@@ -88,7 +88,7 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
      ) ;
      (
       "--core-opt",
-      Arg.Bool (fun b -> core_opt := b) ,
+      Arg.Set core_opt,
       " : use an unsat-core driven optimization."
      ) ;
      (

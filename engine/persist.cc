@@ -25,6 +25,10 @@ void push_level(solver_data* s) {
   }
   p.touched_preds.clear();
 
+  for(char* c : p.reset_flags)
+    *c = false;
+  p.reset_flags.clear();
+  
   p.expl_trail_lim.push(p.expl_trail.size());
 }
 
@@ -177,6 +181,10 @@ void bt_to_level(solver_data* s, unsigned int l) {
   for(char* c : s->persist.bt_flags)
     *c = false;
   s->persist.bt_flags.clear();
+
+  for(char* c : s->persist.reset_flags)
+    *c = false;
+  s->persist.reset_flags.clear();
 
   // Deal with current and last-level pred values
   bt_preds(s, l);

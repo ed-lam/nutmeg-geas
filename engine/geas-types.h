@@ -101,7 +101,7 @@ public:
 
 static const pid_t pid_None = UINT32_MAX;
 static const patom_t at_Undef = patom_t(UINT32_MAX, 0);
-static const patom_t at_Error = patom_t(UINT32_MAX, pval_max);
+static const patom_t at_Error = patom_t(UINT32_MAX, pval_err);
 static const patom_t at_True = patom_t(0, 0);
 static const patom_t at_False = ~at_True;
 

@@ -38,11 +38,11 @@ protected:
     set(low, low + xs[ti].c);
 #if 0
     // Check consistency
-    V l(0);
+    V l(k);
     for(term t : xs) {
       l += t.c * lb(t.x);
     }
-    assert(l == low);
+    assert(l >= low);
 #endif
     queue_prop();
     return Wt_Keep;

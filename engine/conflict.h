@@ -29,6 +29,7 @@ public:
   void new_halfpred(void) {
     pred_seen.growTo(pred_eval.size());
     pred_eval.push(0);
+    // pred_assval.push(0);
     pred_hint.push(nullptr);
     // pred_saved.push({0, 0});
   }
@@ -42,6 +43,7 @@ public:
   // Predicate fragment
   p_sparseset pred_seen;
   vec<pval_t> pred_eval;
+  vec<pval_t> pred_assval;
   vec<watch_node*> pred_hint;
   
   vec<phase> pred_saved;

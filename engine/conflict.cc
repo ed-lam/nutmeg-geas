@@ -490,16 +490,16 @@ bool confl_is_current(solver_data* s, vec<clause_elt>& confl) {
 static inline void register_assump(solver_data& s, patom_t at) {
   if(!s.pred_queued[at.pid]) {
     s.pred_queued[at.pid] = true;
-    s.wake_vals[at.pid] = at.val;
+    s.confl.pred_assval[at.pid] = at.val;
   } else {
-    s.wake_vals[at.pid] = std::max(s.wake_vals[at.pid], at.val);
+    s.confl.pred_assval[at.pid] = std::max(s.confl.pred_assval[at.pid], at.val);
   }
 }
 
 // Drop a predicate from the explanation
 static void aconfl_remove(solver_data* s, pid_t p) {
   s->confl.pred_seen.remove(p);
-  if(!s->pred_queued[p] || s->wake_vals[p] < s->confl.pred_eval[p])
+  if(!s->pred_queued[p] || s->confl.pred_assval[p] < s->confl.pred_eval[p])
     s->confl.clevel--;
   assert(!s->confl.pred_seen.elem(p));
 }
@@ -513,7 +513,7 @@ static inline bool aconfl_needed(solver_data* s, infer_info::entry& entry) {
 
   if(!s->pred_queued[entry.pid])
     return true;
-  return s->confl.pred_eval[entry.pid] > s->wake_vals[entry.pid];
+  return s->confl.pred_eval[entry.pid] > s->confl.pred_assval[entry.pid];
 }
 
 
@@ -532,7 +532,7 @@ static inline void aconfl_add(solver_data* s, clause_elt elt) {
     s->confl.pred_eval[pid] = val;
 
     // Check if this is an assumption
-    if(!s->pred_queued[pid] || s->wake_vals[pid] < val)
+    if(!s->pred_queued[pid] || s->confl.pred_assval[pid] < val)
       s->confl.clevel++;
   } else {
     // Check whether the atom is already entailed.
@@ -544,8 +544,10 @@ static inline void aconfl_add(solver_data* s, clause_elt elt) {
     
     // Check whether this adds a new non-assumption
     if(s->pred_queued[pid]) {
-      if(s->wake_vals[pid] < val
-         && e_val <= s->wake_vals[pid])
+      // If the _pred_ isn't an assumption, it's already
+      // been counted.
+      if(s->confl.pred_assval[pid] < val
+         && e_val <= s->confl.pred_assval[pid])
         s->confl.clevel++;
     }
 
@@ -619,7 +621,9 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
 
 void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
   // Propagation shouldn't be running when this is called, so
-  // we'll abuse s.pred_queued and s.wake_vals to hold the assump values
+  // we'll abuse s.pred_queued to hold the assump values.
+  // Can't use s.wake_vals, because it gets reset on backtracking.
+  s->confl.pred_assval.growTo(s->wake_vals.size(), 0);
   confl.clear();
 
   unsigned int end = s->last_confl.assump_idx;
@@ -638,6 +642,7 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
   switch(s->last_confl.kind) {
     case C_Infer:
       for(clause_elt& e : s->infer.confl) {
+        assert(s->state.is_inconsistent(e.atom));
         aconfl_add(s, e);
       }
       break;
@@ -688,6 +693,7 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
 
   for(patom_t at : s->assumptions) 
     s->pred_queued[at.pid] = false;
+  // assert(s->pred_queue.size() == 0);
   
   /*
   fprintf(stderr, "retrieved: [|");
