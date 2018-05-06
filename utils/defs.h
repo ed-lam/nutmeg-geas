@@ -25,6 +25,10 @@
 #define NOT_YET assert(0 && "Not yet implemented.")
 #define NOT_YET_WARN fprintf(stderr, "WARNING: Incompletely implemented.\n")
 #define WARN(x) fprintf(stderr, "WARNING: %s\n", (x))
+#define WARN_ONCE(x) do { \
+    static bool first = true; \
+    if (first) { first = false; fprintf(stderr, "WARNING: %s\n", (x)); } \
+  } while(0)
 #define ERROR assert(0 && "FAILURE.")
 // #define NEVER __builtin_unreachable()
 #define NEVER ERROR

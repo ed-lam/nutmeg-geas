@@ -422,8 +422,16 @@ void clear_reset_flags(solver_data& s) {
   s.persist.reset_flags.clear();
 }
 
+inline void simplify_at_root(solver_data& s);
+
 static forceinline bool propagate_assumps(solver_data& s) {
   int idx = s.assump_end;
+
+  if(!propagate(s))
+    s.last_confl = { C_Infer, idx };
+  if(decision_level(s) == 0)
+    simplify_at_root(s);
+
   for(; idx < s.assumptions.size(); ++idx) {
     s.assump_level[idx] = decision_level(s);
     patom_t at(s.assumptions[idx]);
@@ -456,6 +464,9 @@ static forceinline bool propagate_assumps(solver_data& s) {
 }
 
 bool solver::assume(patom_t p) {
+#ifdef LOG_ALL
+  std::cerr << "+ [" << p << "]" << std::endl;
+#endif
   if(data->assump_end == data->assumptions.size()) {
     int lev = (data->assump_end > 0)
       ?  data->assump_level.last() + 1 : 0;
@@ -511,6 +522,9 @@ void solver::pop_assump_ctx(void) {
 }
 
 void solver::clear_assumptions(void) {
+#ifdef LOG_ALL
+  std::cerr << "_|_" << std::endl;
+#endif
   if(decision_level(*data) > 0)
     bt_to_level(data, 0);
   data->assumptions.clear();
@@ -912,7 +926,12 @@ prop_restart:
 #ifdef CHECK_STATE
   check_at_fixpoint(&s);
 #endif
-
+  
+#if 1
+  for(propagator* p : s.propagators) {
+    assert(p->check_sat());
+  }
+#endif
   return true;
 }
 
@@ -1447,16 +1466,16 @@ solver::result solver::solve(limits l) {
 
     patom_t dec = at_Undef;
     
-    int idx = s.assump_end;
-    if(idx < s.assumptions.size()) {
-      for(; idx < s.assumptions.size(); ++idx) {
-        s.assump_level[idx] = decision_level(s);
-        patom_t at(s.assumptions[idx]);
+    int assump_idx = s.assump_end;
+    if(assump_idx < s.assumptions.size()) {
+      for(; assump_idx < s.assumptions.size(); ++assump_idx) {
+        s.assump_level[assump_idx] = decision_level(s);
+        patom_t at(s.assumptions[assump_idx]);
         if(is_entailed(s, at))
           continue;
 
         if(is_inconsistent(s, at)) {
-          s.last_confl = { C_Assump, idx };
+          s.last_confl = { C_Assump, assump_idx };
           s.stats.conflicts += confl_num;
           s.stats.time += getTime() - start_time;
           clear_handlers();
@@ -1468,8 +1487,7 @@ solver::result solver::solve(limits l) {
         // ++idx;
         break;
       }
-
-      trail_change(s.persist, s.assump_end, idx);
+      // trail_change(s.persist, s.assump_end, idx);
     }
     
     if(dec == at_Undef)
@@ -1484,6 +1502,19 @@ solver::result solver::solve(limits l) {
 
       run_callbacks(s.on_solution);
 
+      // Check that assumptions are, indeed,
+      // satisfied.
+#ifdef CHECK_STATE
+      for(patom_t a : s.assumptions) {
+        assert(a.lb(s.state.p_vals));
+      }
+#endif
+#ifdef LOG_ALL
+      for(patom_t a : s.assumptions) {
+        std::cerr << "[" << a << "]" << std::endl;
+      }
+#endif
+
       return SAT;
     }
 
@@ -1494,6 +1525,10 @@ solver::result solver::solve(limits l) {
 #endif
 
     push_level(&s);
+
+    if(assump_idx > s.assump_end)
+      trail_change(s.persist, s.assump_end, assump_idx);
+
     enqueue(s, dec, reason());
 
     run_callbacks(s.on_branch);

@@ -359,9 +359,11 @@ public:
     return true;
   }
 
+  /*
   bool check_sat(void) {
     return true;
   }
+  */
 
   void root_simplify(void) { }
 
@@ -549,21 +551,22 @@ public:
     return true;
   }
 
-  bool check_sat(void) {
-    if(lb(x) <= 0) {
-      int low = std::max((int) lb(z), std::max(0, (int) -ub(x)));
-      int high = std::min(ub(z), -lb(x));
+  bool check_sat(ctx_t& ctx) {
+    if(x.lb(ctx) <= 0) {
+      int low = std::max((int) lb(z), std::max(0, (int) -x.ub(ctx)));
+      int high = std::min(z.ub(ctx), -x.lb(ctx));
       if(low <= high)
         return true;
     }
-    if(ub(x) >= 0) {
-      int low = std::max((int) lb(z), std::max(0, (int) lb(x)));
-      int high = std::min(ub(z), ub(x));
+    if(x.ub(ctx) >= 0) {
+      int low = std::max((int) z.lb(ctx), std::max(0, (int) x.lb(ctx)));
+      int high = std::min(z.ub(ctx), x.ub(ctx));
       if(low <= high)
         return true;
     }
     return false;
   }
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
   void cleanup(void) { is_queued = false; }
 
@@ -688,11 +691,12 @@ public:
     return true;
   }
 
-  bool check_sat(void) {
-    int lb = std::min(lb(z), lb(x));
-    int ub = std::max(ub(z), ub(x));
+  bool check_sat(ctx_t& ctx) {
+    int lb = std::min(z.lb(ctx), x.lb(ctx));
+    int ub = std::max(z.ub(ctx), x.ub(ctx));
     return lb < ub;
   }
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
   void root_simplify(void) { }
 
@@ -949,14 +953,26 @@ public:
     assert(is_fixed(vs[0]) && is_fixed(vs[1]));
     assert(lb(vs[0]) == lb(vs[1]));
     int k = lb(vs[0]);
+#if 1
     expl.push(vs[0] != k);
     expl.push(vs[1] != k);
+#else
+    expl.push(vs[0] < k);
+    expl.push(vs[0] > k);
+    expl.push(vs[1] < k);
+    expl.push(vs[1] > k);
+#endif
   }
 
   void ex_xs(int xi, pval_t _p, vec<clause_elt>& expl) {
     expl.push(~r);
     int k = lb(vs[1-xi]);
+#if 1
     expl.push(vs[1-xi] != k);
+#else
+    expl.push(vs[1-xi] < k);
+    expl.push(vs[1-xi] > k);
+#endif
   }
 
   watch_result wake_xs(int xi) {
@@ -1441,6 +1457,11 @@ public:
       attach(s, r, watch<&P::wake_r>(0, Wt_IDEM)); 
     }
   }
+
+  bool check_sat(ctx_t& ctx) {
+    return !r.lb(ctx) || x.lb(ctx) <= y.ub(ctx);
+  }
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
   bool propagate(vec<clause_elt>& confl) {
     if(status&S_Red)

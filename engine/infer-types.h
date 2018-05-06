@@ -13,6 +13,15 @@
 // #define DEBUG_CLAUSE
 // #define SPARSE_WATCHES
 
+// #define CHECK_EXPLNS
+// #define TRACK_ORIGIN
+
+#ifdef CHECK_EXPLNS
+#ifndef TRACK_ORIGIN
+#define TRACK_ORIGIN
+#endif
+#endif
+
 namespace geas {
 
 class solver_data;
@@ -490,6 +499,9 @@ struct expl_thunk {
   int data;
 
   char flags; // pack flags in ptr?
+#ifdef TRACK_ORIGIN
+  void* origin;
+#endif
 };
 
 class reason {

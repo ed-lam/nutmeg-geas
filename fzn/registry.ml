@@ -672,6 +672,13 @@ let bool_linear_ge solver args anns =
   let k = Pr.get_int args.(3) in
   B.bool_linear_ge solver z (Array.mapi (fun i x -> cs.(i), x) xs) k
 
+let bool_linear_le solver args anns =
+  let z = force_ivar solver args.(0) in
+  let cs = Pr.get_array Pr.get_int args.(1) in
+  let xs = Pr.get_array get_atom args.(2) in
+  let k = Pr.get_int args.(3) in
+  B.bool_linear_le solver z (Array.mapi (fun i x -> cs.(i), x) xs) k
+
 (* Maybe separate this out into a separate
  * per-solver registrar *)
 let initialize () =
@@ -711,6 +718,7 @@ let initialize () =
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *)
      "bool_lin_ge", bool_linear_ge ;
+     "bool_lin_le", bool_linear_le ;
      "atmost_one", atmost_one ;
      "atmost_k", atmost_k ;
      "array_int_element", array_int_element ; 

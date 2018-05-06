@@ -41,6 +41,7 @@ public:
   */
   
   // Predicate fragment
+  vec<bool> pred_is_assump;
   p_sparseset pred_seen;
   vec<pval_t> pred_eval;
   vec<pval_t> pred_assval;

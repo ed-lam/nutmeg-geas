@@ -235,14 +235,14 @@ first_lb_found:
     return true;
   }
 
-  bool check_sat(void) {
+  bool check_sat(ctx_t& ctx) {
     int zlb = INT_MIN; 
     int zub = INT_MIN;
     for(intvar x : xs) {
-      zlb = std::max(zlb, (int) lb(x));
-      zub = std::max(zub, (int) ub(x));
+      zlb = std::max(zlb, (int) x.lb(ctx));
+      zub = std::max(zub, (int) x.ub(ctx));
     }
-    return zlb <= ub(z) && lb(z) <= zub;
+    return zlb <= z.ub(ctx) && z.lb(ctx) <= zub;
   }
 
   void root_simplify(void) { }

@@ -221,6 +221,20 @@ static inline void bt_infer_to_pos(solver_data* s, unsigned int pos) {
   inf.trail.shrink_(inf.trail.size() - pos);
 }
 
+inline void apply_atom(ctx_t& ctx, patom_t at) {
+  if(ctx[at.pid] < at.val)
+    ctx[at.pid] = at.val;
+}
+
+static bool check_inference(solver_data* s, propagator* p, patom_t z, vec<clause_elt>& expl) {
+  vec<pval_t> ctx(s->state.p_root);
+  apply_atom(ctx, ~z);
+  for(clause_elt e : expl) {
+    apply_atom(ctx, ~e.atom); 
+  }
+  return p->check_unsat(ctx);
+}
+
 static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
   switch(r.kind) {
     case reason::R_Atom:
@@ -266,6 +280,11 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
         }
         vec<clause_elt> es;
         r.eth(ex_val, es);
+#ifdef CHECK_EXPLNS
+        if(r.eth.origin) {
+          assert(check_inference(s, static_cast<propagator*>(r.eth.origin), patom_t(s->infer.trail[pos].pid, ex_val), es));
+        }
+#endif
         for(clause_elt e : es) {
 #ifdef PROOF_LOG
           log::add_atom(*s, e.atom);
@@ -488,8 +507,8 @@ bool confl_is_current(solver_data* s, vec<clause_elt>& confl) {
  *=============
  */
 static inline void register_assump(solver_data& s, patom_t at) {
-  if(!s.pred_queued[at.pid]) {
-    s.pred_queued[at.pid] = true;
+  if(!s.confl.pred_is_assump[at.pid]) {
+    s.confl.pred_is_assump[at.pid] = true;
     s.confl.pred_assval[at.pid] = at.val;
   } else {
     s.confl.pred_assval[at.pid] = std::max(s.confl.pred_assval[at.pid], at.val);
@@ -499,7 +518,7 @@ static inline void register_assump(solver_data& s, patom_t at) {
 // Drop a predicate from the explanation
 static void aconfl_remove(solver_data* s, pid_t p) {
   s->confl.pred_seen.remove(p);
-  if(!s->pred_queued[p] || s->confl.pred_assval[p] < s->confl.pred_eval[p])
+  if(!s->confl.pred_is_assump[p] || s->confl.pred_assval[p] < s->confl.pred_eval[p])
     s->confl.clevel--;
   assert(!s->confl.pred_seen.elem(p));
 }
@@ -511,7 +530,7 @@ static inline bool aconfl_needed(solver_data* s, infer_info::entry& entry) {
   if(entry.old_val >= s->confl.pred_eval[entry.pid])
     return false;
 
-  if(!s->pred_queued[entry.pid])
+  if(!s->confl.pred_is_assump[entry.pid])
     return true;
   return s->confl.pred_eval[entry.pid] > s->confl.pred_assval[entry.pid];
 }
@@ -532,7 +551,7 @@ static inline void aconfl_add(solver_data* s, clause_elt elt) {
     s->confl.pred_eval[pid] = val;
 
     // Check if this is an assumption
-    if(!s->pred_queued[pid] || s->confl.pred_assval[pid] < val)
+    if(!s->confl.pred_is_assump[pid] || s->confl.pred_assval[pid] < val)
       s->confl.clevel++;
   } else {
     // Check whether the atom is already entailed.
@@ -543,7 +562,7 @@ static inline void aconfl_add(solver_data* s, clause_elt elt) {
     }
     
     // Check whether this adds a new non-assumption
-    if(s->pred_queued[pid]) {
+    if(s->confl.pred_is_assump[pid]) {
       // If the _pred_ isn't an assumption, it's already
       // been counted.
       if(s->confl.pred_assval[pid] < val
@@ -581,7 +600,9 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
     case reason::R_LE:
       {
         // p <= q + offset.
+        // TODO: Check for underflow here.
         patom_t at(~patom_t(r.le.p, ex_val + r.le.offset));
+        // fprintf(stderr, "WARNING: Using R_LE.\n");
 #ifdef PROOF_LOG
         log::add_atom(*s, at);
 #endif
@@ -593,8 +614,12 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
         if(r.eth.flags) {
           // Deal with Ex_BTPRED and Ex_BTGEN
           if(r.eth.flags&expl_thunk::Ex_BTPRED) {
-            while(pos < s->infer.trail_lim.last())
-              bt_to_level(s, s->infer.trail_lim.size()-1);
+            if(pos < s->infer.trail_lim.last()) {
+              do {
+                bt_to_level(s, s->infer.trail_lim.size()-1);
+              } while(pos < s->infer.trail_lim.last());
+              process_initializers(*s);
+            }
             bt_infer_to_pos(s, pos);
           }
           if(r.eth.flags&expl_thunk::Ex_BTGEN) {
@@ -603,6 +628,11 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
         }
         vec<clause_elt> es;
         r.eth(ex_val, es);
+#ifdef CHECK_EXPLNS
+        if(r.eth.origin) {
+          assert(check_inference(s, static_cast<propagator*>(r.eth.origin), patom_t(s->infer.trail[pos].pid, ex_val), es));
+        }
+#endif
         for(clause_elt e : es) {
 #ifdef PROOF_LOG
           log::add_atom(*s, e.atom);
@@ -620,22 +650,14 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
 }
 
 void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
-  // Propagation shouldn't be running when this is called, so
-  // we'll abuse s.pred_queued to hold the assump values.
-  // Can't use s.wake_vals, because it gets reset on backtracking.
+  // Have to use separate structures for data, because
+  // s.wake_vals and s.pred_queued get reset during backtracking.
+  s->confl.pred_is_assump.growTo(s->wake_vals.size(), false);
   s->confl.pred_assval.growTo(s->wake_vals.size(), 0);
   confl.clear();
 
   unsigned int end = s->last_confl.assump_idx;
   for(int ai = 0; ai < end; ai++) {
-    /*
-    patom_t at = s->assumptions[ai];
-    if(at.pid&1) {
-      fprintf(stderr, "assump: p%d <= %lld;", at.pid>>1, to_int(pval_inv(at.val)));
-    } else {
-      fprintf(stderr, "assump: p%d >= %lld;", at.pid>>1, to_int(at.val));
-    }
-    */
     register_assump(*s, s->assumptions[ai]);
   }
    
@@ -674,11 +696,14 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
     aconfl_remove(s, e.pid);
 
     aconfl_add_reason(s, pos, ex_val, e.expl);
+    --pos;
   }
   
   // Now collect the conflict
-  for(unsigned int p : s->confl.pred_seen)
+  for(unsigned int p : s->confl.pred_seen) {
+    assert(s->confl.pred_is_assump[p]);
     confl.push(get_clause_elt(s, p).atom);
+  }
     
   // And clean up the solver state
   clear(s);
@@ -692,7 +717,7 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
     bt_to_level(s, lev);
 
   for(patom_t at : s->assumptions) 
-    s->pred_queued[at.pid] = false;
+    s->confl.pred_is_assump[at.pid] = false;
   // assert(s->pred_queue.size() == 0);
   
   /*

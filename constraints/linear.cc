@@ -406,6 +406,15 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
 #endif
     }
 
+    bool check_sat(ctx_t& ctx) {
+      int low = 0;
+      for(elt e : xs) {
+        low += e.c * e.x.lb(ctx);
+      }
+      return !r.lb(ctx) || low <= k;
+    }
+    bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+
     bool propagate(vec<clause_elt>& confl) {
 #ifdef LOG_PROP
       std::cout << "[[Running linear_le(inc)]]" << std::endl;

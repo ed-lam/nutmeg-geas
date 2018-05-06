@@ -27,7 +27,10 @@ public:
   virtual ~propagator(void) { }
 
   virtual bool propagate(vec<clause_elt>& confl) = 0;
-  virtual bool check_sat(void) { return true; }
+  // virtual bool check_sat(void) { return true; }
+  virtual bool check_sat(ctx_t& ctx) { return true; }
+  virtual bool check_unsat(ctx_t& ctx) { WARN_ONCE("Unimplemented inconsistency checker."); return true; }
+  bool check_sat(void);
   virtual void root_simplify(void) { }
   virtual void cleanup(void) { is_queued = false; }
   
@@ -150,12 +153,20 @@ public:
   */
 
   expl_thunk ex_thunk(expl_fun f, int x, char flags = 0) {
-    return expl_thunk { f, this, x, flags };
+    return expl_thunk { f, this, x, flags
+#ifdef TRACK_ORIGIN
+      , this
+#endif
+    };
   }
 
   template<void (T::*F)(int x, pval_t p, vec<clause_elt>& elt)>
   expl_thunk expl(int x, char flags = 0) {
-    return expl_thunk { ex<F>, this, x, flags };
+    return expl_thunk { ex<F>, this, x, flags
+#ifdef TRACK_ORIGIN
+     , this
+#endif
+    };
   }
 
   template<watch_result (T::*F)(int)>

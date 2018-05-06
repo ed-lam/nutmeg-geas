@@ -763,12 +763,38 @@ let update_thresholds thresholds bounds =
     H.replace thresholds x (adjust_ovar_state st delta)) bounds ;
   delta
 
+let log_thresholds thresholds =
+  let fmt = Format.err_formatter in
+  Format.fprintf fmt "{|@[<hov 2>" ;
+  Hashtbl.iter (fun k st -> Format.fprintf fmt "@ [%d:%d,%d,%d]"
+    (Sol.ivar_pred k |> Int32.to_int) st.coeff st.lb st.residual) thresholds ;
+  Format.fprintf fmt "@ |}@]@."
+
 let post_thresholds solver thresholds =
-  H.fold (fun x t r -> r && Sol.assume solver (Sol.ivar_le x t.lb)) thresholds true
+  (* H.fold (fun x t r -> r && Sol.assume solver (Sol.ivar_le x t.lb)) thresholds true *)
+  H.fold (fun x t r ->
+    if r then
+      Sol.assume solver (Sol.ivar_le x t.lb)
+    else false) thresholds true
+
+let post_thresholds_upto solver thresholds min_coeff =
+  H.fold (fun x st r ->
+    if r then
+      if st.coeff >= min_coeff then
+        (Sol.assume solver (Sol.ivar_le x st.lb))
+      else
+        true
+    else
+      false) thresholds true
 
 let build_pred_map solver vars =
   let map = H.create 17 in
-  List.iter (fun (_, x) -> H.add map (Sol.ivar_pred x) x) vars ;
+  List.iter (fun (_, x) ->
+    try
+      let _ = H.find map (Sol.ivar_pred x) in
+      failwith "Pred already exists."
+    with Not_found -> 
+      H.add map (Sol.ivar_pred x) x) vars ;
   map
 
 let lb_of_atom pred_map at =
@@ -780,23 +806,35 @@ let lb_of_atom pred_map at =
   let delta = Int64.sub at.At.value at0.At.value in
   (x, Int64.to_int delta)
   
-let post_bool_sum_geq_ solver r bs =
+let check_core solver core =
+  let res =
+    if apply_assumps solver (Array.map At.neg core |> Array.to_list) then
+      Sol.solve solver (Sol.unlimited ())
+    else
+      Sol.UNSAT
+  in
+  assert (res = Sol.UNSAT) ;
+  Sol.retract_all solver
+  
+let post_bool_sum_geq_ solver r bs k =
   let xs = Array.map (fun b ->
     let x = Sol.new_intvar solver 0 1 in
     let at = Sol.ivar_ge x 1 in
     let _ = Sol.post_clause solver [|b ; At.neg at|] in
     let _ = Sol.post_clause solver [|At.neg b ; at|] in
     1, x) bs in
-  B.linear_le solver At.at_True (Array.append [|-1, r|] xs) 0
+  B.linear_le solver At.at_True (Array.append [|-1, r|] xs) (-k)
 
-let post_bool_sum_geq solver r bs : bool =
-  B.bool_linear_ge solver r (Array.map (fun b -> 1, b) bs) 0
+let post_bool_sum_geq solver r bs k : bool =
+  B.bool_linear_ge solver r (Array.map (fun b -> 1, b) bs) k
   
 let process_core solver pred_map thresholds core =
+  (* check_core solver core ; *)
   if Array.length core = 1 then
     let _ = Format.fprintf Format.err_formatter "%% singleton@." in
     let (x, b) = lb_of_atom pred_map core.(0) in
     let st = H.find thresholds x in
+    assert(b > st.lb) ;
     let cost = st.residual + st.coeff * (b - st.lb - 1) in
     let _ = H.replace thresholds x { coeff = st.coeff ; lb = b ; residual = st.coeff } in
     let okay = Sol.post_atom solver core.(0) in
@@ -807,16 +845,20 @@ let process_core solver pred_map thresholds core =
       (* Create penalty var *)
       let p = Sol.new_intvar solver 0 (Array.length core - 1) in
       (* Relate penalty to core *)
-      let _ = post_bool_sum_geq solver (Sol.intvar_plus p 1) core in
-      (* let _ = post_bool_sum_geq_ solver (Sol.intvar_plus p 1) core in *)
+      let _ = post_bool_sum_geq solver p core (-1) in
+      let _ = Sol.post_clause solver core in
       (* Now update thresholds *)
       let bounds = Array.map (lb_of_atom pred_map) core in    
+      (*
+      let _ = Util.print_array ~pre:"%% @[[" ~post:"]@]@." ~sep:",@ " 
+        (fun fmt (x, b) -> Format.fprintf fmt "x%d >= %d" (Sol.ivar_pred x |> Int32.to_int) b) Format.err_formatter bounds in
+        *)
       let delta = update_thresholds thresholds bounds in
       H.add pred_map (Sol.ivar_pred p) p ;
       H.add thresholds p { coeff = delta ; lb = 0 ; residual = delta ; } ;
+      (* log_thresholds thresholds ; *)
       delta
     end
-
 
 let log_core_iter =
   let iters = ref 0 in
@@ -826,6 +868,13 @@ let log_core_iter =
 
 let try_thresholds solver thresholds =
   if post_thresholds solver thresholds then
+    let limits = relative_limits solver !Opts.limits in
+    Sol.solve solver limits
+  else
+    Sol.UNSAT
+
+let try_thresholds_upto solver thresholds min_coeff =
+  if post_thresholds_upto solver thresholds min_coeff then
     let limits = relative_limits solver !Opts.limits in
     Sol.solve solver limits
   else
@@ -841,13 +890,16 @@ let rec solve_core' print_nogood solver pred_map thresholds lb =
     begin
       let m = Sol.get_model solver in
       Sol.retract_all solver ;
+      (* H.iter (fun x st -> assert (Sol.int_value m x <= st.lb)) thresholds ; *)
+      (* Check the objective *)
       Some m
     end
   | Sol.UNSAT -> 
     let core = Sol.get_conflict solver in
     begin
-      (* print_nogood Format.err_formatter core ; *)
+      (* print_nogood Format.err_formatter core ;  *)
       Sol.retract_all solver ;
+      assert (Array.length core > 0) ;
       let delta = process_core solver pred_map thresholds core in
       solve_core' print_nogood solver pred_map thresholds (lb + delta)
     end
@@ -857,13 +909,69 @@ let rec solve_core' print_nogood solver pred_map thresholds lb =
       None
     end
 
+(* Stratified version of unsat-core based optimization *)
+let next_coeff thresholds coeff =
+  H.fold (fun x st c ->
+    if st.coeff >= coeff then
+      c
+    else
+      max c st.coeff) thresholds 0
+
 type core_result = 
   | Sat of Sol.model
   | Opt of Sol.model
   | Unsat
   | Unknown
 
-let solve_core print_nogood solver obj =
+let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff lb =
+  log_core_iter lb ;
+  Format.fprintf Format.err_formatter "%% Min coeff: %d, incumbent value %d@." min_coeff (Solver.int_value incumbent obj) ;
+  (* We know there exists a minimum-weight model for [obj.(0), ..., obj.(idx-1)].
+   * Now expand to the rest of the variables. *)
+  match try_thresholds_upto solver thresholds min_coeff with
+  | Sol.SAT ->
+    begin
+      (* Format.fprintf Format.err_formatter "%% [SAT].@." ; *)
+      let m = Sol.get_model solver in
+      let _ = print_model Format.std_formatter m in
+      (*
+      let fmt = Format.err_formatter in
+      Format.fprintf fmt "{|@[<hov 2>" ;
+      Hashtbl.iter (fun x st -> Format.fprintf fmt "@ [%d:%d|%d]"
+        (Sol.ivar_pred x |> Int32.to_int) st.lb (Sol.int_value m x)) thresholds ;
+      Format.fprintf fmt "@ |}@]@." ;
+      *)
+      Sol.retract_all solver ;
+      let coeff' = next_coeff thresholds min_coeff in
+      if coeff' = 0 then
+        Opt m
+      else
+        (*
+        let obj_val = Sol.int_value m obj in
+        let _ = Sol.post_atom solver (Sol.ivar_lt obj obj_val) in
+        *)
+        let m' = if (Sol.int_value m obj) < (Sol.int_value incumbent obj) then m else incumbent in
+        solve_core_strat print_model print_nogood solver obj m' pred_map thresholds coeff' lb
+    end
+  | Sol.UNSAT -> 
+    let core = Sol.get_conflict solver in
+    begin
+      (* print_nogood Format.err_formatter core ;  *)
+      Sol.retract_all solver ;
+      assert (Array.length core > 0) ;
+      if Array.length core = 0 then
+        Opt incumbent
+      else
+        let delta = process_core solver pred_map thresholds core in
+        solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff (lb + delta)
+    end
+  | Sol.UNKNOWN ->
+    begin
+      Sol.retract_all solver ;
+      Sat incumbent
+    end
+
+let solve_core print_model print_nogood solver obj_var obj k =
   (* Post penalty thresholds *)
   let limits () = relative_limits solver !Opts.limits in
   match Sol.solve solver (limits ()) with
@@ -875,9 +983,20 @@ let solve_core print_nogood solver obj =
        * variable is 'free'. *)
       let pred_map = build_pred_map solver obj in
       let obj_lb, thresholds = init_thresholds solver obj in
-      match solve_core' print_nogood solver pred_map thresholds obj_lb with
+      (* match solve_core' print_nogood solver pred_map thresholds (k + obj_lb) with 
       | Some m' -> Opt m'
       | None -> Sat m
+      *)
+      (*
+      match solve_core_strat print_model print_nogood solver obj_var m pred_map thresholds (next_coeff thresholds max_int) (k + obj_lb) with
+      | Some m' -> Opt m'
+      | None -> Sat m
+      *)
+      (*
+      let obj_val = Sol.int_value m obj_var in
+      let _ = Sol.post_atom solver (Sol.ivar_lt obj_var obj_val) in
+      *)
+      solve_core_strat print_model print_nogood solver obj_var m pred_map thresholds (next_coeff thresholds max_int) (k + obj_lb)
     end
   | Sol.UNSAT -> Unsat
   | Sol.UNKNOWN -> Unknown
@@ -937,23 +1056,34 @@ let set_polarity solver env pol_info =
     | _ -> ()
   ) pol_info.Pol.ivars
 
-let minimize_uc print_model print_nogood solver obj xs =
+let minimize_uc print_model print_nogood solver obj xs k =
     let fmt = Format.std_formatter in
     (* Format.fprintf fmt "[ k = %d ]@." k ; *)
-    match solve_core print_nogood solver (Array.to_list xs) with
+    match solve_core print_model print_nogood solver obj (Array.to_list xs) k with
     | Sat m ->
       (print_model fmt m ;
        Format.fprintf fmt "----------@." ;
        Some m)
     | Opt m ->
       (print_model fmt m ;
+       (* Check optimum *)
+         (*
+         let opt = Sol.int_value m obj in
+         begin
+           if Sol.assume solver (Sol.ivar_lt obj opt) then
+             let res = Sol.solve solver (Solver.unlimited ()) in
+             assert (res = Sol.UNSAT)
+           else ()
+         end ;
+         Sol.retract_all solver ;
+         *)
        Format.fprintf fmt "==========@." ;
        Some m)
     | Unsat ->
        (Format.fprintf fmt "==========@." ; None)
     | Unknown -> None
 
-let minimize_linear print_model print_nogood solver obj ts =
+let minimize_linear print_model print_nogood solver obj ts k =
   if !Opts.core_opt then
     (* Solve using unsat cores. *)
     let xs = Array.map (fun (c, x) ->
@@ -961,9 +1091,37 @@ let minimize_linear print_model print_nogood solver obj ts =
         c, x
       else
         -c, Sol.intvar_neg x) ts in
-    minimize_uc print_model print_nogood solver obj xs
+    minimize_uc print_model print_nogood solver obj xs k
   else
     solve_minimize print_model print_nogood solver obj []
+
+let collect_linterms defs env obj =
+  let k = ref 0 in
+  let ts = H.create 17 in
+  (* Collect the set of terms. *)
+  let rec aux coeff obj =
+    match defs.(obj) with
+    | Simp.Iv_const c -> k := !k + coeff * c
+    | Simp.Iv_eq x -> aux coeff x
+    | Simp.Iv_opp x -> aux (-coeff) x
+    | Simp.Iv_lin (ts, c) ->
+      begin
+        k := !k + coeff * c ;
+        Array.iter (fun (c, x) -> aux (c * coeff) x) ts
+      end
+    | _ ->
+      begin
+        let x = env.ivars.(obj) in
+        try
+          let cx = H.find ts x in
+          H.replace ts x (cx + coeff)
+        with Not_found -> H.add ts x coeff 
+      end
+  in
+  aux 1 obj ; 
+  (* Now produce an array *) 
+  let ts_list = Hashtbl.fold (fun x c ts -> (c, x) :: ts) ts [] in
+  Array.of_list ts_list, !k
 
 let main () =
   (* Parse the command-line arguments *)
@@ -1031,9 +1189,10 @@ let main () =
        solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
       let r : Sol.model option = match idefs.(obj) with
-        | Simp.Iv_lin (ts, k) ->
-          let xs = Array.map (fun (c, x) -> c, env.ivars.(x)) ts in
-          minimize_linear print_model print_nogood solver env.ivars.(obj) xs
+        | Simp.Iv_lin _ ->
+          let xs, k = collect_linterms idefs env obj in
+          (* let xs = Array.map (fun (c, x) -> c, env.ivars.(x)) ts in *)
+          minimize_linear print_model print_nogood solver env.ivars.(obj) xs k
         | _ ->
           solve_minimize print_model print_nogood solver env.ivars.(obj) []
       in
@@ -1044,9 +1203,11 @@ let main () =
       end
   | Pr.Maximize obj ->
       let r = match idefs.(obj) with
-        | Simp.Iv_lin (ts, k) ->
-          let xs = Array.map (fun (c, x) -> -c, env.ivars.(x)) ts in
-          minimize_linear print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj)) xs
+        | Simp.Iv_lin _ ->
+          (* let xs = Array.map (fun (c, x) -> -c, env.ivars.(x)) ts in *)
+          let xs, k = collect_linterms idefs env obj in
+          minimize_linear print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj))
+            (Array.map (fun (c, x) -> (-c, x)) xs) (-k)
         | _ ->
           solve_minimize print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj)) []
       in

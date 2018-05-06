@@ -27,7 +27,8 @@ protected:
   V k;
   
   // Persistent state  
-  TrV low;
+  // TrV low;
+  V low;
   Tint idx;
 
   watch_result wake_z(int _xi) {
@@ -35,7 +36,8 @@ protected:
     return Wt_Keep; 
   }
   watch_result wake_x(int ti) {
-    set(low, low + xs[ti].c);
+    // set(low, low + xs[ti].c);
+    trail_change(s->persist, low, low + xs[ti].c);
 #if 0
     // Check consistency
     V l(k);
@@ -47,8 +49,19 @@ protected:
     queue_prop();
     return Wt_Keep;
   }
+
+  bool check_sat(ctx_t& ctx) {
+    V l = k;
+    for(term t : xs) { 
+      if(t.x.lb(ctx))
+        l += t.c;
+    }
+    return z.ub(ctx) >= l;
+  }
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
   
   void ex_z(int _z, pval_t p, vec<clause_elt>& expl) {
+#if 0
     V cap = z.lb_of_pval(p);
     // Now collect a sufficient set of terms.
     vec<int> ex_terms;
@@ -72,13 +85,33 @@ cover_found:
       }
       expl.push(~xs[ti].x);
     }
+#else
+    /* */
+    V cap(z.lb_of_pval(p) - k);
+    for(term t : xs) {
+      if(lb(t.x)) {
+        expl.push(~t.x);
+        if(cap <= t.c)
+          return;
+        cap -= t.c;
+      }
+    }
+    ERROR;
+    /* /
+    for(term t : xs) {
+      if(lb(t.x))
+        expl.push(~t.x);
+    }
+    */
+#endif
   }
 
   void ex_x(int xi, pval_t _p, vec<clause_elt>& expl) {
-    if(ub(z) < xs[xi].c) {
-      expl.push(z >= xs[xi].c);
+    if(ub(z) < k + xs[xi].c) {
+      expl.push(z >= k + xs[xi].c);
       return;
     }
+#if 0
     V cap = ub(z) - xs[xi].c;
     // Now collect a sufficient set of terms.
     vec<int> ex_terms;
@@ -95,6 +128,7 @@ cover_found:
     ERROR;
 cover_found:
     V slack = xs[ii].c - cap;
+    std::cout << "%% Slack: " << slack << std::endl;
     for(int ti : ex_terms) {
       if(xs[ti].c < slack) {
         slack -= xs[ti].c;
@@ -102,7 +136,28 @@ cover_found:
       }
       expl.push(~xs[ti].x);
     }
-    expl.push(z > ub(z) + slack);
+    expl.push(z >= ub(z) + slack);
+#else
+    expl.push(z > ub(z));
+    /* */
+    V cap(ub(z) - k);
+    V total(xs[xi].c);
+    for(int ii : irange(xs.size())) {
+      if(lb(xs[ii].x)) {
+        total += xs[ii].c;
+        expl.push(~xs[ii].x);
+        if(total > cap)
+          return;
+      }
+    }
+    ERROR;
+    /* /
+    for(term t : xs) {
+      if(lb(t.x))
+        expl.push(~t.x);
+    }
+    */
+#endif
   }
 
 public:
@@ -124,7 +179,8 @@ public:
       }
       xs.push(t);
     }
-    set(low, k);   
+    // set(low, k);   
+    low = k;
 
     if(!set_lb(z, k, reason()))
       throw new RootFail {};
@@ -140,6 +196,14 @@ public:
   }
 
   bool propagate(vec<clause_elt>& confl) {
+#if 1
+    V l(k);
+    for(term t : xs) {
+      if(lb(t.x))
+        l += t.c;
+    }
+    assert(l == low);
+#endif
     if(lb(z) < low) {
       if(!set_lb(z, low, this->template expl<&P::ex_z>(0, expl_thunk::Ex_BTPRED)))
         return false;
@@ -156,8 +220,8 @@ public:
           return false;
       }
     }
-    if(ii != idx)
-      set(idx, ii);
+//    if(ii != idx)
+//      set(idx, ii);
 
     return true;
   }

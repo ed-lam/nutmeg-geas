@@ -19,6 +19,7 @@ void propagator::queue_prop(void) {
   }
 }
 
+bool propagator::check_sat(void) { return check_sat(s->state.p_vals); }
 bool propagator::execute(vec<clause_elt>& confl) {
   return propagate(confl);
 }

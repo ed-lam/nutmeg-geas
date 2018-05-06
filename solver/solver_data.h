@@ -153,6 +153,8 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts);
 
 void attach(solver_data* s, patom_t p, const watch_callback& c);
 
+void process_initializers(solver_data& s);
+
 template<typename... Ts>
 bool add_clause(solver_data* s, patom_t e, Ts... args) {
   vec<clause_elt> elts;

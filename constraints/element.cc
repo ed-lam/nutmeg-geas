@@ -597,33 +597,53 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     expl.push(x < lb(x));
     expl.push(x > ub(x));
 
-    intvar::val_t z_step = lb_0(z);
+    intvar::val_t z_step = lb_0(z)-1;
+    vec<int> step_idxs;
     for(int yi = lb(x) - base; yi <= ub(x) - base; yi++) {
-      if(ub(ys[yi]) < z_lb)
+      if(ub(ys[yi]) < z_lb) {
         z_step = std::max(z_step, ub(ys[yi]));
-      else
+        step_idxs.push(yi);
+      } else
         expl.push(ys[yi] < z_lb);
     }
+    /*
     if(z_step > lb_0(z))
       expl.push(z <= z_step);
+      */
+    if(step_idxs.size() > 0) {
+      expl.push(z <= z_step);
+      for(int yi : step_idxs) {
+        expl.push(ys[yi] > z_step);
+      }
+    }
   }
 
+  template<class E>
+  inline void EX_PUSH(E& e, patom_t at) {
+    assert(!ub(at));
+    e.push(at);
+  }
   void ex_z_ub(int _vi, pval_t p, vec<clause_elt>& expl) {
     // fprintf(stderr, "elem_bnd::ex::ub(z)\n");
     int z_ub = z.ub_of_pval(p); 
 
-    expl.push(x < lb(x));
-    expl.push(x > ub(x));
+    EX_PUSH(expl, x < lb(x));
+    EX_PUSH(expl, x > ub(x));
 
-    intvar::val_t z_step = ub_0(z);
+    intvar::val_t z_step = ub_0(z)+1;
+    vec<int> step_idxs;
     for(int yi = lb(x) - base; yi <= ub(x) - base; yi++) {
-      if(lb(ys[yi]) > z_ub)
+      if(lb(ys[yi]) > z_ub) {
         z_step = std::min(lb(ys[yi]), z_step);
-      else
-        expl.push(ys[yi] > z_ub);
+        step_idxs.push(yi);
+      } else
+        EX_PUSH(expl, ys[yi] > z_ub);
     }
-    if(z_step < ub_0(z))
-      expl.push(z >= z_step);
+    if(step_idxs.size() > 0) {
+      EX_PUSH(expl, z >= z_step);
+      for(int yi : step_idxs)
+        EX_PUSH(expl, ys[yi] < z_step);
+    }
   }
 
   void push_hints(int low, int high, vec<clause_elt>& expl) {
@@ -659,13 +679,33 @@ public:
     // Set initial bounds
     if(base > x.lb(s))
       set_lb(x,base, reason());
-    if(base + ys.size() < x.ub(s))
-      set_ub(x,base + ys.size(), reason()); 
+    if(base + ys.size() <= x.ub(s))
+      set_ub(x,base + ys.size()-1, reason()); 
   }
 
   void root_simplify(void) {
     
   }
+
+  bool check_sat(ctx_t& ctx) {
+    for(int ii : irange(ys.size())) {
+#if 0
+      if(!x.in_domain(ctx, base + ii))
+        continue;
+#else
+      if(x.lb(ctx) > ii + base || x.ub(ctx) < ii+base)
+        continue;
+#endif
+      if(z.ub(ctx) < ys[ii].lb(ctx))
+        continue;
+      if(ys[ii].ub(ctx) < z.lb(ctx))
+        continue;
+      return true;
+    }
+    return false;
+  }
+
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
     
    bool propagate(vec<clause_elt>& confl) {
 #ifdef LOG_ALL
