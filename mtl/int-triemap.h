@@ -280,6 +280,98 @@ public:
     return fresh_leaf->ref.value;
   }
 
+  iterator lower_bound(const Key& key) {
+    if(root == NULL)
+      return NULL;
+
+    elt_t e = Ops::to_uint(key);
+    leaf_t* leaf = locate(e);
+
+    // Exact value present.
+    if(leaf->ref.key == key)
+    {
+      return leaf;
+    }
+
+    uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
+    uint64_t out_dir = e&mask;
+    
+    void** p = NULL;
+    void* node = root;
+    node_t* node_ptr = clear_flag((node_t*) node);
+    while(check_flag(node) &&
+        node_ptr->mask > mask)
+    {
+      uint64_t dir = e&node_ptr->mask;
+      p = dir ? &(node_ptr->right) : &(node_ptr->left);
+      node = dir ? node_ptr->right : node_ptr->left;
+      node_ptr = clear_flag((node_t*) node);
+    }
+    
+    if(out_dir)
+    {
+      void* adj_node = node;
+      while(check_flag(adj_node))
+      {
+        adj_node = clear_flag((node_t*) adj_node)->right;
+      }
+      return ((leaf_t*) adj_node)->next;
+    } else {
+      void* adj_node = node; 
+      while(check_flag(adj_node))
+      {
+        adj_node = clear_flag((node_t*) adj_node)->left;
+      }
+      return ((leaf_t*) adj_node);
+    }
+  }
+
+  iterator upper_bound(const Key& key) {
+    if(root == NULL)
+      return NULL;
+
+    elt_t e = Ops::to_uint(key);
+    leaf_t* leaf = locate(e);
+
+    // Exact value present.
+    if(leaf->ref.key == key)
+    {
+      return leaf->next;
+    }
+
+    uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
+    uint64_t out_dir = e&mask;
+    
+    void** p = NULL;
+    void* node = root;
+    node_t* node_ptr = clear_flag((node_t*) node);
+    while(check_flag(node) &&
+        node_ptr->mask > mask)
+    {
+      uint64_t dir = e&node_ptr->mask;
+      p = dir ? &(node_ptr->right) : &(node_ptr->left);
+      node = dir ? node_ptr->right : node_ptr->left;
+      node_ptr = clear_flag((node_t*) node);
+    }
+    
+    if(out_dir)
+    {
+      void* adj_node = node;
+      while(check_flag(adj_node))
+      {
+        adj_node = clear_flag((node_t*) adj_node)->right;
+      }
+      return ((leaf_t*) adj_node)->next;
+    } else {
+      void* adj_node = node; 
+      while(check_flag(adj_node))
+      {
+        adj_node = clear_flag((node_t*) adj_node)->left;
+      }
+      return ((leaf_t*) adj_node);
+    }
+  }
+
 
   void rem(elt_t e)
   {

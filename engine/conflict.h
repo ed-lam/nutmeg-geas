@@ -62,6 +62,10 @@ bool confl_is_current(solver_data* s, vec<clause_elt>& confl);
 
 // Retrieve the last conflict, resolved back to assumptions
 void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl);
+
+// Debugging
+bool check_inference(solver_data* s, propagator* p, patom_t z, vec<clause_elt>& expl);
+bool check_confl(solver_data* s, propagator* p, vec<clause_elt>& expl);
 }
 
 #endif

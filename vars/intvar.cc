@@ -43,6 +43,50 @@ void intvar::attach(intvar_event e, watch_callback c) {
   }
 }
 
+void intvar::attach_rem(val_callback<int64_t> c) {
+  // man->attach(idx, e, c);
+  ext->rem_callbacks.push(ivar_ext::rem_info { c, off });
+}
+
+int intvar::dom_sz_approx(ctx_t& ctx) const {
+  pval_t lb(pred_lb(ctx, p));
+  pval_t ub(pred_ub(ctx, p));
+
+  if(ext->kind == ivar_ext::IV_Strict) {
+    auto b = ext->eqtable.lower_bound(lb);
+    auto e = ext->eqtable.upper_bound(ub);
+    int sz = 0;
+    for(; b != e; ++b)
+      sz += (*b).value.ub(ctx); 
+  } else {
+    return ub - lb;
+  }
+}
+
+int intvar::dom_sz_exact(ctx_t& ctx) const {
+  pval_t lb(pred_lb(ctx, p));
+  pval_t ub(pred_ub(ctx, p));
+
+  if(ext->kind == ivar_ext::IV_Strict) {
+    int sz = 0;
+    // TODO: Start from lower bound.
+    auto b = ext->eqtable.lower_bound(lb);
+    auto e = ext->eqtable.upper_bound(ub);
+    for(; b != e; ++b) {
+      sz += (*b).value.ub(ctx);
+    }
+    return sz;
+  } else {
+    int sz = (ub - lb) + 1;
+    auto b = ext->eqtable.lower_bound(lb);
+    auto e = ext->eqtable.upper_bound(ub);
+    for(; b != e; ++b) {
+      sz += (*b).value.ub(ctx) - 1;
+    }
+    return sz;
+  }
+}
+
 // Make this a static method of ivar_ext instead.
 static watch_result wakeup(void* ptr, int idx) {
   // This is a bit ugly
@@ -56,6 +100,31 @@ static watch_result wakeup(void* ptr, int idx) {
   }
   run_watches(man->var_exts[vi]->b_callbacks[idx&1], origin);
 
+  return Wt_Keep;
+}
+
+static watch_result wakeup_rem(void* ptr, int idx) {
+  // This is a bit ugly
+  ivar_ext* ext = static_cast<ivar_ext*>(ptr);
+  // Do some stuff
+  
+  int rval = to_int(ext->vals[idx]);
+
+  ivar_ext::rem_info* ws(ext->rem_callbacks.begin());
+  ivar_ext::rem_info* ws_end(ext->rem_callbacks.end());
+
+  ivar_ext::rem_info* ws_live(ws);
+
+  void* origin = ext->s->active_prop; // No way to access, for now.
+
+  for(; ws < ws_end; ++ws) {
+    if(ws->c.can_skip(origin) || ws->c(rval + ws->offset) == Wt_Keep) {
+      *ws_live = *ws;
+      ++ws_live;
+    }
+  }
+  ext->rem_callbacks.shrink(ws_end - ws_live);
+   
   return Wt_Keep;
 }
 
@@ -265,7 +334,9 @@ void ivar_ext::make_eager(void) {
 
 bool ivar_ext::make_sparse(vec<pval_t>& _vs) {
   // Only safe at decision level 0.
-  vec<pval_t> vs(_vs); 
+  kind = IV_Strict;
+
+  vec<pval_t> vs(_vs);
   uniq(vs);
   // Make the watch-maps sparse.
 // #if 0
@@ -402,6 +473,8 @@ patom_t ivar_ext::get_eqatom(pval_t val) {
     eqat_finalize_ub);
 
   patom_t at = new_bool(*s, in_lb, in_ub);
+
+  s->pred_callbacks[at.pid^1].push(watch_callback(wakeup_rem, this, eq_idx));
 
   // Connect it to the corresponding bounds
   if(!s->state.is_inconsistent(at)) {

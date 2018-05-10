@@ -174,9 +174,19 @@ public:
     return (cast(ptr)->*F)(id);
   }
 
+  template<class V, watch_result (T::*F)(int, V)>
+  static watch_result valwatch_fun(void *ptr, int id, V v) {
+    return (cast(ptr)->*F)(id, v);
+  }
+
   template<watch_result (T::*F)(int id)>
   watch_callback watch(int id, char flags = 0) {
     return watch_callback(watch_fun<F>, this, id, flags&Wt_IDEM);
+  }
+
+  template<class V, watch_result (T::*F)(int id, V v)>
+  val_callback<V> watch_val(int id, char flags = 0) {
+    return val_callback<V>(valwatch_fun<V, F>, this, id, flags&Wt_IDEM);
   }
 
   prop_t get(void) {

@@ -132,6 +132,29 @@ protected:
   bool is_idempotent;
 };
 
+// For removal of a specific value.
+template<class V>
+class val_callback {
+public:
+  typedef watch_result (*fun)(void*, int, V);
+
+  val_callback(fun _f, void* _obj, int _data, bool _is_idem = false)
+    : f(_f), obj(_obj), data(_data), is_idempotent(_is_idem)
+  { }
+
+  watch_result operator()(V k) { return f(obj, data, k); }
+
+  forceinline bool can_skip(void* origin) {
+    return is_idempotent && origin == obj;
+    // return false;
+  }
+protected:
+  fun f;
+  void* obj;
+  int data;
+  bool is_idempotent;
+};
+
 // For other events -- on new_pred, solution, branch or conflict.
 // GKG: Perhaps pass in the solver_data?
 class event_callback {

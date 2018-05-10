@@ -226,9 +226,17 @@ inline void apply_atom(ctx_t& ctx, patom_t at) {
     ctx[at.pid] = at.val;
 }
 
-static bool check_inference(solver_data* s, propagator* p, patom_t z, vec<clause_elt>& expl) {
+bool check_inference(solver_data* s, propagator* p, patom_t z, vec<clause_elt>& expl) {
   vec<pval_t> ctx(s->state.p_root);
   apply_atom(ctx, ~z);
+  for(clause_elt e : expl) {
+    apply_atom(ctx, ~e.atom); 
+  }
+  return p->check_unsat(ctx);
+}
+
+bool check_confl(solver_data* s, propagator* p, vec<clause_elt>& expl) {
+  vec<pval_t> ctx(s->state.p_root);
   for(clause_elt e : expl) {
     apply_atom(ctx, ~e.atom); 
   }

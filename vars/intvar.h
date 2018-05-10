@@ -133,10 +133,13 @@ found_min:
 #endif
 
 struct ivar_ext {
+  // How should missing values be treated?
+  enum IV_Kind { IV_Lazy, IV_Strict };
+  struct rem_info { val_callback<int64_t> c; int64_t offset; };
   typedef uint64_triemap<uint64_t, patom_t, UIntOps> eqtable_t;
 
   ivar_ext(solver_data* _s, pid_t _p, int _idx)
-    : s(_s), p(_p), idx(_idx) { }
+    : s(_s), p(_p), idx(_idx), kind(IV_Lazy) { }
 
   patom_t get_eqatom(pval_t val);
   void make_eager(void);
@@ -146,8 +149,11 @@ struct ivar_ext {
   pid_t p;
   int idx;
 
+  IV_Kind kind;
+
   vec<watch_callback> b_callbacks[2];
   vec<watch_callback> fix_callbacks;
+  vec<rem_info> rem_callbacks;
 
   // std::unordered_map<pval_t, patom_t> eqtable;
   eqtable_t eqtable;
@@ -216,6 +222,10 @@ public:
   */
 
   void attach(intvar_event e, watch_callback c);
+  void attach_rem(val_callback<int64_t> c);
+
+  int dom_sz_approx(ctx_t& ctx) const; // Cheap
+  int dom_sz_exact(ctx_t& ctx) const; // Potentially expensive
 
   // FIXME: Update to deal with sparse
   num_range_t<val_t> domain(ctx_t& ctx) const {
@@ -279,6 +289,11 @@ inline bool in_domain(const ctx_t& ctx, intvar x, int k) {
     return false;
 
   auto it = x.ext->eqtable.find(k-x.off);
+  if(it == x.ext->eqtable.end())
+    return x.ext->kind != ivar_ext::IV_Strict;
+
+  return (*it).value.ub(ctx);
+  /*
   if(it != x.ext->eqtable.end()) {
     // If there's an equality atom,
     // could it be true?
@@ -286,6 +301,7 @@ inline bool in_domain(const ctx_t& ctx, intvar x, int k) {
   }
 
   return true;
+  */
 }
 
 inline bool in_domain(const solver_data* s, intvar x, int k) {
@@ -318,7 +334,9 @@ inline pval_t from_int(intvar::val_t v) { return intvar::from_int(v); }
 inline int_itv var_unsupp(solver_data* s, intvar x) {
   return int_itv { x.ub(s->state.p_root)+1, x.lb(s->state.p_root)-1 };
 }
-
+inline int_itv var_range(ctx_t& ctx, intvar x) {
+  return int_itv { x.lb(ctx), x.ub(ctx) };
+}
 inline int_itv var_range(solver_data* s, intvar x) {
   return int_itv { x.lb(s), x.ub(s) };
 }

@@ -898,6 +898,9 @@ prop_restart:
 
       p->cleanup();
       prop_cleanup(s);
+#ifdef CHECK_EXPLNS
+      assert(check_confl(&s, p, s.infer.confl));
+#endif
       s.active_prop = nullptr;
 #ifdef CHECK_STATE
   check_at_fixpoint(&s);
