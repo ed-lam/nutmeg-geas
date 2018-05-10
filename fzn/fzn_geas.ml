@@ -16,33 +16,11 @@ module At = Atom
 
 module B = Builtins
 
+open Build
+
 exception Unknown_constraint of string
 
 let put = Format.fprintf
-
-let get_idom model x =
- let vinfo = Dy.get model.Pr.ivals x in
- vinfo.Pr.dom
-
-let make_intvar solver dom =
-  let lb, ub = Dom.bounds dom in
-  (* Create the var *)
-  let v = Sol.new_intvar solver lb ub in
-  (* Punch any holes. post_clause should never fail here. *)
-  let _ =
-    match dom with
-    | Dom.Set ks -> ignore (Sol.make_sparse v (Array.of_list ks))
-    | _ -> () in
-  (* Then return the constructed variable *)
-  v
-
-let prune_intvar s x dom =
-  match dom with
-  | Dom.Range (l, u) ->
-    Sol.post_atom s (Sol.ivar_ge x l) && Sol.post_atom s (Sol.ivar_le x u)
-  | Dom.Set ks -> Sol.make_sparse x (Array.of_list ks)
-
-type env = { ivars : Sol.intvar array ; bvars : Atom.atom array }
 
 let print_atom problem env =
   (* Build translation table *)
@@ -98,205 +76,6 @@ let expr_array = function
   | Pr.Arr es -> es
   | _ -> failwith "Expected array" 
                
-let post_constraint solver env ident exprs anns = 
-  try
-    (* let handler = H.find registry ident in *)
-    let handler = Registry.lookup ident in
-    let args = Array.map (resolve_expr env) exprs in
-    handler solver args anns
-  with
-  | Pr.Type_mismatch ->
-    (Format.fprintf Format.err_formatter "Error: type mismatch in '%s'.@." ident ;
-        false)
-  | Not_found ->
-    (* raise (Unknown_constraint ident) *)
-    (Format.fprintf Format.err_formatter "Warning: Ignoring unknown constraint '%s'.@." ident ;
-     Registry.register ident (fun _ _ _ -> true) ;
-        true)
-
-let rel_fun = function
-  | Simp.Ile -> Sol.ivar_le
-  | Simp.Ieq -> Sol.ivar_eq
-  | Simp.Igt -> Sol.ivar_gt
-  | Simp.Ine -> Sol.ivar_ne
-
-type 'a val_inst =
-  | Pending
-  | Open
-  | Closed of 'a
-
-let linterm k x = (k, x)
-let neg_coeff (k, x) = (-k, x)
-
-let apply_lindef s ctx z ts k =
-  let terms =
-    Array.append
-      [| linterm (-1) z |]
-      (Array.map (fun (k, x) -> linterm k x) ts) in
-  if (* ctx.Pol.neg *) true then
-    ignore @@ B.linear_le s At.at_True terms (- k) ;
-  if (* ctx.Pol.pos *) true then
-    ignore @@ B.linear_le s At.at_True (Array.map neg_coeff terms) k
-    (*
-  ignore @@ B.linear_le s At.at_True (Array.map neg_coeff terms)
-  *)
-
-
-let apply_max s ctx z xs =
-  match ctx with
-  | { Pol.pos = true ; Pol.neg = _ } ->
-    (* TODO: Add one-sided max propagator. *)
-    ignore @@ B.int_max s At.at_True z xs
-  | { Pol.pos = false ; Pol.neg = true } ->
-    Array.iter (fun x -> ignore @@ B.int_le s At.at_True x z 0) xs
-  | _ -> ()
-
-let apply_min s ctx z xs =
-  match ctx with
-  | { Pol.pos = _; Pol.neg = true } ->
-    failwith "TODO: Implement min propagator."
-  | { Pol.pos = true; Pol.neg = false } ->
-    Array.iter (fun x -> ignore @@ B.int_le s At.at_True z x 0) xs
-  | _ -> ()
-
-let build_idef s make_ivar make_bvar dom ctx def =
-  let z =
-    match def with
-    | Simp.Iv_eq x -> make_ivar x
-    | Simp.Iv_opp x -> Sol.intvar_neg (make_ivar x)
-    | Simp.Iv_lin ([|1, x|], k) ->
-      let x' = make_ivar x in
-      (* Format.fprintf Format.err_formatter "[.] := [%d] + %d@." x k ; *)
-      (* let _ = prune_intvar s x' (Dom.add dom (-k)) in *)
-      Sol.intvar_plus x' k
-    | Simp.Iv_lin ([|-1, x|], k) ->
-      let x' = make_ivar x in
-      (* Format.fprintf Format.err_formatter "[.] := -[%d] + %d@." x k ; *)
-      let _ = prune_intvar s x' (Dom.neg (Dom.add dom (-k))) in
-      Sol.intvar_plus (Sol.intvar_neg x') k
-    | _ -> make_intvar s dom in
-  let _ = match Simp.map_idef make_bvar make_ivar def with
-    (* Should instead resolve const references *)
-    | ( Simp.Iv_none
-      | Simp.Iv_const _
-      | Simp.Iv_eq _
-      | Simp.Iv_lin ([|1, _|], _)
-      | Simp.Iv_lin ([|-1, _|], _)
-      ) -> ()
-    | Simp.Iv_opp x -> ()
-    (* Arithmetic functions *)
-    | Simp.Iv_elem (ys, x) -> failwith "Implement"
-    | Simp.Iv_lin (ts, k) -> apply_lindef s ctx z ts k
-    | Simp.Iv_prod ys -> failwith "Implement"
-    | Simp.Iv_b2i b -> 
-      ignore @@ 
-      (Sol.post_clause s [| Sol.ivar_ge z 1 ; At.neg b |] &&
-       Sol.post_clause s [| Sol.ivar_le z 0 ; b |])
-    | Simp.Iv_max xs -> apply_max s ctx z xs
-    | Simp.Iv_min xs -> apply_min s ctx z xs
-  in
-  let _ = prune_intvar s z dom in
-  z
-
-let build_bdef s make_ivar make_bvar ctx def =
-  match Simp.map_bdef make_bvar make_ivar def with
-  | Simp.Bv_none -> Sol.new_boolvar s
-  | Simp.Bv_const b -> if b then At.at_True else (At.neg At.at_True)
-  | Simp.Bv_eq b -> b
-  | Simp.Bv_neg b -> At.neg b
-  | Simp.At (x, r, k) -> rel_fun r x k
-  | Simp.Bv_or xs ->
-    let z = Sol.new_boolvar s in
-    begin
-      if ctx.Pol.pos then
-        ignore @@ Sol.post_clause s (Array.append [|At.neg z|] xs)
-      else () ;
-      if ctx.Pol.neg then
-        Array.iter (fun x -> ignore @@ Sol.post_clause s [|z ; At.neg x|]) xs
-      else () ;
-      z
-    end
-  | Simp.Bv_and xs ->
-    let z = Sol.new_boolvar s in
-    begin
-      if ctx.Pol.pos then
-        Array.iter (fun x -> ignore @@ Sol.post_clause s [|At.neg z ; x|]) xs
-      else () ;
-      if ctx.Pol.neg then
-        ignore @@ Sol.post_clause s (Array.append [|z|] (Array.map At.neg xs))
-      else () ;
-      z
-    end
-
-let make_vars s model ctxs idefs bdefs =
-  let ivars = Array.make (Array.length idefs) Pending in
-  let bvars = Array.make (Array.length bdefs) Pending in
-  let rec make_ivar iv =
-    match ivars.(iv) with
-    | Closed v -> v
-    | Open -> failwith "Error: cyclic definitions."
-    | Pending ->
-      begin
-        ivars.(iv) <- Open ;
-        let dom = get_idom model iv in
-        let ctx = ctxs.Pol.ivars.(iv) in
-        let def = idefs.(iv) in
-        let v = build_idef s make_ivar make_bvar dom ctx def in
-        ivars.(iv) <- Closed v ;
-        v
-      end
-  and make_bvar bv =
-    match bvars.(bv) with
-    | Closed v -> v
-    | Open -> failwith "Error: cyclic definitions." 
-    | Pending ->
-      begin
-        (* Format.fprintf Format.err_formatter "b%d := %s@." bv (Simp.string_of_bdefn bdefs.(bv)) ; *)
-        bvars.(bv) <- Open ;
-        let ctx = ctxs.Pol.bvars.(bv) in
-        let v = build_bdef s make_ivar make_bvar ctx bdefs.(bv) in
-        bvars.(bv) <- Closed v ;
-        v
-      end
-  in
-  (Array.init (Array.length idefs) make_ivar,
-   Array.init (Array.length bdefs) make_bvar)
-(*
-let make_atoms s ivars bdefs =
-  let bvars = Array.make (Array.length bdefs) At.at_True in
-  Array.iteri (fun i _ ->
-    bvars.(i) <-
-      match bdefs.(i) with
-      | None -> Sol.new_boolvar s
-      | Some (Simp.Bv_eq v) -> bvars.(v)
-      | Some (Simp.Bv_neg v) -> At.neg bvars.(v)
-      | Some (Simp.At (iv, rel, k)) ->
-        rel_fun rel ivars.(iv) k) bvars ;
-  bvars
-  *)
-
-let build_problem solver problem ctxs idefs bdefs =
-  (* Allocate variables *)
-  (*
-  let ivars =
-    Array.init
-      (Dy.length problem.Pr.ivals)
-      (fun i ->
-       let vinfo = Dy.get problem.Pr.ivals i in
-       make_intvar solver vinfo.Pr.dom)
-  in
-  let bvars = make_atoms solver ivars bdefs in
-  *)
-  let ivars, bvars = make_vars solver problem ctxs idefs bdefs in
-  let env = { ivars = ivars; bvars = bvars } in
-  (* Process constraints *)
-  Dy.iteri (fun id ((ident, expr), anns) ->
-           Sol.set_cons_id solver (id+1) ;
-           ignore @@ post_constraint solver env ident expr anns)
-          problem.Pr.constraints ;
-  (* Then, return the bindings *)
-  env
-
 let get_var_branch ann =
   match ann with
   | Pr.Ann_id "input_order" -> Sol.VAR_INORDER
@@ -1066,8 +845,8 @@ let minimize_uc print_model print_nogood solver obj xs k =
        Some m)
     | Opt m ->
       (print_model fmt m ;
+      (*
        (* Check optimum *)
-         (*
          let opt = Sol.int_value m obj in
          begin
            if Sol.assume solver (Sol.ivar_lt obj opt) then
@@ -1153,7 +932,8 @@ let main () =
   *)
   let (idefs, bdefs, problem) = s_problem in
   (* Simp.log_reprs idefs bdefs ; *)
-  let env = build_problem solver problem ctxs idefs bdefs in
+  (* let env = build_problem solver problem ctxs idefs bdefs in *)
+  let env = Build.build_problem solver s_problem ctxs in
   (* Perform polarity analysis, to set branching *)
   let _ = if !Opts.pol then
     set_polarity solver env ctxs in

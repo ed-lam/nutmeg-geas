@@ -30,6 +30,7 @@ MLMODULES=\
 	 simplify \
 	 polarity half_reify \
    registry check \
+   build \
    lexer parser
 
 OCAMLINC=-I ../ml
