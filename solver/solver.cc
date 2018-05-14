@@ -124,6 +124,14 @@ solver::solver(options& _opts)
 
 }
 
+void save_model_vals(void* ptr) {
+  solver_data* s(static_cast<solver_data*>(ptr));
+  
+  for(int p = 0; p < s->state.p_vals.size(); p += 2) {
+    s->confl.pred_saved[p>>1].val = s->state.p_vals[p];
+  }
+}
+ 
 solver_data::solver_data(const options& _opts)
     : opts(_opts),
       stats(),
@@ -147,6 +155,8 @@ solver_data::solver_data(const options& _opts)
     // managers.push(manager_t { m.create(this), m.destroy });
     managers[idx] = manager_t { m.create(this), m.destroy };
   }
+
+  on_solution.push(event_callback { save_model_vals, this });
 }
 
 solver_data::~solver_data(void) {
@@ -1208,6 +1218,9 @@ void bump_touched(solver_data& s,
 }
 
 void save_touched(solver_data& s, int touched_start) {
+  if(s.stats.solutions)
+    return;
+
   for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
     pid_t p = s.persist.touched_preds[ti];
 #if 0
