@@ -435,6 +435,8 @@ void clear_reset_flags(solver_data& s) {
 inline void simplify_at_root(solver_data& s);
 
 static forceinline bool propagate_assumps(solver_data& s) {
+  s.infer.confl.clear();
+
   int idx = s.assump_end;
 
   if(!propagate(s))
@@ -1257,6 +1259,7 @@ solver::result solver::solve(limits l) {
   sdata& s(*data);
   s.abort_solve = 0;
   int confl_num = 0;
+  s.infer.confl.clear();
 
   /* Establish a handler for SIGINT and SIGTERM signals. */
   set_handlers();
