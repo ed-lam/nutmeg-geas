@@ -58,6 +58,7 @@ int intvar::dom_sz_approx(ctx_t& ctx) const {
     int sz = 0;
     for(; b != e; ++b)
       sz += (*b).value.ub(ctx); 
+    return sz;
   } else {
     return ub - lb;
   }
