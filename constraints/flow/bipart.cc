@@ -100,8 +100,7 @@ class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
             continue;
           const bflow& f(flows[fi]);
           if(sink_seen.elem(f.sink)) {
-            expl.push(S ? ~f.at : f.at);
-            assert(!ub(expl.last().atom));
+            EX_PUSH(expl, S ? ~f.at : f.at);
           } else {
             if(!sink_blocked.elem(f.sink)) {
               sink_blocked.add(f.sink);
@@ -118,8 +117,7 @@ class bp_flow_int : public propagator, public prop_inst<bp_flow_int> {
             continue;
           const bflow& f(flows[fi]);
           if(src_seen.elem(f.src)) {
-            expl.push(S ? f.at : ~f.at);
-            assert(!ub(expl.last().atom));
+            EX_PUSH(expl, S ? f.at : ~f.at);
           } else {
             if(!src_blocked.elem(f.src)) {
               src_blocked.add(f.src);
@@ -426,7 +424,7 @@ public:
     for(int fi : fixed_flows) {
       if(!used_flow[fi]) {
         if(!repair_flow<false>(fi)) {
-          confl.push(~flows[fi].at);
+          EX_PUSH(confl, ~flows[fi].at);
           make_expl<false>(fi, flows[fi].src, flows[fi].sink, confl);
           return false;
         }
@@ -435,7 +433,7 @@ public:
     for(int fi : dead_flows) {
       if(used_flow[fi]) {
         if(!repair_flow<true>(fi)) {
-          confl.push(flows[fi].at);
+          EX_PUSH(confl, flows[fi].at);
           make_expl<true>(fi, flows[fi].src, flows[fi].sink, confl);
           return false;
         }

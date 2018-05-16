@@ -152,9 +152,9 @@ public:
     }
     // Every variable is below lb_max.
     // Set up conflict and bail
-    confl.push(z < z_lb);
+    EX_PUSH(confl, z < z_lb);
     for(intvar x : xs)
-      confl.push(x >= z_lb);
+      EX_PUSH(confl, x >= z_lb);
     return false;
 
 first_lb_found:

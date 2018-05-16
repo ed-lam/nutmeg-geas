@@ -710,7 +710,7 @@ class lin_le_tree : public propagator, public prop_inst<lin_le_tree> {
         int diff_p = e.c * (x_lb - x_lb_p);
         if(diff_p <= slack) {
           slack -= diff_p;
-          ex.push(e.x < x_lb_p); 
+          EX_PUSH(ex, e.x < x_lb_p); 
           continue;
         }
         *xp = xi; ++xp;
@@ -722,7 +722,7 @@ class lin_le_tree : public propagator, public prop_inst<lin_le_tree> {
       for(int xi : xs_pending) {
         elt e = xs[xi];
         int diff = slack/e.c;
-        ex.push(e.x < e.x.lb(s) - diff);
+        EX_PUSH(ex, e.x < e.x.lb(s) - diff);
         slack -= e.c * diff;
         assert(slack >= 0);
       }
@@ -758,7 +758,7 @@ class lin_le_tree : public propagator, public prop_inst<lin_le_tree> {
       */
       // Propagate the ps_tree
       if(nodes[0].lb > k) { 
-        confl.push(~r);
+        EX_PUSH(confl, ~r);
         make_expl(Var_None, nodes[0].lb - k - 1, confl);
         return false;
       }
@@ -1076,7 +1076,7 @@ class lin_le_tree_ps : public propagator, public prop_inst<lin_le_tree_ps> {
         int diff_p = e.c * (x_lb - x_lb_p);
         if(diff_p <= slack) {
           slack -= diff_p;
-          ex.push(e.x < x_lb_p); 
+          EX_PUSH(ex, e.x < x_lb_p); 
           continue;
         }
         *xp = xi; ++xp;
@@ -1088,7 +1088,7 @@ class lin_le_tree_ps : public propagator, public prop_inst<lin_le_tree_ps> {
       for(int xi : xs_pending) {
         elt e = xs[xi];
         int diff = slack/e.c;
-        ex.push(e.x < e.x.lb(s) - diff);
+        EX_PUSH(ex, e.x < e.x.lb(s) - diff);
         slack -= e.c * diff;
         assert(slack >= 0);
       }

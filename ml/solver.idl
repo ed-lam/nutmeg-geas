@@ -104,6 +104,8 @@ void set_int_polarity([in] intvar x, [in] boolean pol);
 [int32,mlname(ivar_pred)] pred_t ivar_pid([in] intvar v);
 int ivar_lb([in] intvar v);
 int ivar_ub([in] intvar v);
+quote(mlmli, "external get_ivar_activities : solver -> intvar array -> float array = \"ml_get_ivar_activities\"");
+int suggest_ivar_value(solver s, intvar v);
 
 model get_model([in] solver s);
 int int_value([in] model m, [in] intvar v);

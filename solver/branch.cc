@@ -428,6 +428,7 @@ class toggle_branch : public brancher
     ++active;
     if(active >= bs.size())
       active = 0;
+      // active = bs.size()-1;
   }
 public:
   toggle_branch(vec<brancher*> _bs)

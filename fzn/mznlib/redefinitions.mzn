@@ -144,3 +144,20 @@ predicate set_in_reif(var int: x, set of int: s, var bool: r) =
   else
     bool_clause([x = k | k in s], [r]) /\ forall (k in s) (x = k -> r)
   endif;
+
+predicate int_pow(var int: x, var int: y, var int: z) =
+  let { array [dom(x), dom(y)] of int: A = array2d(dom(x), dom(y), [ pow(a, b) | a in dom(x), b in dom(y) ]) ; } in
+  z = A[x, y];
+
+predicate int_pow(var int: x, int: y, var int: z) =
+  if y = 0 then z = 1
+  elseif y = 1 then z = x
+  else
+    let { var int: zp ::is_defined_var ;
+          constraint int_pow(x, y div 2, zp) :: defines_var(zp); } in
+    if y mod 2 = 0 then
+      z = zp * zp
+    else
+      z = x * zp * zp
+    endif
+  endif;

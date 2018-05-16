@@ -776,15 +776,15 @@ class ineq : public propagator, public prop_inst<ineq> {
       assert(vs[1].is_fixed(s));
       assert(vs[0].lb(s) == vs[1].lb(s));
       intvar::val_t val = vs[0].lb(s);
-      confl.push(~r);
+      EX_PUSH(confl, ~r);
       /*
       confl.push(vs[0] != val);
       confl.push(vs[1] != val);
       */
-      confl.push(vs[0] < val);
-      confl.push(vs[0] > val);
-      confl.push(vs[1] < val);
-      confl.push(vs[1] > val);
+      EX_PUSH(confl, vs[0] < val);
+      EX_PUSH(confl, vs[0] > val);
+      EX_PUSH(confl, vs[1] < val);
+      EX_PUSH(confl, vs[1] > val);
       return false; 
     }
     switch(t.kind) {

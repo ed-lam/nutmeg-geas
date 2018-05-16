@@ -244,6 +244,36 @@ void get_conflict(solver s, atom** at, int* out_sz) {
   }
 }
 
+void get_assumption_inferences(solver s, atom** at, int* out_sz) {
+  vec<geas::patom_t> infs;
+  get_solver(s)->assumption_inferences(infs);
+  *out_sz = infs.size();
+  *at = (atom*) malloc(sizeof(atom) * infs.size());
+  for(int ii = 0; ii < infs.size(); ++ii)
+    (*at)[ii] = unget_atom(infs[ii]);
+}
+
+// acts is allocated, must be freed by caller.
+void get_ivar_activities(solver s, intvar* xs, int sz, double** acts) {
+  double* dest = (double*) malloc(sizeof(double) * sz);
+  *acts = dest;
+
+  geas::solver_data* d(get_solver(s)->data);
+
+  intvar* end = xs+sz;
+  for(; xs != end; ++xs, ++dest) {
+    *dest = d->infer.pred_act[get_intvar(*xs)->p>>1];
+  }
+}
+
+int suggest_ivar_value(solver _s, intvar _x) {
+  geas::solver_data* d(get_solver(_s)->data);
+  geas::intvar* x(get_intvar(_x));
+  pval_t p(d->confl.pred_saved[x->p>>1].val);
+
+  return (x->p&1) ? x->ub_of_pval(p) : x->lb_of_pval(p);
+}
+
 int post_clause(solver s, atom* cl, int sz) {
   reset(s);
   vec<geas::clause_elt> elts;

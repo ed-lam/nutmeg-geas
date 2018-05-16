@@ -449,8 +449,8 @@ public:
                 slack -= mreq(q);
                 continue;
               }
-              confl.push(tasks[q].s <= t - tasks[q].d);
-              confl.push(tasks[q].s > t);
+              EX_PUSH(confl, tasks[q].s <= t - tasks[q].d);
+              EX_PUSH(confl, tasks[q].s > t);
             }
             return;
           }

@@ -133,6 +133,10 @@ atom pred_ge(pred_t, int);
 
 statistics get_statistics(solver);
 
+// Inspection
+void get_ivar_activities(solver, intvar*, int, double**);
+int suggest_ivar_value(solver, intvar);
+
 // Proof logging
 void set_log_file(solver, FILE*);
 void set_cons_id(solver, int);

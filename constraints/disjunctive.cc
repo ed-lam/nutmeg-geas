@@ -393,8 +393,8 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       int r_end = end - slack;
       for(int t : e_tasks) {
         assert(lct(t) < r_end);
-        confl.push(xs[t] < lb);
-        confl.push(xs[t] >= r_end - du[t]);
+        EX_PUSH(confl, xs[t] < lb);
+        EX_PUSH(confl, xs[t] >= r_end - du[t]);
       }
       return r_end;
     }
@@ -419,8 +419,8 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       }
       int r_begin = begin + slack;
       for(int t : e_tasks) {
-        confl.push(xs[t] < r_begin);
-        confl.push(xs[t] >= ub - du[t]);
+        EX_PUSH(confl, xs[t] < r_begin);
+        EX_PUSH(confl, xs[t] >= ub - du[t]);
       }
       return r_begin;
     }
@@ -440,7 +440,7 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       if(ect_tree.root().ect > lct(p_lct[0])) {
         int xi = p_lct[0];
         int lim = ex_ect(lct(p_lct[0])+1, confl);
-        confl.push(xs[xi] >= lim - du[xi]);
+        EX_PUSH(confl, xs[xi] >= lim - du[xi]);
         return false;
       }
       ect_tree.smudge(task_idx[p_lct[0]]);
@@ -494,7 +494,7 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       for(int xi : p_est.slice(1, p_est.size())) {
         if(-lst_tree[0].ect > lst(xi)) {
           int lim = ex_lst(lst(xi)+1, confl);
-          confl.push(xs[xi] < lim);
+          EX_PUSH(confl, xs[xi] < lim);
           return false;  
         }
         while(-lst_tree[0].o_ect > lst(xi)) {

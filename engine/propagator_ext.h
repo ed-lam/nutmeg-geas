@@ -53,6 +53,10 @@ template<class T> bool propagator::set_lb(T& x, typename T::val_t v, reason r) {
 template<class T> bool propagator::set_ub(T& x, typename T::val_t v, reason r) {
   return enqueue(*s, x <= v, r);
 }
+template<class T> void propagator::EX_PUSH(T& expl, patom_t at) {
+  assert(!ub(at));
+  expl.push(at);
+}
 }
 
 #endif

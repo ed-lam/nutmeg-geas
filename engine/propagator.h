@@ -56,6 +56,8 @@ public:
   template<class T> bool set_lb(T& x, typename T::val_t v, reason r);
   template<class T> bool set_ub(T& x, typename T::val_t v, reason r);
 
+  template<class T> void EX_PUSH(T& expl, patom_t at);
+
   // execute dispatches between the checker (in a
   // half-reified case) and proapagator (when it's
   // active).
