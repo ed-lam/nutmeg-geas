@@ -205,6 +205,7 @@ let check_funs =
        "array_bool_and", array_bool_and ; 
        "array_bool_or", array_bool_or ; 
        "all_different_int", all_different ;
+       "fzn_all_different_int", all_different ;
      ]
 let init () =
   List.iter (fun (id, checker) -> H.add checkers id checker) check_funs

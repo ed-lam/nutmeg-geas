@@ -902,6 +902,41 @@ let collect_linterms defs env obj =
   let ts_list = Hashtbl.fold (fun x c ts -> (c, x) :: ts) ts [] in
   Array.of_list ts_list, !k
 
+(* Follow the objective chain definition, to set variable polarities. *)
+let set_obj_polarity solver idefs bdefs env sign v =
+  let seeni = H.create 17 in
+  let seenb = H.create 17 in
+  let rec auxi sign v =  
+    try H.find seeni v
+    with Not_found ->
+      H.add seeni v () ;
+      Sol.set_int_polarity env.ivars.(v) sign ;
+      match idefs.(v) with
+     (* Aliasing *)
+     | Simp.Iv_eq v' -> auxi sign v'
+     | Simp.Iv_opp v' -> auxi (not sign) v'
+     (* Arithmetic functions *)
+     | Simp.Iv_lin (ts, _) ->
+      Array.iter (fun (c, x) -> if c > 0 then auxi sign x else auxi (not sign) x) ts
+     | Simp.Iv_max xs -> Array.iter (auxi sign) xs
+     | Simp.Iv_min xs -> Array.iter (auxi sign) xs
+     | Simp.Iv_b2i b -> auxb sign b
+     | _ -> ()
+   and auxb sign b =
+    try H.find seenb b
+    with Not_found ->
+      H.add seenb b () ;
+      Sol.set_bool_polarity solver env.bvars.(b) sign ;
+      match bdefs.(v) with
+      | Simp.Bv_eq b' -> auxb sign b'
+      | Simp.Bv_neg b' -> auxb (not sign) b'
+      | Simp.At (x, Simp.Ile, _) -> auxi (not sign) x
+      | Simp.At (x, Simp.Igt, _) -> auxi sign x
+      | Simp.Bv_or bs -> Array.iter (auxb sign) bs
+      | Simp.Bv_and bs -> Array.iter (auxb sign) bs
+      | _ -> ()
+  in auxi sign v
+    
 let main () =
   (* Parse the command-line arguments *)
   Arg.parse
@@ -968,6 +1003,7 @@ let main () =
        let block = block_solution problem env in
        solve_findall print_model print_nogood block solver assumps
   | Pr.Minimize obj ->
+      set_obj_polarity solver idefs bdefs env false obj ;
       let r : Sol.model option = match idefs.(obj) with
         | Simp.Iv_lin _ ->
           let xs, k = collect_linterms idefs env obj in
@@ -982,6 +1018,7 @@ let main () =
       | None -> ()
       end
   | Pr.Maximize obj ->
+      set_obj_polarity solver idefs bdefs env true obj ;
       let r = match idefs.(obj) with
         | Simp.Iv_lin _ ->
           (* let xs = Array.map (fun (c, x) -> -c, env.ivars.(x)) ts in *)

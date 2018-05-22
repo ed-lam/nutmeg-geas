@@ -73,7 +73,8 @@ struct branch_val {
             return ge_atom(p, ub(s, p));
           // return patom_t(p, saved);
           // return ge_atom(p, saved);
-          return le_atom(p, saved);
+          // return le_atom(p, saved);
+          return (s->polarity[p>>1]^(p&1)) ? ge_atom(p, saved) : le_atom(p, saved);
 #else
           p = p&~1;
           return s->confl.pred_saved[p>>1].val&1 ? le_atom(p, lb(s, p)) : ge_atom(p, ub(s, p));
