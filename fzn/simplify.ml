@@ -244,7 +244,11 @@ let fzn_assert_ieq st x def =
   | Iv_opp _ -> failwith "fzn_assert_ieq called on alias."
   (* Arithmetic functions *)
   | Iv_elem (ys, x) -> failwith "FIXME"
-  | Iv_lin (ts, k) -> failwith "FIXME"
+  | Iv_lin (ts, k) ->
+    (("int_lin_eq",
+      [| Pr.Arr (Array.append [|Pr.Ilit (-1)|] (Array.map (fun (c, _) -> Pr.Ilit c) ts)) ;
+         Pr.Arr (Array.append [|Pr.Ivar x|] (Array.map (fun (_, y) -> Pr.Ivar y)  ts)) ;
+          Pr.Ilit k |]), [])
   | Iv_prod xs -> failwith "FIXME"
   | Iv_max xs -> (("array_int_maximum", [| Pr.Ivar x; to_ivars xs |]), [])
   | Iv_min xs -> (("array_int_minimum", [| Pr.Ivar x; to_ivars xs |]), [])
@@ -281,7 +285,8 @@ let rec resolve_bdefs st v d d' =
   | Bv_neg v', def
   | def, Bv_neg v' -> 
     if v = v' then 
-      failwith "Top-level failure: x = ~x (var)."
+      (* failwith "Top-level failure: x = ~x (var)." *)
+      raise Pr.Root_failure
     else
       begin match negate_bdef def with
         | Some def' ->
@@ -292,7 +297,8 @@ let rec resolve_bdefs st v d d' =
   (* First priority to constants *)
   | Bv_const b, Bv_const b' ->
     if b <> b' then
-      failwith "Top-level failure: x = ~x (const)"
+      (* failwith "Top-level failure: x = ~x (const)" *)
+      raise Pr.Root_failure
     else
       st.bdefs.(v) <- Bv_const b
   | ((Bv_const _) as d1), d2 
@@ -320,7 +326,8 @@ let rec resolve_idefs st v d d' =
   | Iv_opp v', def
   | def, Iv_opp v' -> 
     if v = v' then 
-      failwith "Top-level failure: x = ~x."
+      raise Pr.Root_failure
+      (* failwith "Top-level failure: x = ~x." *)
     else
       begin match negate_idef def with
         | Some def' ->
@@ -385,7 +392,9 @@ let simp_irel_reif rel pr st args anns =
 
 let simp_bool_eq pr st args anns =
   match Pr.get_bval args.(0), Pr.get_bval args.(1) with
-  | Pr.Bv_bool x, Pr.Bv_bool y -> if x <> y then failwith "Found toplevel conflict in bool_eq" 
+  | Pr.Bv_bool x, Pr.Bv_bool y -> if x <> y then
+    (* failwith "Found toplevel conflict in bool_eq" *)
+    raise Pr.Root_failure
   | (Pr.Bv_bool b, Pr.Bv_var x
   |  Pr.Bv_var x, Pr.Bv_bool b) ->
     (* Dy.add st.cons (("bool_eq", [|Pr.Bvar x ; Pr.Blit b|]), anns) *)
@@ -398,7 +407,9 @@ let simp_bool_eq pr st args anns =
 
  let simp_bool_ne pr st args anns =
   match Pr.get_bval args.(0), Pr.get_bval args.(1) with
-  | Pr.Bv_bool x, Pr.Bv_bool y -> if x = y then failwith "Found toplevel conflict in bool_ne" 
+  | Pr.Bv_bool x, Pr.Bv_bool y -> if x = y then
+    (* failwith "Found toplevel conflict in bool_ne"  *)
+    raise Pr.Root_failure
   | (Pr.Bv_bool b, Pr.Bv_var x
   |  Pr.Bv_var x, Pr.Bv_bool b) ->
     (* Dy.add st.cons (("bool_ne", [|Pr.Bvar x ; Pr.Blit (not b)|]), anns) *)
@@ -408,7 +419,9 @@ let simp_bool_eq pr st args anns =
 let simp_bool_eq_reif pr st args anns =
   match Pr.get_bval args.(2), Pr.get_bval args.(0), Pr.get_bval args.(1) with
   | Pr.Bv_bool z, Pr.Bv_bool x, Pr.Bv_bool y ->
-    if z <> (x = y) then failwith "Found toplevel conflict in bool_eq_reif."
+    if z <> (x = y) then
+      (* failwith "Found toplevel conflict in bool_eq_reif." *)
+      raise Pr.Root_failure
   | Pr.Bv_bool a, Pr.Bv_bool b, Pr.Bv_var x
   | Pr.Bv_bool a, Pr.Bv_var x, Pr.Bv_bool b
   | Pr.Bv_var x, Pr.Bv_bool a, Pr.Bv_bool b ->
@@ -422,7 +435,9 @@ let simp_bool_eq_reif pr st args anns =
 
 let simp_int_eq pr st args anns =
   match Pr.get_ival args.(0), Pr.get_ival args.(1) with
-  | (Pr.Iv_int x, Pr.Iv_int y) -> if x <> y then failwith "Found toplevel conflict in int_eq."
+  | (Pr.Iv_int x, Pr.Iv_int y) -> if x <> y then
+    (* failwith "Found toplevel conflict in int_eq." *)
+    raise Pr.Root_failure
   | ( Pr.Iv_var x, Pr.Iv_int k
     | Pr.Iv_int k, Pr.Iv_var x) ->
       apply_idef st x (Iv_const k)
@@ -431,7 +446,8 @@ let simp_int_eq pr st args anns =
 let simp_bool2int pr st args anns =
   match Pr.get_bval args.(0), Pr.get_ival args.(1) with
   | Pr.Bv_bool b, Pr.Iv_int y ->
-    if b <> (y = 1) then failwith "Toplevel conflict in bool2int."
+    if b <> (y = 1) then (* failwith "Toplevel conflict in bool2int." *)
+    raise Pr.Root_failure
   | Pr.Bv_var b, Pr.Iv_int y ->
     apply_bdef st b (Bv_const (y = 1))
   | Pr.Bv_bool b, Pr.Iv_var y ->

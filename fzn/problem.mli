@@ -3,6 +3,7 @@
 
 exception Sym_error of string
 exception Type_mismatch
+exception Root_failure
 
 type ident = string
 (*

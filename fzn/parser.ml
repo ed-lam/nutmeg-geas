@@ -242,11 +242,23 @@ let read_bvar_decl model toks =
     M.bind model id (M.Bvar (M.new_bvar model id anns)) [] ;
   chomp toks (Kwd Semi)
 
+let warn_unbounded =
+  let warned = ref false in
+  (fun () ->
+    if not !warned then
+      Format.fprintf Format.err_formatter
+        "%%%% WARNING: unbounded integer variable, using default bounds.@." ;
+      warned := true)
+
 let read_ivar_decl model toks =
   let dom =
     match must_peek toks with
     | Int _ -> parse_range toks
     | Kwd Lbrace -> Dom.Set (parse_set toks)
+    | Kwd IntT ->
+      S.junk toks;
+      warn_unbounded () ;
+      Dom.Range (- (1 lsl 20), 1 lsl 20)
     | _ -> failwith "Expected integer domain"
   in
   chomp toks (Kwd Colon) ; 

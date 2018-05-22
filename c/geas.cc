@@ -246,7 +246,9 @@ void get_conflict(solver s, atom** at, int* out_sz) {
 
 void get_assumption_inferences(solver s, atom** at, int* out_sz) {
   vec<geas::patom_t> infs;
+/*
   get_solver(s)->assumption_inferences(infs);
+*/
   *out_sz = infs.size();
   *at = (atom*) malloc(sizeof(atom) * infs.size());
   for(int ii = 0; ii < infs.size(); ++ii)

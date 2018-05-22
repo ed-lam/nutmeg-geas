@@ -281,7 +281,10 @@ let build_problem solver p ctxs =
   (* Process constraints *)
   Dy.iteri (fun id ((ident, expr), anns) ->
            Sol.set_cons_id solver (id+1) ;
-           ignore @@ post_constraint solver env ident expr anns)
+           if not (post_constraint solver env ident expr anns) then
+             raise Pr.Root_failure
+           else
+             ())
           problem.Pr.constraints ;
   (* Then, return the bindings *)
   env

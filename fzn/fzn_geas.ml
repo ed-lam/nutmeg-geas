@@ -954,88 +954,93 @@ let main () =
   let lexer = P.lexer input in
   let orig_problem = P.read_problem lexer in
   (* let pol_ctxs = Polarity.polarity orig_problem in *)
-  let s_problem = Simplify.simplify orig_problem in
-  let ctxs = Polarity.polarity s_problem in
   let opts = get_options () in
   let solver = Sol.new_solver opts in
-  (* Construct the problem *)
-  (*
-  let problem =
-    if !Opts.half_reify then
-      Half_reify.half_reify ~ctxs:pol_ctxs problem 
-    else problem in
-  *)
-  let (idefs, bdefs, problem) = s_problem in
-  (* Simp.log_reprs idefs bdefs ; *)
-  (* let env = build_problem solver problem ctxs idefs bdefs in *)
-  let env = Build.build_problem solver s_problem ctxs in
-  (* Perform polarity analysis, to set branching *)
-  let _ = if !Opts.pol then
-    set_polarity solver env ctxs in
-  let assumps =
-    match get_ann_assumps problem env (snd problem.Pr.objective) with
-    | None -> [ At.neg At.at_True ]
-    | Some atoms -> atoms
-  in
-  build_branching problem env solver (snd problem.Pr.objective) ;
-  (*
-  let problem_HR =
-    if !Opts.noop then
-      problem
-    else
-      Half_reify.half_reify problem in
-   *)
-  let print_model =
-    (fun fmt model ->
-      if not !Opts.quiet then
+  try
+    let s_problem = Simplify.simplify orig_problem in
+    let ctxs = Polarity.polarity s_problem in
+    (* Construct the problem *)
+    (*
+    let problem =
+      if !Opts.half_reify then
+        Half_reify.half_reify ~ctxs:pol_ctxs problem 
+      else problem in
+    *)
+    let (idefs, bdefs, problem) = s_problem in
+    (* Simp.log_reprs idefs bdefs ; *)
+    (* let env = build_problem solver problem ctxs idefs bdefs in *)
+    let env = Build.build_problem solver s_problem ctxs in
+    (* Perform polarity analysis, to set branching *)
+    let _ = if !Opts.pol then
+      set_polarity solver env ctxs in
+    let assumps =
+      match get_ann_assumps problem env (snd problem.Pr.objective) with
+      | None -> [ At.neg At.at_True ]
+      | Some atoms -> atoms
+    in
+    build_branching problem env solver (snd problem.Pr.objective) ;
+    (*
+    let problem_HR =
+      if !Opts.noop then
+        problem
+      else
+        Half_reify.half_reify problem in
+     *)
+    let print_model =
+      (fun fmt model ->
+        if not !Opts.quiet then
+          begin
+            print_solution fmt problem env model ;
+            Format.fprintf fmt "----------@."
+          end) in
+    let print_nogood = print_nogood problem env in
+    let obj_val = ref None in
+    begin
+    match fst problem.Pr.objective with
+    | Pr.Satisfy ->
+       if !Opts.max_solutions = 1 then
+          solve_satisfy print_model print_nogood solver assumps
+       else
+         let block = block_solution problem env in
+         solve_findall print_model print_nogood block solver assumps
+    | Pr.Minimize obj ->
+        let r : Sol.model option = match idefs.(obj) with
+          | Simp.Iv_lin _ ->
+            let xs, k = collect_linterms idefs env obj in
+            (* let xs = Array.map (fun (c, x) -> c, env.ivars.(x)) ts in *)
+            minimize_linear print_model print_nogood solver env.ivars.(obj) xs k
+          | _ ->
+            solve_minimize print_model print_nogood solver env.ivars.(obj) []
+        in
+      begin
+      match r with
+      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
+      | None -> ()
+      end
+    | Pr.Maximize obj ->
+        set_obj_polarity solver idefs bdefs env true obj ;
+        let r = match idefs.(obj) with
+          | Simp.Iv_lin _ ->
+            (* let xs = Array.map (fun (c, x) -> -c, env.ivars.(x)) ts in *)
+            let xs, k = collect_linterms idefs env obj in
+            minimize_linear print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj))
+              (Array.map (fun (c, x) -> (-c, x)) xs) (-k)
+          | _ ->
+            solve_minimize print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj)) []
+        in
         begin
-          print_solution fmt problem env model ;
-          Format.fprintf fmt "----------@."
-        end) in
-  let print_nogood = print_nogood problem env in
-  let obj_val = ref None in
-  begin
-  match fst problem.Pr.objective with
-  | Pr.Satisfy ->
-     if !Opts.max_solutions = 1 then
-        solve_satisfy print_model print_nogood solver assumps
-     else
-       let block = block_solution problem env in
-       solve_findall print_model print_nogood block solver assumps
-  | Pr.Minimize obj ->
-      set_obj_polarity solver idefs bdefs env false obj ;
-      let r : Sol.model option = match idefs.(obj) with
-        | Simp.Iv_lin _ ->
-          let xs, k = collect_linterms idefs env obj in
-          (* let xs = Array.map (fun (c, x) -> c, env.ivars.(x)) ts in *)
-          minimize_linear print_model print_nogood solver env.ivars.(obj) xs k
-        | _ ->
-          solve_minimize print_model print_nogood solver env.ivars.(obj) []
-      in
-      begin
-      match r with
-      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
-      | None -> ()
-      end
-  | Pr.Maximize obj ->
-      set_obj_polarity solver idefs bdefs env true obj ;
-      let r = match idefs.(obj) with
-        | Simp.Iv_lin _ ->
-          (* let xs = Array.map (fun (c, x) -> -c, env.ivars.(x)) ts in *)
-          let xs, k = collect_linterms idefs env obj in
-          minimize_linear print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj))
-            (Array.map (fun (c, x) -> (-c, x)) xs) (-k)
-        | _ ->
-          solve_minimize print_model print_nogood solver (Sol.intvar_neg env.ivars.(obj)) []
-      in
-      begin
-      match r with
-      | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
-      | None -> ()
-      end
-  end ;
-  (* let fmt = Format.std_formatter in *)
-  let fmt = Format.err_formatter in
-  print_stats fmt (Sol.get_statistics solver) !obj_val
+        match r with
+        | Some m -> obj_val := Some (Sol.int_value m env.ivars.(obj))
+        | None -> ()
+        end
+    end ;
+    (* let fmt = Format.std_formatter in *)
+    let fmt = Format.err_formatter in
+    print_stats fmt (Sol.get_statistics solver) !obj_val
+  with Pr.Root_failure ->
+    let fmt = Format.err_formatter in
+    Format.fprintf fmt "%%%% Model inconsistency detected.@." ;
+    Format.fprintf fmt "==========@." ;
+    print_stats fmt (Sol.get_statistics solver) None
 
 let _ = main ()

@@ -641,6 +641,26 @@ let bool_eq_reif solver args anns =
       [| z; x; y |] ;
       [| z; At.neg x; At.neg y |] ] 
 
+(* z <-> ~x /\ y *)
+let bool_lt_reif solver args anns =
+  let z = get_atom args.(2) in
+  let x = get_atom args.(0) in
+  let y = get_atom args.(1) in
+  post_clauses solver
+    [ [| At.neg z; At.neg x |] ;
+      [| At.neg z; y |] ;
+      [| z ; x ; At.neg y |] ]
+
+(* z <-> ~x \/ y *)
+let bool_le_reif solver args anns =
+  let z = get_atom args.(2) in
+  let x = get_atom args.(0) in
+  let y = get_atom args.(1) in
+  post_clauses solver
+    [ [| At.neg z; At.neg x; y |] ;
+      [| z ; At.neg y |] ;
+      [| z ; x |] ]
+
 let atmost_one solver args anns =
   let xs = Pr.get_array get_atom args.(0) in
   B.atmost_1 solver At.at_True xs
@@ -714,6 +734,8 @@ let initialize () =
      "bool2int", bool2int ;
      "bool_eq", bool_eq ;
      "bool_eq_reif", bool_eq_reif ;
+     "bool_lt_reif", bool_lt_reif ;
+     "bool_le_reif", bool_le_reif ;
      "array_bool_and", array_bool_and ;
      "array_bool_or", array_bool_or ;
      (* "bool_sum_le", bool_sum_le ; *)
