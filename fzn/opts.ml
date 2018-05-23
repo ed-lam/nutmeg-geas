@@ -38,19 +38,21 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
      ) ;
      (
       "-s",
-      Arg.Unit (fun () -> print_stats := Verbose),
+      Arg.Unit (fun () -> print_stats := Compact),
       " : print statistics"
      ) ;
      (
-      "--compact-stats",
-      Arg.Unit (fun () -> print_stats := Compact),
-      " : report statistics in CSV form."
+      "--verbose-stats",
+      Arg.Unit (fun () -> print_stats := Verbose),
+      " : report statistics in a more readable form."
      ) ;
+     (*
      (
       "-o",
       Arg.String (fun s -> outfile := Some s),
       "<string> : file to write transformed model"
      ) ;
+     *)
      (
        "-q",
        Arg.Unit (fun () -> quiet := true),
@@ -66,6 +68,7 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       Arg.Unit (fun () -> free := true),
       " : free search"
      ) ;
+     (*
      (
       "-pol",
       Arg.Bool (fun b -> pol := b),
@@ -76,8 +79,10 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       Arg.Bool (fun b -> half_reify := b),
       " : use polarity analysis"
      ) ;
+     *)
      (
-       "-nof_solutions",
+       (* "-nof_solutions", *)
+       "-n",
        Arg.Int (fun k -> max_solutions := k),
        " : maximum number of solutions to report"
      ) ;
@@ -86,11 +91,13 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       Arg.Int (fun k -> obj_probe_limit := Some k),
       " : number of conflicts to give speculative objective tightening."
      ) ;
+     (*
      (
       "--core-opt",
       Arg.Set core_opt,
       " : use an unsat-core driven optimization."
      ) ;
+     *)
      (
       "-a",
       Arg.Unit (fun () -> max_solutions := 0),
