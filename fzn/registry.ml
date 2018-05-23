@@ -128,6 +128,22 @@ let simplify_bool_linterms terms k =
   in
   aux [] k (Array.to_list terms)
 
+let booleanize_linterms xs k =
+  let rec aux xs k acc =
+    match xs with
+    | [] -> Some (List.rev acc, k)
+    | (c, x) :: xs' ->
+      begin
+        let l = S.ivar_lb x in
+        let u = S.ivar_ub x in
+        match u - l with
+        | 0 -> aux xs' (k - c * l) acc
+        | 1 -> aux xs' (k - c * l) ((c, S.ivar_gt x l) :: acc)
+        | _ -> None
+      end
+    in
+    aux xs k []
+
 (* Specialized int_lin_le *)
 let post_lin_le s r cs xs k =
   let terms = Array.init (Array.length xs) (fun i -> cs.(i), xs.(i)) in
@@ -143,7 +159,14 @@ let post_lin_le s r cs xs k =
     else
       S.post_clause s [|At.neg r; S.ivar_le x (Util.div_floor k c)|]
   | [1, x; -1, y], k | [-1, y; 1, x], k -> B.int_le s r x y k
-  | ts, k -> B.linear_le s r (Array.of_list ts) k
+  | ts, k ->
+    begin
+      match booleanize_linterms ts k with
+      | Some (ts', k') ->
+        let zero = S.new_intvar s 0 0 in
+        B.bool_linear_ge s zero (Array.of_list ts') (- k')
+      | None -> B.linear_le s r (Array.of_list ts) k
+    end
 
 (* Specialized bool_lin_le *)
 (*
