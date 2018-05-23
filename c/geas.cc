@@ -292,7 +292,7 @@ void set_bool_polarity(solver s, atom at, int pol) {
   geas::solver_data* d = get_solver(s)->data;
   pid_t p = get_atom(at).pid;
 
-  d->polarity[p>>1] = pol^(p&1);
+  d->polarity[p>>1].preferred = d->polarity[p>>1].branch = pol^(p&1);
   d->confl.pred_saved[p>>1].val = geas::from_int(p&1);
 }
 
@@ -300,7 +300,7 @@ void set_int_polarity(intvar x, int pol) {
   geas::solver_data* d = get_intvar(x)->ext->s;
   pid_t p = get_intvar(x)->p;
 
-  d->polarity[p>>1] = pol^(p&1);
+  d->polarity[p>>1].preferred = d->polarity[p>>1].branch = pol^(p&1);
   if(p&1)
     d->confl.pred_saved[p>>1].val = geas::pval_inv(d->state.p_root[p]);
   else

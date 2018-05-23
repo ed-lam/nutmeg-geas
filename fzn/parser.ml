@@ -242,12 +242,14 @@ let read_bvar_decl model toks =
     M.bind model id (M.Bvar (M.new_bvar model id anns)) [] ;
   chomp toks (Kwd Semi)
 
+let default_imax = 1 lsl 26
 let warn_unbounded =
   let warned = ref false in
   (fun () ->
     if not !warned then
       Format.fprintf Format.err_formatter
-        "%%%% WARNING: unbounded integer variable, using default bounds.@." ;
+        "%%%% WARNING: unbounded integer variable, using default bounds [%d, %d].@."
+        (- default_imax) (default_imax) ;
       warned := true)
 
 let read_ivar_decl model toks =
@@ -258,7 +260,7 @@ let read_ivar_decl model toks =
     | Kwd IntT ->
       S.junk toks;
       warn_unbounded () ;
-      Dom.Range (- (1 lsl 20), 1 lsl 20)
+      Dom.Range (- default_imax, default_imax)
     | _ -> failwith "Expected integer domain"
   in
   chomp toks (Kwd Colon) ; 

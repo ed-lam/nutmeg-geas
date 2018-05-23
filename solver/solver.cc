@@ -129,6 +129,8 @@ void save_model_vals(void* ptr) {
   
   for(int p = 0; p < s->state.p_vals.size(); p += 2) {
     s->confl.pred_saved[p>>1].val = s->state.p_vals[p];
+    if(s->polarity[p>>1].has_preference)
+      s->polarity[p>>1].branch = s->polarity[p>>1].preferred;
   }
 }
  
@@ -228,7 +230,7 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
   if(!(flags&PR_NOBRANCH))
     s.pred_heap.insert(pi>>1);
 
-  s.polarity.push(0);
+  s.polarity.push();
   
   queue_pred(&s, pi);
   queue_pred(&s, pi^1);
@@ -942,7 +944,7 @@ prop_restart:
   check_at_fixpoint(&s);
 #endif
   
-#if 1
+#if 0
   for(propagator* p : s.propagators) {
     assert(p->check_sat());
   }
@@ -1220,8 +1222,14 @@ void bump_touched(solver_data& s,
 }
 
 void save_touched(solver_data& s, int touched_start) {
-  if(s.stats.solutions)
+  if(s.stats.solutions) {
+    for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
+      pid_t p = s.persist.touched_preds[ti];
+      if(!s.polarity[p>>1].has_preference)
+        s.polarity[p>>1].branch = 1^(p&1);
+    }
     return;
+  }
 
   for(int ti = touched_start; ti < s.persist.touched_preds.size(); ti++) {
     pid_t p = s.persist.touched_preds[ti];
@@ -1229,10 +1237,12 @@ void save_touched(solver_data& s, int touched_start) {
     pval_t k = (p&1) ? pval_inv(s.state.p_vals[p]) : s.state.p_vals[p];
     s.confl.pred_saved[p>>1].val += 0.01 * (s.confl.pred_saved[p>>1].val - k);
 #else
-    if(p&1)
+    if(p&1) {
       s.confl.pred_saved[p>>1].val = pval_inv(s.state.p_vals[p]);
-    else
+    } else {
       s.confl.pred_saved[p>>1].val = s.state.p_vals[p];
+    }
+    s.polarity[p>>1].branch = 1^(p&1);
     // s.confl.pred_saved[p>>1].val = p&1;
 #endif
   }

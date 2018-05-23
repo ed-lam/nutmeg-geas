@@ -39,6 +39,14 @@ typedef unsigned int man_id_t;
 enum PredFlags { PR_DEFAULT = 0, PR_NOBRANCH = 1 };
 
 class solver_data {
+  struct pol_info {
+    pol_info(void)
+      : has_preference(0), preferred(0), branch(0) { }
+    unsigned pad : 5;
+    unsigned has_preference : 1;
+    unsigned preferred : 1;
+    unsigned branch : 1;
+  };
 public:
   solver_data(const options& _opts);
   ~solver_data(void);
@@ -97,7 +105,7 @@ public:
   vec<event_callback> on_solution;
   vec<event_callback> on_restart;
 
-  vec<bool> polarity;
+  vec<pol_info> polarity;
 
   confl_info last_confl;
 

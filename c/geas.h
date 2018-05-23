@@ -111,6 +111,7 @@ int assume(solver, atom);
 void retract(solver);
 void retract_all(solver);
 void get_conflict(solver, atom**, int*);
+void get_assumption_inferences(solver, atom**, int*);
 
 model get_model(solver);
 void destroy_model(model);
