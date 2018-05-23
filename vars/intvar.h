@@ -242,16 +242,16 @@ public:
   patom_t operator==(val_t v) {
     if(p&1) {
       // CHECK: Do we need to correct for negation here?
-      return ~ext->get_eqatom(pval_inv(from_int(v)-off));
+      return ext->get_eqatom(pval_inv(from_int(v-off)));
     } else {
-      return ext->get_eqatom(from_int(v)-off);
+      return ext->get_eqatom(from_int(v-off));
     }
   }
   patom_t operator!=(val_t v) {
     if(p&1) {
-      return ext->get_eqatom(pval_inv(from_int(v)-off));
+      return ~ext->get_eqatom(pval_inv(from_int(v-off)));
     } else {
-      return ~ext->get_eqatom(from_int(v)-off);
+      return ~ext->get_eqatom(from_int(v-off));
     }
   }
 

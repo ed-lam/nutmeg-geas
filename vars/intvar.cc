@@ -456,6 +456,7 @@ patom_t ivar_ext::get_eqatom(pval_t val) {
   int eq_idx = vals.size();
   vals.push(val);
 
+  // assert(!(p&1));
   pval_t x_lb = s->state.p_root[p];
   pval_t x_ub = pval_inv(s->state.p_root[p+1]);
 
