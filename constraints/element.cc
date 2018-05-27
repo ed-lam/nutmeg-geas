@@ -8,6 +8,7 @@
 
 #include "utils/interval.h"
 #include "mtl/p-sparse-set.h"
+#include "mtl/support-list.h"
 
 // #define DEBUG_ELEM
 
@@ -503,6 +504,9 @@ public:
 bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
                    vec<int>& ys, int base) {
   // Also set domain of ys.
+  vec<int> ys_uniq(ys);
+  uniq(ys_uniq);
+
   if(s->state.is_entailed_l0(r)) {
     if(base > x.lb(s))
       enqueue(*s, x >= base, reason());
@@ -510,7 +514,7 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
       enqueue(*s, x <= base + ys.size()-1, reason());
     // z.set_lb(ys_uniq[0], reason()); z.set_ub(ys_uniq.last(), reason());
 
-    if(!make_sparse(z, ys))
+    if(!make_sparse(z, ys_uniq))
       return false;
   } else {
     if(!add_clause(s, ~r, x >= base))
@@ -530,7 +534,7 @@ bool int_element(solver_data* s, patom_t r, intvar z, intvar x,
       return false;
   }
 
-  vec<int> ys_uniq(ys); uniq(ys_uniq);
+  // vec<int> ys_uniq(ys); uniq(ys_uniq);
 
   for(int yy : ys_uniq) {
     vec<clause_elt> ps { ~r, z != yy };
@@ -618,11 +622,6 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     }
   }
 
-  template<class E>
-  inline void EX_PUSH(E& e, patom_t at) {
-    assert(!ub(at));
-    e.push(at);
-  }
   void ex_z_ub(int _vi, pval_t p, vec<clause_elt>& expl) {
     // fprintf(stderr, "elem_bnd::ex::ub(z)\n");
     int z_ub = z.ub_of_pval(p); 
@@ -788,77 +787,95 @@ public:
 
 // Mixed propagator: domain consistent for x, but bounds-consistent for
 // y and z.
+#if 0
 class elem_var_mix : public propagator, public prop_inst<elem_var_mix> {
   // Wakeup and explanation
-  enum Change { LB_SUPP = 1, UB_SUPP = 2, Z_LB = 4, Z_UB = 8 };
-  enum Mode { E_Free, E_Fix };
+  enum Task { Z_LB, Z_UB, Y_LB, Y_UB, SNUFF_LOW, SNUFF_HIGH, NOF_TASKS };
 
-  void kill_yi(int yi) {
-    if(!live_yi.elem(yi))
-      return;
+  inline int lub(void) const { return ub(lub_tree.root()); }
+  inline int glb(void) const { return lb(glb_tree.root()); }
 
-    trail_push(s->persist, live_yi.sz);
-    live_yi.remove(yi);
-
-    if(z_lb_supp == yi) {
-      change |= LB_SUPP;
-      queue_prop();
+  watch_result wake_z_lb(int _z) {
+    if(lb(z) > lub()) {
+      // At least one index will be killed.
+      queue_task(SNUFF_LOW);
     }
-    if(z_ub_supp == yi) {
-      change |= UB_SUPP;
-      queue_prop();
-    }
-    if(live_yi.size() == 1) {
-      trail_change(s->persist, mode, (unsigned char) E_Fix);
-      queue_prop();
-    }
-  }
-
-  watch_result wake_z(int evt) {
-    change |= evt;
-    queue_prop();
     return Wt_Keep;
   }
-  watch_result wake_xi(int xi) {
-    kill_yi(xi);
+  watch_result wake_z_ub(int _z) {
+    if(ub(z) < glb()) {
+      // Some index is to be killed.
+      queue_task(SNUFF_HIGH);
+    }
     return Wt_Keep;
   }
 
   watch_result wake_y_lb(int yi) {
     if(!live_yi.elem(yi))
       return Wt_Keep;
-
-    if(lb(ys[yi]) > ub(z)) {
-      supp[yi] = lb(ys[yi]);
-      dead_yi.push(yi);
-      queue_prop();
-    } else if (z_lb_supp == yi && lb(ys[yi]) > lb(z)) {
-      change |= LB_SUPP;
-      queue_prop();
+    if(llb_tree.root() == yi) {
+      if(llb_tree.repair_min(s)) {
+        queue_task(Z_LB);
+      }
     }
+    repair_glb(yi);
+    if(ub(z) < lb(ys[yi]))
+      queue_task(SNUFF_HIGH);
     return Wt_Keep;
   }
 
   watch_result wake_y_ub(int yi) {
-    assert(yi < (int) live_yi.dom);
-    assert(yi < ys.size());
     if(!live_yi.elem(yi))
       return Wt_Keep;
+    if(gub_tree.root() == yi) {
+      if(gub_tree.repair_min(s)) {
+        queue_task(Z_UB);
+      }
+    }
+    repair_lub(yi);
+    if(ub(ys[yi]) < lb(z))
+      queue_task(SNUFF_LOW);
+    return Wt_Keep;
+  }
 
-    if(ub(ys[yi]) < lb(z)) {
-      supp[yi] = ub(ys[yi]);
-      dead_yi.push(yi);
-      queue_prop();
-    } else if(z_ub_supp == yi && ub(ys[yi]) < ub(z)) {
-      change |= UB_SUPP;
-      queue_prop();
+  watch_result wake_x(int _x, int k) {
+    if(live_yi.elem(k)) {
+      live_yi.remove(k);
+      // Repair the trees 
+      repair_glb(k);
+      repair_lub(k);
+      if(llb_tree.root() == k) {
+        if(llb_tree.repair_min(s))
+          queue_task(Z_LB);
+      }
+      if(gub_tree.root() == k) {
+        if(gub_tree.repair_min(s))
+          queue_task(Z_UB);
+      }
     }
     return Wt_Keep;
   }
 
+  void ex_y_lb(int yi, pval_t p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, x != yi);
+    EX_PUSH(expl, z < ys[yi].lb_of_pval(p));
+  }
+  void ex_y_ub(int yi, pval_t p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, x != yi);
+    EX_PUSH(expl, z > ys[yi].ub_of_pval(p));
+  }
+
+  /*
+  void ex_x(int xi, pval_t _p, vec<clause_elt>& expl) {
+    if(z.ub(s) < ys[xi].lb(s)) {
+      expl.push(z > 
+    }
+  }
+  */
+
+
   void cleanup(void) {
-    change = 0;
-    dead_yi.clear();
+    tasks.clear();
     is_queued = false;
   }
 
@@ -921,285 +938,152 @@ class elem_var_mix : public propagator, public prop_inst<elem_var_mix> {
   }
 
 public:
-  elem_var_mix(solver_data* _s, intvar _z, intvar _x, vec<intvar>& _ys, int _base, patom_t _r)
-    : propagator(_s), base(_base), x(_x), z(_z), ys(_ys), r(_r),
-      mode(E_Free), live_yi(ys.size()), supp(ys.size(), 0),
-      z_lb_supp(0), z_ub_supp(0), change(0) {
+  elem_var_mix(solver_data* _s, intvar _z, intvar _x, vec<intvar>& _ys)
+    : propagator(_s), x(_x), z(_z), ys(_ys),
+      llb_tree(ys.size()), glb_tree(ys.size()),
+      lub_tree(ys.size()), gub_tree(ys.size()),
+      live_yi(ys.size()) {
     // Set all y-values as feasible
     live_yi.sz = ys.size();
 
-    if(lb(x) < base)
-      set_lb(x, base, reason());
-    if(ub(x) > ys.size() + base)
-      set_ub(x, ys.size()+base, reason());
+    z.attach(E_LB, watch<&P::wake_z_lb>(0, Wt_IDEM));
+    z.attach(E_UB, watch<&P::wake_z_ub>(0, Wt_IDEM));
+    
     // Make sure all [x = k]s are available.
     make_eager(x);
-    z.attach(E_LB, watch<&P::wake_z>(Z_LB, Wt_IDEM));
-    z.attach(E_UB, watch<&P::wake_z>(Z_UB, Wt_IDEM));
+    x.attach_rem(watch_val<&P::wake_x>(0, Wt_IDEM));
 
-    intvar::val_t z_lb = lb(z);
-    intvar::val_t z_ub = ub(z);
-    
-    intvar::val_t yi_min = INT_MAX;
-    intvar::val_t yi_max = INT_MIN;
-    int low_yi = ys.size();
-    int high_yi = ys.size();
-
-    for(int yi : irange(lb(x) - base)) {
-      live_yi.remove(yi);
-    }
-    for(int yi : irange(ub(x) - base + 1, ys.size())) {
-      live_yi.remove(yi);
-    }
-
-    // Figure out bounds on the consistent y-values.
-    for(int yi : live_yi) {
-      int lb_yi = lb(ys[yi]);
-      int ub_yi = ub(ys[yi]);
-      if(lb_yi <= z_ub && z_lb <= ub_yi) {
-        if(lb_yi < yi_min) {
-          low_yi = yi;
-          yi_min = lb_yi;
-        }
-        if(ub_yi > yi_max) {
-          high_yi = yi;
-          yi_max = ub_yi;
-        }
-      }
-    }
-
-    if(z_lb < low_yi) {
-      set_lb(z, low_yi, reason());
-    }
-    z_lb_supp.x = low_yi;
-
-    if(high_yi < z_ub) {
-      set_ub(z, high_yi, reason());
-    }
-    z_ub_supp.x = high_yi;
-
-    for(int yi : irange(lb(x)-base, ub(x)-base+1)) {
-      assert(yi < ys.size());
-      if(s->state.is_inconsistent(x == yi+base)) {
-        assert(live_yi.elem(yi));
+    // Attach on each of the ys. 
+    for(int yi : irange(ys.size())) {
+      if(!in_domain(x, yi)) {
         live_yi.remove(yi);
         continue;
       }
-      if(ub(ys[yi]) < z_lb || z_ub < lb(ys[yi])) {
-        assert(live_yi.elem(yi));
-        enqueue(*s, x != yi+base, reason());
+      if(ub(ys[yi]) < lb(z) || ub(z) < lb(ys[yi])) {
+        if(!enqueue(*s, x != yi, reason()))
+          throw RootFail();
         live_yi.remove(yi);
         continue;
       }
-
-      attach(s, x != yi+base, watch<&P::wake_xi>(yi, Wt_IDEM));
       ys[yi].attach(E_LB, watch<&P::wake_y_lb>(yi, Wt_IDEM));
       ys[yi].attach(E_UB, watch<&P::wake_y_ub>(yi, Wt_IDEM));
-      supp[yi] = std::max(lb(z), lb(ys[yi]));
     }
-    // Set initial bounds
   }
 
-  void root_simplify(void) {
-    
-  }
-    
-   void check_supps(void) {
-     assert(!s->state.is_inconsistent(x == z_lb_supp + base));
-     assert(!s->state.is_inconsistent(x == z_ub_supp + base));
-
-     assert(lb(ys[z_lb_supp]) <= lb(z) && lb(z) <= ub(ys[z_lb_supp]));
-     assert(ub(z) <= ub(ys[z_ub_supp]) && lb(ys[z_lb_supp]) <= ub(z));
-   }
-
-   void check_live(void) {
-     for(int yi : live_yi) {
-       assert(!s->state.is_inconsistent(x == yi + base));
-       assert(lb(z) <= ub(ys[yi]) && lb(ys[yi]) <= ub(z));
-     }
-
-     for(int ii : irange(live_yi.size(), ys.size())) {
-       assert(s->state.is_inconsistent(x == live_yi[ii] + base));
-     }
-   }
+  void root_simplify(void) { }
 
    bool propagate(vec<clause_elt>& confl) {
 #ifdef LOG_ALL
       std::cout << "[[Running elem_var_mix]]" << std::endl;
 #endif
-////      static int count = 0;
-//      fprintf(stderr, "elem_var_mix: #%d\n", ++count);
 
-      // Deal with the dead ys.
-      if(dead_yi.size() > 0) {
-        trail_push(s->persist, live_yi.sz);
-        for(int yi : dead_yi) {
-          // assert(live_yi.elem(yi));
-          // May have been killed again (in the meantime)
-          // by posting x != yi+base.
-          if(!live_yi.elem(yi))
-            continue;
-
-          if(!enqueue(*s, x != yi + base, ex_thunk(ex<&P::ex_x>, yi, expl_thunk::Ex_BTPRED)))
-            return false;
-          live_yi.remove(yi);
-
-          if(yi == z_lb_supp)
-            change |= LB_SUPP;
-          if(yi == z_ub_supp)
-            change |= UB_SUPP;
-        }
-        dead_yi.clear();
-
-        if(live_yi.size() == 1) {
-          trail_change(s->persist, mode, (unsigned char) E_Fix);
-        }
-        // Defer the failure to unit propagation.
-        if(live_yi.size() == 0)
-          return true;
-      }
-      assert(live_yi.size() > 0);
-
-      // x is fixed: z = ys[x].           
-      if(mode == E_Fix) {
-        assert(live_yi.size() == 1);
-        int yi = live_yi[0];
-        if(lb(z) != lb(ys[yi])) {
-          if(lb(z) < lb(ys[yi])) {
-            if(!set_lb(z, lb(ys[yi]), ex_thunk(ex<&P::ex_z_lb>,1)))
-              return false;
-          } else {
-            if(!set_lb(ys[yi], lb(z), ex_thunk(ex<&P::ex_y_lb>,yi)))
-              return false;
-          }
-        }
-        if(ub(z) != ub(ys[yi])) {
-          if(ub(z) > ub(ys[yi])) {
-            if(!set_ub(z, ub(ys[yi]), ex_thunk(ex<&P::ex_z_ub>,1)))
-              return false;
-          } else {
-            if(!set_ub(ys[yi], ub(z), ex_thunk(ex<&P::ex_y_ub>, yi)))
-              return false;
-          }
-        }
-        return true;
-      }
-
-      // Otherwise, deal with LB/UB supports
-      int live_sz = live_yi.size();
-      bool saved = false;
-      if(change&(Z_LB|Z_UB)) {
-        // Removal invalidates iterators and swaps elements;
-        // iterating backwards is safe.
-        // FIXME: Correct way of doing this is using a min-max heap
-        // tracking the support value. Then we only need to look at
-        // vars where support is violated.
-        if(change&Z_LB) {
-          int z_lb = lb(z);
-          for(int ii = live_yi.size()-1; ii >= 0; --ii) {
-            int yi = live_yi[ii];
-            if(ub(ys[yi]) < z_lb) {
-              supp[yi] = ub(ys[yi]);
-              if(!enqueue(*s, x != yi+base, ex_thunk(ex<&P::ex_x>,yi, expl_thunk::Ex_BTPRED)))
+      for(int t : tasks) {
+        switch(t) {
+          Z_LB:
+            {
+              int yi = llb_tree.root();
+              if(!set_lb(z, lb(ys[yi]), expl<&P::ex_z_lb>(0)))
                 return false;
-              if(!saved) {
-                trail_push(s->persist, live_yi.sz);
-                saved = true;
-              }
-              live_yi.remove(yi);
             }
-          }
-        }
-        if(change&Z_UB) {
-          int z_ub = ub(z);
-          for(int ii = live_yi.size()-1; ii >= 0; --ii) {
-            int yi = live_yi[ii];
-            if(z_ub < lb(ys[yi])) {
-              supp[yi] = lb(ys[yi]);
-              if(!enqueue(*s, x != yi+base, ex_thunk(ex<&P::ex_x>,yi, expl_thunk::Ex_BTPRED)))
+            break;
+          Z_UB:
+            {
+              int yi = gub_tree.root();
+              if(!set_ub(z, ub(ys[yi]), expl<&P::ex_z_ub>(0)))
                 return false;
-              if(!saved) {
-                trail_push(s->persist, live_yi.sz);
-                saved = true;
-              }
-              live_yi.remove(yi);
             }
-          }
-        }
-        if(!live_yi.elem(z_lb_supp))
-          change |= LB_SUPP;
-        if(!live_yi.elem(z_ub_supp))
-          change |= UB_SUPP;
-      } /* else { */
-        if(change&LB_SUPP) {
-          int z_lb = lb(z);
-          int lb_yi = ys.size();
-          int lb_val = INT_MAX;
-          for(int yi : live_yi) {
-            assert(!s->state.is_inconsistent(x == yi + base));
-            int y_lb = lb(ys[yi]);
-            if(y_lb <= z_lb) {
-              z_lb_supp.set(s->persist, yi);
-              goto z_lb_found;
-            } else if(y_lb < lb_val) {
-              lb_yi = yi;
-              lb_val = y_lb;
+            break;
+          Y_LB:
+            {
+              assert(live_yi.size() == 1);
+              int yi = live_yi[0];
+              if(!set_lb(ys[yi], lb(z), expl<&P::ex_y_lb>(yi)))
+                return false;
             }
-          }
-          if(!set_lb(z, lb_val, ex_thunk(ex<&P::ex_z_lb>,live_sz)))
-            return false;
-          z_lb_supp.set(s->persist, lb_yi);
-        }
-     z_lb_found:
-        if(change&UB_SUPP) {
-          int z_ub = ub(z);
-          int ub_yi = ys.size();
-          int ub_val = INT_MIN;
-          for(int yi : live_yi) {
-            int y_ub = ub(ys[yi]); 
-            if(y_ub >= z_ub) {
-              z_ub_supp.set(s->persist, yi);
-              goto z_ub_found;
-            } else if(y_ub > ub_val) {
-              ub_yi = yi;
-              ub_val = y_ub;
+            break;
+          Y_UB:
+            {
+              assert(live_yi.size() == 1);
+              int yi = live_yi[0];
+              if(!set_ub(ys[yi], ub(z), expl<&P::ex_y_ub>(yi)))
+                return false;
             }
-          }
-          if(!set_ub(z, ub_val, ex_thunk(ex<&P::ex_z_ub>,live_sz)))
-            return false;
-          z_ub_supp.set(s->persist, ub_yi);
+            break;
+          SNUFF_LOW:
+            { // Kill any indices with ub(y) < lb(z)
+              if(!lub_tree.forall_lt([&](int yi) {
+                if(!enqueue(*s, x != yi, expl<&P::ex_x_low>(yi)))
+                  return false;
+                  live_yi.remove(yi);
+                }, lb(z)))
+                return false;
+            }
+            break;
+          SNUFF_HIGH:
+            {
+              if(!glb_tree.forall_lt([&](int yi) {
+                if(!enqueue(*s, x != yi, expl<&P::ex_x_high>(yi)))
+                  return false;
+                live_yi.remove(yi);
+              }, ub(z)))
+                return false;
+            }
+            break;
+          default:
+            ERROR;
         }
-      /* } */
-     z_ub_found:
-#ifdef DEBUG_ELEM
-      check_supps();
-      check_live();
-#endif
-      change = 0;
+      }
+      tasks.clear();
 
       return true;
-    }
+   }
 
-    int base;
     intvar x;
     intvar z;
     vec<intvar> ys;
 
-    patom_t r;
+    struct MinLB {
+      int operator()(solver_data* s, int yi) {
+        if(!p->live_yi.elem(yi)) return INT_MAX;
+        return ys[yi].lb(s);
+      }
+    };
+    struct MinUB {
+      int operator()(solver_data* s, int yi) {
+        if(!p->live_yi.elem(yi)) return INT_MAX;
+        return ys[yi].ub(s);
+      }
+    };
+    struct MaxLB {
+      int operator()(solver_data* s, int yi) {
+        if(!p->live_yi.elem(yi)) return INT_MAX;
+        return -ys[yi].lb(s);
+      }
+    };
+    struct MaxUB {
+      int operator()(solver_data* s, int yi) {
+        if(!p->live_yi.elem(yi)) return INT_MAX;
+        return -ys[yi].ub(s);
+      }
+    };
 
-    // Is x fixed?
-    unsigned char mode;
+    // Track the least LB and greatest UB (of feasible
+    // indices), to maintain supports for z bounds...
+    weak_min_tree<int, EvalLLB> llb_tree;
+    weak_min_tree<int, EvalGUB> gub_tree;
 
+    // ...the next lower/upper bound thresholds
+    // which will cause a variable will be killed...
+    min_tree<int, EvalGLB> glb_tree;
+    min_tree<int, EvalLUB> lub_tree;
+    // ...and the set of surviving indices
     p_sparseset live_yi;
 
-    vec<intvar::val_t> supp; // What value shows z & ys[yi] != nil.
-    Tint z_lb_supp; // Which yi supports lb(z)
-    Tint z_ub_supp; // Which yi supports ub(z)
-
-    vec<int> dead_yi;
-    unsigned char change;
+    // If x=k was removed, what value separated
+    // ys[k] from z?
+    vec<intvar::val_t> sep; 
 };
-
+#endif
 
 // Non-incremental interval-based propagation
 #if 0
@@ -1373,9 +1257,95 @@ bool int_element(solver_data* s, intvar z, intvar x, vec<int>& ys, patom_t r) {
 #endif
 }
 
+bool elem_var_dom_dec(solver_data* s, intvar z, intvar x, vec<intvar>& ys) {
+  // fprintf(stderr, "%%%% Decomposing var_int_element...\n");
+  // Collect the supports for z values.
+  for(int k : z.domain(s)) {
+    if(!z.in_domain(s->state.p_vals, k))
+      continue;
+
+    vec<int> y_supps;
+    for(int yi : irange(ys.size())) {
+      if(!x.in_domain(s->state.p_vals, yi+1))
+        continue;
+      if(!ys[yi].in_domain(s->state.p_vals, k)) 
+        continue;
+      y_supps.push(yi);
+    }
+    if(y_supps.size() == 0) {
+      if(!enqueue(*s, z != k, reason()))
+        return false;
+    } else if(y_supps.size() == 1) {
+      int yi = y_supps[0];
+      if(!add_clause(s, z != k, x == yi+1))
+        return false;
+      if(!add_clause(s, z != k, ys[yi] == k))
+        return false;
+    } else {
+      vec<clause_elt> cl { z != k };
+      for(int yi : y_supps) {
+        patom_t at(new_bool(*s)); 
+        add_clause(s, ~at, x == yi+1);
+        add_clause(s, ~at, ys[yi] == k);
+        add_clause(s, x != yi+1, ys[yi] != k, at);
+
+        add_clause(s, ~at, z == k);
+        cl.push(at);
+      }
+      if(!add_clause(*s, cl))
+        return false;
+    }
+  }
+  // Now collect supports for each index.
+  for(int yi : irange(ys.size())) {
+    if(!x.in_domain(s->state.p_vals, yi+1))
+      continue;
+    
+    vec<int> y_supps;
+    for(int k : z.domain(s)) {
+      if(!z.in_domain(s->state.p_vals, k))
+        continue;
+      if(!ys[yi].in_domain(s->state.p_vals, k))
+        continue; 
+      y_supps.push(k);
+    }
+    if(y_supps.size() == 0) {
+      if(!enqueue(*s, x != yi+1, reason()))
+        return false;
+    } else if(y_supps.size() == 1) {
+      int k = y_supps[0];
+      if(!add_clause(s, x != yi+1, z == k))
+        return false;
+      if(!add_clause(s, x != yi+1, ys[yi] == k))
+        return false;
+    } else {
+      vec<clause_elt> cl { x != yi+1 };
+      for(int k : y_supps) {
+        patom_t at(new_bool(*s));
+        add_clause(s, ~at, z == k);
+        add_clause(s, ~at, ys[yi] == k);
+        add_clause(s, at, z != k, ys[yi] != k);
+
+        cl.push(at);
+      }
+      if(!add_clause(*s, cl))
+        return false;
+    }
+  }
+  return true;
+}
 bool var_int_element(solver_data* s, intvar z, intvar x, vec<intvar>& ys, patom_t r) {
   // new elem_var_bnd(s, z, x, ys, 1, r);
   // return true; 
+#if 0
+  if(z.dom_sz_exact(s->state.p_vals) <= 2 * ys.size()) {
+    assert(s->state.is_entailed(r));
+    return elem_var_dom_dec(s, z, x, ys);
+  } else {
+    return elem_var_bnd::post(s, z, x, ys, 1, r);
+  }
+#else
   return elem_var_bnd::post(s, z, x, ys, 1, r);
+#endif
 }
 }

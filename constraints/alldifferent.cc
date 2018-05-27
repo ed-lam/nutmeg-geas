@@ -18,12 +18,15 @@ public:
   alldiff_v(solver_data* s, vec<intvar>& _xs)
     : propagator(s), xs(_xs) {
     for(int ii : irange(xs.size())) {
-      if(lb(xs[ii]) == ub(xs[ii])) {
+      if(is_fixed(xs[ii])) {
         // Kill the value in other vars
         intvar::val_t k(lb(xs[ii]));
         for(int jj : irange(xs.size())) {
           if(ii == jj) continue;
-          enqueue(*s, xs[jj] != k, reason());
+          if(in_domain(xs[jj], k)) {
+            if(!enqueue(*s, xs[jj] != k, reason()))
+              throw RootFail();
+          }
         }
       } else {
         xs[ii].attach(E_FIX, watch<&P::wake>(ii, Wt_IDEM));
@@ -38,16 +41,16 @@ public:
       assert(s->state.is_inconsistent(r));
 
       for(int ii : irange(xi)) {
-        if(k < lb(xs[ii]) || ub(xs[ii]) < k)
-          continue;
-        if(!enqueue(*s, xs[ii] != k, r))
-          return false;
+        if(in_domain(xs[ii], k)) {
+          if(!enqueue(*s, xs[ii] != k, r))
+            return false;
+        }
       }
       for(int ii : irange(xi+1, xs.size())) {
-        if(k < lb(xs[ii]) || ub(xs[ii]) < k)
-          continue;
-        if(!enqueue(*s, xs[ii] != k, r))
-          return false;
+        if(in_domain(xs[ii], k)) {
+          if(!enqueue(*s, xs[ii] != k, r))
+            return false;
+        }
       }
     }
     fixed.clear();
@@ -148,8 +151,6 @@ class alldiff_b : public propagator {
 bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True) {
   assert(r == at_True);
 
-  // new alldiff_v(s, xs);
-  // return true;
   return alldiff_v::post(s, xs);
 }
 

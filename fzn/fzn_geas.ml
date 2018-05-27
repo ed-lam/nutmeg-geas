@@ -605,7 +605,7 @@ let post_bool_sum_geq_ solver r bs k =
   B.linear_le solver At.at_True (Array.append [|-1, r|] xs) (-k)
 
 let post_bool_sum_geq solver r bs k : bool =
-  B.bool_linear_ge solver r (Array.map (fun b -> 1, b) bs) k
+  B.bool_linear_ge solver (At.at_True) r (Array.map (fun b -> 1, b) bs) k
   
 let process_core solver pred_map thresholds core =
   (* check_core solver core ; *)

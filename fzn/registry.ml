@@ -164,7 +164,7 @@ let post_lin_le s r cs xs k =
       match booleanize_linterms ts k with
       | Some (ts', k') ->
         let zero = S.new_intvar s 0 0 in
-        B.bool_linear_ge s zero (Array.of_list ts') (- k')
+        B.bool_linear_ge s r zero (Array.of_list ts') (- k')
       | None -> B.linear_le s r (Array.of_list ts) k
     end
 
@@ -713,14 +713,14 @@ let bool_linear_ge solver args anns =
   let cs = Pr.get_array Pr.get_int args.(1) in
   let xs = Pr.get_array get_atom args.(2) in
   let k = Pr.get_int args.(3) in
-  B.bool_linear_ge solver z (Array.mapi (fun i x -> cs.(i), x) xs) k
+  B.bool_linear_ge solver (At.at_True) z (Array.mapi (fun i x -> cs.(i), x) xs) k
 
 let bool_linear_le solver args anns =
   let z = force_ivar solver args.(0) in
   let cs = Pr.get_array Pr.get_int args.(1) in
   let xs = Pr.get_array get_atom args.(2) in
   let k = Pr.get_int args.(3) in
-  B.bool_linear_le solver z (Array.mapi (fun i x -> cs.(i), x) xs) k
+  B.bool_linear_le solver (At.at_True) z (Array.mapi (fun i x -> cs.(i), x) xs) k
 
 (* Maybe separate this out into a separate
  * per-solver registrar *)

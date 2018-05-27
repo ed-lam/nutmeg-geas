@@ -288,7 +288,7 @@ inline bool in_domain(const ctx_t& ctx, intvar x, int k) {
   if(x.lb(ctx) > k)
     return false;
 
-  auto it = x.ext->eqtable.find(k-x.off);
+  auto it = x.ext->eqtable.find(intvar::from_int(k-x.off));
   if(it == x.ext->eqtable.end())
     return x.ext->kind != ivar_ext::IV_Strict;
 

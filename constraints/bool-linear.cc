@@ -22,6 +22,7 @@ protected:
   
   
   // Parameters
+  patom_t r;
   R z;
   vec<term> xs; // Sorted by _decreasing_ weight
   V k;
@@ -30,6 +31,11 @@ protected:
   // TrV low;
   V low;
   Tint idx;
+
+  watch_result wake_r(int _r) {
+    queue_prop();
+    return Wt_Keep;
+  }
 
   watch_result wake_z(int _xi) {
     queue_prop();
@@ -56,7 +62,7 @@ protected:
       if(t.x.lb(ctx))
         l += t.c;
     }
-    return z.ub(ctx) >= l;
+    return !r.lb(ctx) || z.ub(ctx) >= l;
   }
   bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
   
@@ -87,6 +93,7 @@ cover_found:
     }
 #else
     /* */
+    EX_PUSH(expl, ~r);
     V cap(z.lb_of_pval(p) - k);
     for(term t : xs) {
       if(lb(t.x)) {
@@ -106,7 +113,24 @@ cover_found:
 #endif
   }
 
+  void ex_r(int xi, pval_t _p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, z > ub(z));
+    V cap(ub(z) - k);
+    if(cap < 0)
+      return;
+    for(term t : xs) {
+      if(lb(t.x)) {
+        expl.push(~t.x);
+        if(cap < t.c)
+          return;
+        cap -= t.c;
+      }
+    }
+    ERROR;
+  }
+
   void ex_x(int xi, pval_t _p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, ~r);
     if(ub(z) < k + xs[xi].c) {
       expl.push(z >= k + xs[xi].c);
       return;
@@ -161,8 +185,8 @@ cover_found:
   }
 
 public:
-  bool_lin_ge(solver_data* s, R _z, vec<term>& _ts, V _k)
-    : propagator(s), z(_z), k(_k), low(k), idx(0) {
+  bool_lin_ge(solver_data* s, patom_t _r, R _z, vec<term>& _ts, V _k)
+    : propagator(s), r(_r), z(_z), k(_k), low(k), idx(0) {
     // Make sure all coefficients are positive, and remove
     // any fixed values.
     for(term t : _ts) {
@@ -182,9 +206,6 @@ public:
     // set(low, k);   
     low = k;
 
-    if(!set_lb(z, k, reason()))
-      throw new RootFail {};
-
     std::sort(xs.begin(), xs.end(),
       [](const term& t, const term& u) { return t.c > u.c; });
 
@@ -193,10 +214,17 @@ public:
     for(int ti : irange(xs.size())) {
       attach(s, xs[ti].x, this->template watch<&P::wake_x>(ti, P::Wt_IDEM));
     }
+
+    if(lb(r)) {
+      if(lb(z) < k && !set_lb(z, k, reason()))
+        throw RootFail();
+    } else {
+      attach(s, r, this->template watch<&P::wake_r>(0, P::Wt_IDEM));
+    }
   }
 
   bool propagate(vec<clause_elt>& confl) {
-#if 1
+#if 0
     V l(k);
     for(term t : xs) {
       if(lb(t.x))
@@ -204,6 +232,13 @@ public:
     }
     assert(l == low);
 #endif
+    if(ub(z) < low) {
+      if(!enqueue(*s, ~r, this->template expl<&P::ex_r>(0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+    if(!lb(r))
+      return true;
+
     if(lb(z) < low) {
       if(!set_lb(z, low, this->template expl<&P::ex_z>(0, expl_thunk::Ex_BTPRED)))
         return false;
@@ -288,28 +323,28 @@ int normalize_terms(vec<int>& cs, vec<patom_t>& xs, vec<term>& ts) {
 }
 
 template<class V, class R>
-bool post_bool_lin_ge(solver_data* s, R z, vec<V>& cs, vec<patom_t>& xs, V k) {
+bool post_bool_lin_ge(solver_data* s, patom_t r, R z, vec<V>& cs, vec<patom_t>& xs, V k) {
   vec< typename bool_lin_ge<V, R>::term > ts;
   assert(cs.size() == xs.size());
   for(int ii : irange(xs.size()))
     ts.push(typename bool_lin_ge<V, R>::term { cs[ii], xs[ii] });
-  return bool_lin_ge<V, R>::post(s, z, ts, k);
+  return bool_lin_ge<V, R>::post(s, r, z, ts, k);
 }
 template<class V, class R>
-bool post_bool_lin_le(solver_data* s, R z, vec<V>& cs, vec<patom_t>& xs, V k) {
+bool post_bool_lin_le(solver_data* s, patom_t r, R z, vec<V>& cs, vec<patom_t>& xs, V k) {
   vec< typename bool_lin_ge<V, R>::term > ts;
   assert(cs.size() == xs.size());
   for(int ii : irange(xs.size()))
     ts.push(typename bool_lin_ge<V, R>::term { -cs[ii], xs[ii] });
-  return bool_lin_ge<V, R>::post(s, -z, ts, -k);
+  return bool_lin_ge<V, R>::post(s, r, -z, ts, -k);
 }
 
 
-bool bool_linear_ge(solver_data* s, intvar z, vec<int>& cs, vec<patom_t>& xs, int k) {
-  return post_bool_lin_ge(s, z, cs, xs, k);
+bool bool_linear_ge(solver_data* s, patom_t r, intvar z, vec<int>& cs, vec<patom_t>& xs, int k) {
+  return post_bool_lin_ge(s, r, z, cs, xs, k);
 }
-bool bool_linear_le(solver_data* s, intvar z, vec<int>& cs, vec<patom_t>& xs, int k) {
-  return post_bool_lin_le(s, z, cs, xs, k);
+bool bool_linear_le(solver_data* s, patom_t r, intvar z, vec<int>& cs, vec<patom_t>& xs, int k) {
+  return post_bool_lin_le(s, r, z, cs, xs, k);
 }
 
 /*

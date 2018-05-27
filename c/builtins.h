@@ -26,8 +26,8 @@ typedef struct {
 } at_linterm;
 
 // int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k);
-int bool_linear_le(solver s, intvar, at_linterm* ts, int sz, int k);
-int bool_linear_ge(solver s, intvar, at_linterm* ts, int sz, int k);
+int bool_linear_le(solver s, atom, intvar, at_linterm* ts, int sz, int k);
+int bool_linear_ge(solver s, atom, intvar, at_linterm* ts, int sz, int k);
 int bool_linear_ne(solver s, atom r, at_linterm* ts, int sz, int k);
 int atmost_1(solver s, atom r, atom* xs, int sz);
 int atmost_k(solver s, atom r, atom* xs, int sz, int k);

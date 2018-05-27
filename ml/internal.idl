@@ -14,8 +14,8 @@ typedef struct {
   [mlname(ac)] int c;
   [mlname(ax)] atom x; 
 } at_linterm;
-boolean bool_linear_le([in] solver s, intvar z, [in,size_is(sz)] at_linterm ts[], int sz, int k);
-boolean bool_linear_ge([in] solver s, intvar z, [in,size_is(sz)] at_linterm ts[], int sz, int k);
+boolean bool_linear_le([in] solver s, atom r, intvar z, [in,size_is(sz)] at_linterm ts[], int sz, int k);
+boolean bool_linear_ge([in] solver s, atom r, intvar z, [in,size_is(sz)] at_linterm ts[], int sz, int k);
 boolean bool_linear_ne([in] solver s, atom r, [in,size_is(sz)] at_linterm ts[], int sz, int k);
 
 typedef struct {

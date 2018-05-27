@@ -6,6 +6,7 @@
 #include "vars/intvar.h"
 #include "mtl/bool-set.h"
 #include "mtl/p-sparse-set.h"
+#include "mtl/support-list.h"
 #include "utils/interval.h"
 
 // using max = std::max;
@@ -139,6 +140,17 @@ public:
     z.attach(E_LU, watch_callback(wake_default, this, 2));
     for(int ii : irange(2))
       xs[ii].attach(E_LU, watch_callback(wake_default, this, ii));
+  }
+
+  bool check_sat(ctx_t& ctx) {
+    if(xs[0].ub(ctx) * xs[1].ub(ctx) < z.lb(ctx))
+      return false;
+    if(z.ub(ctx) < xs[0].lb(ctx) * xs[1].lb(ctx))
+      return false;
+    return true;
+  }
+  bool check_unsat(ctx_t& ctx) {
+    return !check_sat(ctx);
   }
 
   bool propagate(vec<clause_elt>& confl) {
@@ -1039,8 +1051,8 @@ bool int_ne(solver_data* s, intvar x, intvar y, patom_t r) {
         return false;
     }
   } else {
-    return ineq::post(s, x, y, r);
-    // return ineq_s::post(s, x, y, r);
+    // return ineq::post(s, x, y, r);
+    return ineq_s::post(s, x, y, r);
   }
   return true;
 }
@@ -1631,6 +1643,42 @@ public:
   int cut;
   Tchar status;
 };
+
+/* // TODO
+class int_eq_hr_dom : public propagator, public prop_inst<int_eq_hr_dom> {
+  watch_result wake_rem(int vi) {
+    if(supports.support() != (vi>>1)) {
+      watched[vi] = false; 
+      return Wt_Drop;
+    }
+    // Try to find a replacement
+    if(replace_support())
+      return Wt_Drop;
+    queue_prop();
+    return Wt_Keep;
+  }
+public:
+  int_eq_hr_dom(solver_data* s, intvar _x, intvar _y, patom_t _r)
+    : x(_x), y(_y), r(_r) {
+  }
+
+  bool replace_support(void) {
+    if(supports.replace_support(s,
+      [&](unsigned int vi) {
+        int k = vals[vi];
+        return in_domain(x, k) && in_domain(y, k); })) {
+      // Found replaced support
+    }
+  }
+  vec<int> vals;
+  
+  support_list<unsigned int> supports;
+  // Has size 2 * vals.size(), to track which
+  // (arg, val) pairs already have watches.
+  vec<bool> watched;
+};
+*/
+
 bool int_eq(solver_data* s, intvar x, intvar y, patom_t r) {
   if(s->state.is_inconsistent(r))
     return true;

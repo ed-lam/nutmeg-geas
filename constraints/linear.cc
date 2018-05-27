@@ -2,6 +2,7 @@
 #include <map>
 #include "mtl/Vec.h"
 #include "solver/solver_data.h"
+#include "mtl/min-tree.h"
 #include "vars/intvar.h"
 
 #include "engine/propagator_ext.h"
@@ -808,6 +809,162 @@ class lin_le_tree : public propagator, public prop_inst<lin_le_tree> {
     char status;
 };
 
+int succ(int k) { return k+1; }
+template<class V, class R>
+class lin_le_mtree : public propagator, public prop_inst<lin_le_mtree<V, R> > {
+  // How much could xi increase the total by?
+  typedef lin_le_mtree<V, R> P;
+  struct term {
+    V c;
+    R x;
+  };
+
+  V envelope(ctx_t& ctx, int xi) {
+    return xs[xi].c * (xs[xi].x.ub(ctx) - xs[xi].x.lb(ctx)); 
+  }
+  // How much has the total just increased by?
+  V delta(int xi) {
+    return xs[xi].c * (xs[xi].x.lb(s->state.p_vals) - xs[xi].x.lb(s->wake_vals));
+  }
+
+  struct MaxEnv {
+    V operator()(solver_data* s, int ii) { return -p->envelope(s->state.p_vals, ii); }
+    lin_le_mtree<V, R>* p;
+  };
+
+  watch_result wake_r(int _r) {
+    if(mt.root_val() < -slack)
+      queue_prop();
+    return Wt_Keep;
+  }
+
+  watch_result wake_x(int xi) {
+    // Update slack.
+    set(slack, slack - delta(xi));
+    if(mt.root_val() < -slack) {
+      if(lb(r) || slack < 0)
+        queue_prop();
+    }
+    return Wt_Keep;
+  }
+
+  // Explain why sum (i != skip) (c_i x_i) > cap.
+  void ex_overload(V cap, int skip, vec<clause_elt>& expl) {
+    vec<int> ex_vars;
+    // Collect root contributions.
+    for(int xi : irange(xs.size())) {
+      if(xi == skip)
+        continue;
+      cap -= xs[xi].c * lb_0(xs[xi].x);
+    }
+    if(cap < 0)
+      return;
+    for(int xi : irange(xs.size())) {
+      if(xi == skip)
+        continue;
+     
+      V diff(xs[xi].c * (lb(xs[xi].x) - lb_0(xs[xi].x)));
+      if(diff == 0)
+        continue;
+      ex_vars.push(xi);
+      if(diff > cap) {
+        V avail(diff - cap);
+        // Walk back through the vars, relaxing where we can.
+        for(int xi : ex_vars) {
+          V diff = xs[xi].c * (lb(xs[xi].x) - lb_0(xs[xi].x));
+          if(diff < avail) {
+            avail -= diff;
+            continue;
+          }
+          V diff_p = xs[xi].c * (lb(xs[xi].x) - lb_prev(xs[xi].x));
+          if(diff_p < avail) {
+            avail -= diff_p;
+            EX_PUSH(expl, xs[xi].x < lb_prev(xs[xi].x));
+            continue;
+          }
+          EX_PUSH(expl, xs[xi].x < lb(xs[xi].x));
+        }
+        return;
+      } else {
+        cap -= diff;
+      }
+    }
+    // If we reach here, we've processed all variables
+    // without overload.
+    ERROR;
+  }
+
+  void ex_r(int _r, pval_t _p, vec<clause_elt>& expl) {
+    // We need to collect a set of atoms exceeding k.
+    // assert(compute_lb() > k);
+    ex_overload(k, -1, expl);
+  }
+  void ex_x(int xi, pval_t p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, ~r);
+    V x_ub(xs[xi].x.ub_of_pval(p));
+    // assert(compute_lb() + xs[xi].c * (succ(x_ub) - xs[xi].x.lb(s)) > k);
+    ex_overload(k - xs[xi].c * succ(x_ub), xi, expl);
+  }
+
+public:
+  lin_le_mtree(solver_data* s, patom_t _r, vec<V>& cs, vec<R>& vs, V _k)
+    : propagator(s), r(_r), xs(), k(_k), mt(s, MaxEnv {this}, 0), slack(k) {
+    // Normalize coefficients as usual.
+    for(int ii : irange(vs.size())) {
+      V c(cs[ii]);
+      R v(vs[ii]); 
+
+      if(c < 0) {
+        c = -c;
+        v = -v;
+      }
+      V v_p(lb_prev(v));
+      if(v_p != 0) {
+        k -= c * v_p;
+        v -= v_p;
+      }
+      v.attach(E_LB, this->template watch<&P::wake_x>(xs.size(), P::Wt_IDEM));
+      xs.push(term { c, v });
+    }
+    set(slack, k);
+    mt.rebuild(s, xs.size());
+
+    if(!lb(r)) {
+      attach(s, r, this->template watch<&P::wake_r>(0, P::Wt_IDEM));
+    }
+  }
+  V compute_lb(void) {
+    V l(0);  
+    for(term t : xs)
+      l += t.c * lb(t.x);
+    return l;
+  }
+  bool propagate(vec<clause_elt>& confl) {
+    // assert(slack == k - compute_lb());
+    if(slack < 0) {
+      if(!enqueue(*s, ~r, this->template expl<&P::ex_r>(0, expl_thunk::Ex_BTPRED)))
+        return false;
+    }
+    if(!lb(r))
+      return true;
+
+    return mt.forall_lt([&](int xi) {
+      V cap = lb(xs[xi].x) + slack/(xs[xi].c);
+      // std::cerr << "Setting var " << xi << " to " << cap << std::endl;
+      return set_ub(xs[xi].x, cap, this->template expl<&P::ex_x>(xi, expl_thunk::Ex_BTPRED));
+    }, s, -slack);
+  }
+
+  patom_t r;
+  vec<term> xs;
+  V k;
+
+  // We use a weak_min_tree, but we never call repair_min;
+  // just forall_lt.
+  weak_min_tree<V, MaxEnv> mt;
+  Tint slack;
+};
+
 #if 0
 class lin_le_tree_ps : public propagator, public prop_inst<lin_le_tree_ps> {
   enum { Var_None = -1 };
@@ -1241,28 +1398,54 @@ class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
   inline void ex_trig(trigger t, vec<clause_elt>& expl) {
     switch(t.kind) {
       case T_Atom:
-        expl.push(~r);
+        EX_PUSH(expl, ~r);
         return;
       case T_Var:
-      /*
-        expl.push(vs[t.idx].x < vs[t.idx].x.lb(s));
-        expl.push(vs[t.idx].x > vs[t.idx].x.ub(s)); 
-        */
-        expl.push(vs[t.idx].x != vs[t.idx].x.lb(s));
+#if 0
+        EX_PUSH(expl, vs[t.idx].x < vs[t.idx].x.lb(s));
+        EX_PUSH(expl, vs[t.idx].x > vs[t.idx].x.ub(s)); 
+#else
+        EX_PUSH(expl, vs[t.idx].x != vs[t.idx].x.lb(s));
+#endif
         return;
     }
   }
 
-  void expl(int xi, vec<clause_elt>& expl) {
+  void explain(int xi, vec<clause_elt>& expl) {
     ex_trig(trigs[1 - t_act], expl);
     for(int ti = 2; ti < trigs.size(); ti++)
       ex_trig(trigs[ti], expl);
 
     if(xi&E_LB)
-      expl.push(vs[t_act].x < excl_val);
+      EX_PUSH(expl, vs[t_act].x < excl_val);
     if(xi&E_UB)
-      expl.push(vs[t_act].x > excl_val);
+      EX_PUSH(expl, vs[t_act].x > excl_val);
   }
+
+  void ex_xi(int xi, pval_t _p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, ~r);
+    for(int ii = 0; ii < vs.size(); ++ii) {
+      if(ii == xi)
+        continue;
+#if 1
+      EX_PUSH(expl, vs[ii].x != lb(vs[ii].x));
+#else
+      EX_PUSH(expl, vs[ii].x < lb(vs[ii].x));
+      EX_PUSH(expl, vs[ii].x > ub(vs[ii].x));
+#endif
+    }
+  }
+  void ex_r(int _r, pval_t _p, vec<clause_elt>& expl) {
+    for(int ii = 0; ii < vs.size(); ++ii) {
+#if 1
+      EX_PUSH(expl, vs[ii].x != lb(vs[ii].x));
+#else
+      EX_PUSH(expl, vs[ii].x < lb(vs[ii].x));
+      EX_PUSH(expl, vs[ii].x > ub(vs[ii].x));
+#endif
+    }
+  }
+
 
 public:
   struct elt {
@@ -1290,17 +1473,31 @@ public:
     attach_trigger(trigs[1], 1);
   }
 
+  bool check_sat(ctx_t& ctx) {
+    int sum = 0; 
+    for(auto t : vs) {
+      if(!t.x.is_fixed(ctx))
+        return true;
+      sum += t.c * t.x.lb(ctx);
+    }
+    return !r.lb(ctx) || (sum != k);
+  }
+  bool check_unsat(ctx_t& ctx) {
+    return !check_sat(ctx);
+  }
+
   bool propagate(vec<clause_elt>& confl) {
 #ifdef LOG_PROP
     std::cout << "[[Running linear_ne]]" << std::endl;
 #endif
+#if 1
     if(status&S_Active) {
       int idx = trigs[t_act].idx;
       if(vs[idx].x.lb(s) == excl_val) {
-        return set_lb(vs[idx].x, excl_val+1, ex_thunk(ex_nil<&P::expl>, E_LB));
+        return set_lb(vs[idx].x, excl_val+1, ex_thunk(ex_nil<&P::explain>, E_LB));
       } else {
         assert(vs[idx].x.ub(s) == excl_val);
-        return set_ub(vs[idx].x, excl_val-1, ex_thunk(ex_nil<&P::expl>, E_UB));
+        return set_ub(vs[idx].x, excl_val-1, ex_thunk(ex_nil<&P::explain>, E_UB));
       }
     }
 
@@ -1311,7 +1508,7 @@ public:
 
       if(sum)
         return true;
-      return enqueue(*s, ~r, ex_thunk(ex_nil<&P::expl>, 0));
+      return enqueue(*s, ~r, ex_thunk(ex_nil<&P::explain>, 0));
     } else {
       int vi = trigs[t_act].idx;
       intvar::val_t sum = k;
@@ -1320,8 +1517,10 @@ public:
       for(int ii = vi+1; ii < vs.size(); ii++)
         sum -= vs[ii].c * vs[ii].x.lb(s);
 
-      if(sum % vs[vi].c != 0)
+      if(sum % vs[vi].c != 0) {
+        excl_val = INT_MAX;
         return true;
+      }
       
       // Check if it's already satisfied or propagatable.
       excl_val = sum/vs[vi].c;   
@@ -1346,9 +1545,45 @@ public:
         return true;
       if(vs[vi].x.ub(s) < excl_val)
         return true;
-      return enqueue(*s, vs[vi].x != excl_val, ex_thunk(ex_nil<&P::expl>, 0));
+      return enqueue(*s, vs[vi].x != excl_val, ex_thunk(ex_nil<&P::explain>, 0));
 #endif
     }
+#else
+    // Dumb, non-incremental version.
+    int ii = 0;
+    int total = k;
+    for(; ii < vs.size(); ++ii) {
+      if(!is_fixed(vs[ii].x)) {
+        // If there's an un-fixed variable and r isn't set,
+        // Don't bother.
+        if(!lb(r))
+          return true;
+        // Otherwise, finish computing the sum.
+        int jj = ii+1;
+        for(; jj < vs.size(); ++jj) {
+          if(!is_fixed(vs[jj].x))
+            return true;
+          
+          total -= vs[jj].c * lb(vs[jj].x);
+        }
+        // Exactly one un-fixed variable
+        if(total % vs[ii].c != 0)
+          return true;
+        int excl = total / vs[ii].c;
+        if(!in_domain(vs[ii].x, excl))
+          return true;
+        if(!enqueue(*s, vs[ii].x != (total / vs[ii].c), expl<&P::ex_xi>(ii)))
+          return false;
+        return true;
+      }
+      total -= vs[ii].c * vs[ii].x.lb(s);
+    }
+    // Finished computing the sum.
+    if(total == 0) {
+      if(!enqueue(*s, ~r, expl<&P::ex_r>(0)))
+        return false;
+    }
+#endif
     return true;
   }
 
@@ -1427,12 +1662,8 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   */
 //   new int_linear_le(s, r, ks, vs, k);
 #ifndef USE_CHAIN
-  // new lin_le_inc(s, r, ks, vs, k);
-  // new lin_le_tree(s, r, ks, vs, k);
-  // return true;
-
-  // return int_linear_le::post(s, r, ks, vs, k);
-  return lin_le_inc::post(s, r, ks, vs, k);
+  // return lin_le_inc::post(s, r, ks, vs, k);
+  return lin_le_mtree<int, intvar>::post(s, r, ks, vs, k);
   // return lin_le_tree::post(s, r, ks, vs, k);
 #else
   return linear_le_chain(s, r, ks, vs, k);

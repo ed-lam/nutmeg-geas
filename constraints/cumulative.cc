@@ -467,6 +467,7 @@ public:
       , profile_tasks(starts.size())
       , active_tasks(starts.size())
       , exs_saved(false)
+      , profile()
       , lb_change(starts.size())
       , ub_change(starts.size())
       , profile_state(P_Invalid) {
