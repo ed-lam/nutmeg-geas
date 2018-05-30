@@ -662,5 +662,67 @@ intvar permute_intvar(solver_data* s, intvar x, vec<int>& perm) {
 #endif
 }
 
+void ex_eq_from_leaf(void* ptr, int p, pval_t _v, vec<clause_elt>& expl) {
+  ivar_ext::eqtable_t::ref_t* l(static_cast<ivar_ext::eqtable_t::ref_t*>(ptr));
+  expl.push(le_atom(p, l->key-1));
+  expl.push(ge_atom(p, l->key+1));
 }
 
+bool enforce_eqatoms_lb(ivar_ext* ext, pval_t p_low) {
+  // Set any equality atoms in [p_low, pred_lb(p)) to false.
+  solver_data* s(ext->s);
+  pval_t lb(pred_lb(s, ext->p));
+  assert(p_low < lb);
+  auto b = ext->eqtable.lower_bound(p_low);
+  auto e = ext->eqtable.lower_bound(lb);
+
+  // Kill any eq-atoms that are definitely false.
+  for(; b != e; ++b) {
+    if(!enqueue(*s, ~(*b).value, le_atom(ext->p, (*b).key)))
+      return false;
+  }
+  // If the equality atom exists...
+  if(e != ext->eqtable.end() && (*e).key == lb) {
+    // and the bounds coincide, set it.
+    if(pred_ub(s, ext->p) == lb) {
+      if(!enqueue(*s, (*b).value, expl_thunk { ex_eq_from_leaf, &(*b), static_cast<int>(ext->p), 0 }))
+        return false; 
+    }
+  }
+  return true;
+}
+
+bool enforce_eqatoms_ub(ivar_ext* ext, pval_t p_high) {
+  // Set any equality atoms in [p_low, pred_lb(p)) to false.
+  solver_data* s(ext->s);
+  pval_t ub(pred_ub(s, ext->p));
+  assert(ub < p_high);
+  auto b = ext->eqtable.lower_bound(ub);
+  auto e = ext->eqtable.upper_bound(p_high);
+
+  if(b != ext->eqtable.end()) {
+    if((*b).key == ub) {
+      if(pred_lb(s, ext->p) == ub) {
+        if(!enqueue(*s, (*b).value, expl_thunk { ex_eq_from_leaf, &(*b), static_cast<int>(ext->p), 0}))
+          return false;
+      }
+      ++b;
+    }
+
+    for(; b != e; ++b) {
+      if(!enqueue(*s, ~(*b).value, ge_atom(ext->p, (*b).key)))
+        return false;
+    }
+  }
+  return true;
+}
+
+bool intvar::enforce_eqatoms_lb(val_t v) {
+  return geas::enforce_eqatoms_lb(ext, from_int(v - off));
+}
+
+bool intvar::enforce_eqatoms_ub(val_t v) {
+  return geas::enforce_eqatoms_ub(ext, from_int(v - off));
+}
+
+}

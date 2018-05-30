@@ -3,6 +3,8 @@
 #include "solver/solver_debug.h"
 #include "engine/conflict.h"
 
+//#define CHECK_PRED_EVALS
+//#define CHECK_CLEVEL
 namespace geas {
 
 // ex_val is the bound which must be entailed
@@ -125,6 +127,13 @@ static void remove(solver_data* s, pid_t p) {
   assert(!s->confl.pred_seen.elem(p));
 }
 
+static bool is_at_current_level(solver_data* s, pid_t p, pval_t v) {
+  for(int pos = s->infer.trail_lim.last(); pos < s->infer.trail.size(); ++pos) {
+    if(s->infer.trail[pos].pid == p && s->infer.trail[pos].old_val < v)
+      return true;
+  }
+  return false;
+}
 static void add(solver_data* s, clause_elt elt) {
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
@@ -146,8 +155,12 @@ static void add(solver_data* s, clause_elt elt) {
     s->confl.pred_hint[pid] = elt.watch;
 #endif
 
-    if(s->state.p_last[pid] < val)
+    if(s->state.p_last[pid] < val) {
+#ifdef CHECK_CLEVEL
+      assert(is_at_current_level(s, pid, val));
+#endif
       s->confl.clevel++;
+    }
   } else {
     // Check whether the atom is already entailed.
     // pval_t val = elt.atom.val;
@@ -170,8 +183,10 @@ static void add(solver_data* s, clause_elt elt) {
     s->confl.pred_hint[pid] = elt.watch;
 #endif
   }
+#ifdef CHECK_PRED_EVALS
   assert(s->state.is_entailed(patom_t(pid, s->confl.pred_eval[pid])));
   assert(s->confl.pred_seen.elem(pid));
+#endif
 }
 
 std::ostream& operator<<(std::ostream& o, reason r) {
@@ -277,10 +292,18 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
       break;
     case reason::R_Thunk:
       {
+#ifdef CHECK_PRED_EVALS
+        for(pid_t p : s->confl.pred_seen)
+          assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
         if(r.eth.flags) {
           // Deal with Ex_BTPRED and Ex_BTGEN
           if(r.eth.flags&expl_thunk::Ex_BTPRED) {
             bt_infer_to_pos(s, pos);
+#ifdef CHECK_PRED_EVALS
+            for(pid_t p : s->confl.pred_seen)
+              assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
           }
           if(r.eth.flags&expl_thunk::Ex_BTGEN) {
             NOT_YET;
@@ -288,6 +311,10 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
         }
         vec<clause_elt> es;
         r.eth(ex_val, es);
+#ifdef CHECK_PRED_EVALS
+        for(pid_t p : s->confl.pred_seen)
+          assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
 #ifdef CHECK_EXPLNS
         if(r.eth.origin) {
           assert(check_inference(s, static_cast<propagator*>(r.eth.origin), patom_t(s->infer.trail[pos].pid, ex_val), es));
@@ -298,6 +325,10 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
           log::add_atom(*s, e.atom);
 #endif
           add(s, e);
+#ifdef CHECK_PRED_EVALS
+          for(pid_t p : s->confl.pred_seen)
+            assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
         }
       }
       break;
@@ -423,17 +454,28 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   // Allocate conflict for everything
   // NOTE: This should be safe, since if we're conflicting
   // there must be at least one entry on the trail.
+#ifdef CHECK_PRED_EVALS
+  for(pid_t p : s->confl.pred_seen)
+    assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
   unsigned int pos = s->infer.trail.size()-1;
   while(!needed(s, s->infer.trail[pos])) {
     assert(pos >= 1);
+    assert(pos >= s->infer.trail_lim.last());
     pos--;
   }
 
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
     pval_t ex_val(s->confl.pred_eval[e.pid]);
+#ifdef CHECK_PRED_EVALS
     assert(s->state.is_entailed(patom_t(e.pid, ex_val)));
+#endif
     remove(s, e.pid);
+#ifdef CHECK_PRED_EVALS
+    for(pid_t p : s->confl.pred_seen)
+      assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
 #ifdef LOG_ALL
     std::cout << " <~ {" << pos << "} " << e.expl << std::endl;
 #endif
@@ -448,6 +490,10 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 #endif
 
     add_reason(s, pos, ex_val, e.expl); 
+#ifdef CHECK_PRED_EVALS
+    for(pid_t p : s->confl.pred_seen)
+      assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+#endif
     
 #ifdef PROOF_LOG
     log::finish_infer(*s);
@@ -471,6 +517,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   // Identify the backtrack level and position the
   // second watch.
   int bt_level = 0;
+#if 0
   pos = s->persist.pred_ltrail.size();
   for(int l = s->persist.pred_ltrail_lim.size()-1; l > 0; l--) {
     // The awkwardness here is to avoid pos underflowing.
@@ -486,6 +533,28 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
       }
     }
   }
+#else
+  // Dumb, but hopefully bulletproof approach: keep backtracking until we reach
+  // the right level.
+  int l = s->persist.pred_ltrail_lim.size()-1;
+  for(pid_t pi : s->confl.pred_seen) {
+    assert(s->state.p_vals[pi] >= s->confl.pred_eval[pi]);
+  }
+  while(l) {
+    bt_to_level(s, l);
+    process_initializers(*s);
+    for(pid_t pi : s->confl.pred_seen) {
+      if(s->state.p_last[pi] < s->confl.pred_eval[pi]) {
+        assert(s->state.p_vals[pi] >= s->confl.pred_eval[pi]);
+        bt_level = l;
+        confl.push(get_clause_elt(s, pi));
+        remove(s, pi);
+        goto level_found;
+      }
+    }
+    --l;
+  }
+#endif
 #ifdef CHECK_STATE
   assert(bt_level < s->infer.trail_lim.size());
 #endif
@@ -581,6 +650,8 @@ static inline void aconfl_add(solver_data* s, clause_elt elt) {
     s->confl.pred_eval[pid] = val;
   }
   assert(s->state.is_entailed(patom_t(pid, s->confl.pred_eval[pid])));
+  // Should be equivalent
+  assert(s->state.p_vals[pid] >= s->confl.pred_eval[pid]);
   assert(s->confl.pred_seen.elem(pid));
 }
 

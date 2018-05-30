@@ -1,5 +1,6 @@
 #include <cassert>
 #include <map>
+#include <climits>
 #include "mtl/Vec.h"
 #include "solver/solver_data.h"
 #include "mtl/min-tree.h"
@@ -318,7 +319,9 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
           // threshold = std::max(threshold, (int) (e.c * (e.x.ub(s) - e.x.lb_prev())));
           threshold.x = std::max(threshold.x, (int) (e.c * (e.x.ub(s) - lb_prev(e.x))));
         }
+#ifdef CHECK_STATE
         assert(slack >= k - compute_lb());
+#endif
       } else {
         attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
         for(elt& e : xs) {
@@ -486,329 +489,6 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
     char status;
 };
 
-// Linear propagator, which uses an implicit tree to track partial sums.
-// The tree isn't trailed; instead, it's re-initialized after backtracking.
-class lin_le_tree : public propagator, public prop_inst<lin_le_tree> {
-  enum { Var_None = -1 };
-  enum { S_None = 0, S_Active = 1, S_Red = 2 };
-
-  // Now many total nodes do we need for a complete tree with n leaves?
-  unsigned int TREE_SZ(unsigned int nodes) { return (1<<(33 - __builtin_clz(nodes-1))) - 1; }
-  // Navigating the implicit tree.
-  unsigned int PARENT(unsigned int p) { return (p-1)>>1; }
-  unsigned int LEFT(unsigned int p) { return (p<<1)+1; }
-  unsigned int RIGHT(unsigned int p) { return (p<<1)+2; }
-  bool IS_LEFT(unsigned int p) { return p&1; }
-  bool IS_RIGHT(unsigned int p) { return !(p&1); }
-  unsigned int SIB(unsigned int p) { return IS_LEFT(p) ? p+1 : p-1; }
-  
-  struct elt {
-    typedef int val_t;
-
-    elt(int _c, intvar _x)
-      : c(_c), x(_x) { }
-    int c;
-    intvar x;
-
-    int lb(ctx_t& ctx) const { return c * x.lb(ctx); }
-    int ub(ctx_t& ctx) const { return c * x.ub(ctx); }
-  };
-
-  // Don't need to propagate so long as nodes[0].limit <= k.
-  struct ps_node {
-    int lb;    // Lower bound of variables above here.
-    int limit; // Max value of one-ub plus the remaining lbs.
-  };
-
-  bool init_ps(void) {
-    // Initialize leaves.
-    assert(!ps_current);
-    int max = 0;
-
-    ctx_t& ctx(s->state.p_vals);
-    ps_node* n = nodes+base;
-    for(int xi = 0; xi < xs.size(); ++xi, ++n) {
-      max += xs[xi].ub(ctx);
-      (*n) = { xs[xi].lb(ctx), xs[xi].ub(ctx) };
-    }
-
-    // If the constraint is definitely satisfied, stop.
-    if(max <= k) {
-      trail_change(s->persist, status, (char) S_Red);
-      return false;
-    }
-
-    for(int pi = base-1; pi >= 0; --pi) {
-      nodes[pi] = {
-        nodes[LEFT(pi)].lb + nodes[RIGHT(pi)].lb,
-        std::max(nodes[LEFT(pi)].lb + nodes[RIGHT(pi)].limit, nodes[LEFT(pi)].limit + nodes[RIGHT(pi)].lb)
-      };
-    }
-
-    // Make sure this is invalidated upon backtracking. 
-    ps_current = true;
-    s->persist.bt_flags.push(&ps_current);  
-    return true;
-  }
-
-  // Update idx_of(xi), and all parents.
-  void update_ps(unsigned int xi) {
-    if(!ps_current) {
-      init_ps();
-      return;
-    }
-    unsigned int pi = base + xi;
-    
-    int p_lb = lb(xs[xi]);
-    nodes[pi].lb = p_lb;
-    while(pi) {
-      unsigned int par = PARENT(pi);
-      int par_lb = p_lb + nodes[SIB(pi)].lb;
-      int par_lim = std::max(nodes[par].limit, p_lb + nodes[SIB(pi)].limit);
-      nodes[par] = { par_lb, par_lim };
-      
-      pi = par;
-      p_lb = par_lb;
-    }
-  }
-
-  forceinline int delta(int c, pid_t p) {
-    return c * (s->state.p_vals[p] - s->wake_vals[p]);
-  }
-
-  int compute_lb(void) {
-    int lb = 0;
-    for(const elt& e : xs)
-      lb += e.c * e.x.lb(s);
-    return lb;
-  }
-
-  watch_result wake_r(int xi) {
-    // If init_ps() returns false, don't bother.
-    if(status&S_Red)
-      return Wt_Keep;
-
-    if(init_ps()) {
-      trail_change(s->persist, status, (char) S_Active);
-      if(nodes[0].limit > k)
-        queue_prop();
-    }
-    return Wt_Keep;
-  }
-
-  watch_result wake_x(int xi) {
-    if(status&S_Red)
-      return Wt_Keep;
-    
-    if(status&S_Active) {
-      update_ps(xi);
-      if(nodes[0].limit > k)
-        queue_prop();
-    } else {
-      int diff = delta(xs[xi].c, xs[xi].x.p);
-      slack.set(s->persist, slack - diff);
-      if(slack < 0)
-        queue_prop();
-    }
-    return Wt_Keep;
-  }
-
-  void ex_r(int ex_slack, vec<clause_elt>& expl) {
-    make_expl(Var_None, ex_slack, expl);
-  }
-
-  void ex_x(int xi, pval_t pval, vec<clause_elt>& expl) {
-    intvar::val_t ival(xs[xi].x.ub_of_pval(pval));
-    intvar::val_t lim(k - xs[xi].c*(ival+1) + 1);
-
-    intvar::val_t sum = 0;
-    for(int xj : irange(xi))
-      sum += lb(xs[xj]);
-    for(int xj : irange(xi+1, xs.size()))
-      sum += lb(xs[xj]);
-    expl.push(~r);
-    make_expl(xi, sum - lim, expl);
-  }
-
-  public: 
-    lin_le_tree(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& vs, int _k)
-      : propagator(s), r(_r), k(_k)
-      , nodes((ps_node*) malloc(sizeof(ps_node) * TREE_SZ(vs.size()))), base(TREE_SZ(vs.size())/2)
-      , ps_current(0)
-      , slack(k), status(0)
-      {
-      for(int ii = 0; ii < vs.size(); ii++) {
-        int c = ks[ii];
-        intvar x = vs[ii];
-        if(c < 0) {
-          c = -c;
-          x = -x;
-        }
-        int x_lb = lb_prev(x);
-        if(x_lb != 0) {
-          k -= c * x_lb;
-          x -= x_lb;
-        }
-        elt e = elt(c, x);
-        x.attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
-        xs.push(e);
-      }
-      for(int pi = base + vs.size(); pi < TREE_SZ(vs.size()); ++pi) {
-        nodes[pi] = { 0, 0 };
-      }
-      
-      // Initialize lower bound
-      slack.x = k;
-      if(s->state.is_entailed(r)) {
-        // Already active
-        assert(k >= 0);
-        status = S_Active;
-        init_ps();
-      } else {
-        if(k < 0) {
-          enqueue(*s, ~r, reason());
-          status = S_Red;
-        } else {
-          attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
-        }
-      }
-    }
-
-    ~lin_le_tree(void) {
-      free(nodes);
-    }
-
-    void root_simplify(void) {
-      // Do stuff?   
-    }
-    
-    template<class E>
-    void make_expl(int var, int slack, E& ex) {
-      assert(slack >= 0);
-      // First, collect things we can omit entirely, or
-      // include at the previous decision level
-      vec<int> xs_pending;
-      for(int xi : irange(0, xs.size())) {
-        if(xi == var)
-          continue;
-        elt e = xs[xi];
-
-        int x_lb = e.x.lb(s);
-        int x_lb_0 = lb_0(e.x);
-        int diff_0 = e.c * (x_lb - x_lb_0);
-        if(diff_0 <= slack) {
-          slack -= diff_0;
-          continue;
-        }
-        xs_pending.push(xi);
-      }
-
-      int* xp = xs_pending.begin();
-      for(int xi : xs_pending) {
-        elt e = xs[xi];
-        int x_lb = e.x.lb(s);
-        int x_lb_p = lb_prev(e.x);
-        int diff_p = e.c * (x_lb - x_lb_p);
-        if(diff_p <= slack) {
-          slack -= diff_p;
-          EX_PUSH(ex, e.x < x_lb_p); 
-          continue;
-        }
-        *xp = xi; ++xp;
-      }
-      xs_pending.shrink_(xs_pending.end() - xp);
-
-      // Then, add things at the current level
-      assert(slack >= 0);
-      for(int xi : xs_pending) {
-        elt e = xs[xi];
-        int diff = slack/e.c;
-        EX_PUSH(ex, e.x < e.x.lb(s) - diff);
-        slack -= e.c * diff;
-        assert(slack >= 0);
-      }
-    }
-
-    bool propagate(vec<clause_elt>& confl) {
-#ifdef LOG_PROP
-      std::cout << "[[Running linear_le(tree)]]" << std::endl;
-#endif
-      /*
-      static unsigned int count = 0;
-      static unsigned int lim = 1000;
-      */
-
-      if(status&S_Red)
-        return true;
-
-      if(slack < 0) {
-        if(!enqueue(*s, ~r, ex_thunk(ex_nil<&P::ex_r>, -slack-1, expl_thunk::Ex_BTPRED)))
-          return false;
-        trail_change(s->persist, status, (char) S_Red);
-        return true;
-      }
-
-      if(!(status&S_Active))
-        return true;
-      
-      /*
-      if(++count > lim) {
-        fprintf(stderr, "lin_le_tree: %d\n", count);
-        lim *= 1.1;
-      }
-      */
-      // Propagate the ps_tree
-      if(nodes[0].lb > k) { 
-        EX_PUSH(confl, ~r);
-        make_expl(Var_None, nodes[0].lb - k - 1, confl);
-        return false;
-      }
-      if(!prop_ps(0, k))
-        return false;
-
-      return true;
-    }
-
-    bool prop_ps(unsigned int pi, int cap) {
-      if(nodes[pi].limit <= cap)
-        return true;
-
-      if(pi < base) {
-        // Not at a leaf, yet.
-        if(!prop_ps(LEFT(pi), cap - nodes[RIGHT(pi)].lb))
-          return false;
-        if(!prop_ps(RIGHT(pi), cap - nodes[LEFT(pi)].lb))
-          return false;
-        nodes[pi].limit = std::max(nodes[LEFT(pi)].lb + nodes[RIGHT(pi)].limit,
-                                  nodes[LEFT(pi)].limit + nodes[RIGHT(pi)].lb);
-      } else {
-        int xi = pi - base;
-        int x_ub = cap/xs[xi].c;
-        if(x_ub < ub(xs[xi].x)) {
-          if(!set_ub(xs[xi].x, x_ub, ex_thunk(ex<&P::ex_x>, xi, expl_thunk::Ex_BTPRED)))
-            return false;
-          nodes[pi].limit = xs[xi].c * x_ub;
-        } else {
-          nodes[pi].limit = ub(xs[xi]);
-        }
-      }
-      return true;
-    }
-
-    patom_t r;
-    vec<elt> xs;
-    int k;
-    
-    // Semi-transient state: rebuilt on the first wakeup after backtracking.
-    ps_node* nodes;
-    unsigned int base;
-    char ps_current;
-
-    // Persistent state
-    Tint slack;
-    char status;
-};
-
 int succ(int k) { return k+1; }
 template<class V, class R>
 class lin_le_mtree : public propagator, public prop_inst<lin_le_mtree<V, R> > {
@@ -868,21 +548,23 @@ class lin_le_mtree : public propagator, public prop_inst<lin_le_mtree<V, R> > {
         continue;
       ex_vars.push(xi);
       if(diff > cap) {
-        V avail(diff - cap);
+        V avail(diff - succ(cap));
         // Walk back through the vars, relaxing where we can.
         for(int xi : ex_vars) {
           V diff = xs[xi].c * (lb(xs[xi].x) - lb_0(xs[xi].x));
-          if(diff < avail) {
+          if(diff <= avail) {
             avail -= diff;
             continue;
           }
           V diff_p = xs[xi].c * (lb(xs[xi].x) - lb_prev(xs[xi].x));
-          if(diff_p < avail) {
+          if(diff_p <= avail) {
             avail -= diff_p;
             EX_PUSH(expl, xs[xi].x < lb_prev(xs[xi].x));
             continue;
           }
-          EX_PUSH(expl, xs[xi].x < lb(xs[xi].x));
+          V delta = avail/xs[xi].c;
+          avail -= delta * xs[xi].c;
+          EX_PUSH(expl, xs[xi].x < lb(xs[xi].x) - delta);
         }
         return;
       } else {
@@ -964,378 +646,6 @@ public:
   weak_min_tree<V, MaxEnv> mt;
   Tint slack;
 };
-
-#if 0
-class lin_le_tree_ps : public propagator, public prop_inst<lin_le_tree_ps> {
-  enum { Var_None = -1 };
-  enum { S_None = 0, S_Active = 1, S_Red = 2 };
-
-  // Now many total nodes do we need for a complete tree with n leaves?
-  unsigned int TREE_SZ(unsigned int nodes) { return (1<<(33 - __builtin_clz(nodes-1))) - 1; }
-  // Navigating the implicit tree.
-  unsigned int PARENT(unsigned int p) { return (p-1)>>1; }
-  unsigned int LEFT(unsigned int p) { return (p<<1)+1; }
-  unsigned int RIGHT(unsigned int p) { return (p<<1)+2; }
-  bool IS_LEFT(unsigned int p) { return p&1; }
-  bool IS_RIGHT(unsigned int p) { return !(p&1); }
-  unsigned int SIB(unsigned int p) { return IS_LEFT(p) ? p+1 : p-1; }
-  
-  struct elt {
-    typedef int val_t;
-
-    elt(int _c, intvar _x)
-      : c(_c), x(_x) { }
-    int c;
-    intvar x;
-
-    int lb(ctx_t& ctx) const { return c * x.lb(ctx); }
-    int ub(ctx_t& ctx) const { return c * x.ub(ctx); }
-  };
-
-  // Don't need to propagate so long as nodes[0].limit <= k.
-  struct ps_node {
-    int lb;    // Lower bound of variables above here.
-    int limit; // Max value of one-ub plus the remaining lbs.
-  };
-
-  bool init_ps(void) {
-    // Initialize leaves.
-    assert(!ps_current);
-    int max = 0;
-
-    ctx_t& ctx(s->state.p_vals);
-    ps_node* n = nodes+base;
-    for(int xi = 0; xi < xs.size(); ++xi, ++n) {
-      max += xs[xi].ub(ctx);
-      (*n) = { xs[xi].lb(ctx), xs[xi].ub(ctx) };
-    }
-
-    // If the constraint is definitely satisfied, stop.
-    if(max <= k) {
-      trail_change(s->persist, status, (char) S_Red);
-      return false;
-    }
-
-    for(int pi = base-1; pi >= 0; --pi) {
-      nodes[pi] = {
-        nodes[LEFT(pi)].lb + nodes[RIGHT(pi)].lb,
-        std::max(nodes[LEFT(pi)].lb + nodes[RIGHT(pi)].limit, nodes[LEFT(pi)].limit + nodes[RIGHT(pi)].lb)
-      };
-    }
-
-    // Make sure this is invalidated upon backtracking. 
-    ps_current = true;
-    s->persist.bt_flags.push(&ps_current);  
-    return true;
-  }
-
-  // Update idx_of(xi), and all parents.
-  void update_ps(unsigned int xi) {
-    if(!ps_current) {
-      init_ps();
-      return;
-    }
-    unsigned int pi = base + xi;
-    
-    int p_lb = lb(xs[xi]);
-    nodes[pi].lb = p_lb;
-    while(pi) {
-      unsigned int par = PARENT(pi);
-      int par_lb = p_lb + nodes[SIB(pi)].lb;
-      int par_lim = std::max(nodes[par].limit, p_lb + nodes[SIB(pi)].limit);
-      nodes[par] = { par_lb, par_lim };
-      
-      pi = par;
-      p_lb = par_lb;
-    }
-  }
-
-  bool update_ps_preds(unsigned int xi) {
-    // Partial sums are only updated when
-    // the variable is fixed.
-    unsigned int pi = base + xi;
-
-    int x_lb = lb(xs[xi]);
-    while(pi) {
-      pi = PARENT(pi); 
-      pid_t p = ps_preds[pi];
-      pval_t v = std::min(k+1, pred_lb(s, p) + x_lb);
-      if(!enqueue(*s, ge_atom(p, v), ex_thunk(ex<&P::ex_ps>, pi, expl_thunk::Ex_BTPRED)))
-        return false;
-    }
-    return true;
-  }
-
-  forceinline int delta(int c, pid_t p) {
-    return c * (s->state.p_vals[p] - s->wake_vals[p]);
-  }
-
-  int compute_lb(void) {
-    int lb = 0;
-    for(const elt& e : xs)
-      lb += e.c * e.x.lb(s);
-    return lb;
-  }
-
-  watch_result wake_r(int xi) {
-    // If init_ps() returns false, don't bother.
-    if(status&S_Red)
-      return Wt_Keep;
-
-    if(init_ps()) {
-      trail_change(s->persist, status, (char) S_Active);
-      if(nodes[0].limit > k)
-        queue_prop();
-    }
-    return Wt_Keep;
-  }
-
-  watch_result wake_x(int xi) {
-    if(status&S_Red)
-      return Wt_Keep;
-    
-    if(status&S_Active) {
-      update_ps(xi);
-      if(nodes[0].limit > k)
-        queue_prop();
-    } else {
-      int diff = delta(xs[xi].c, xs[xi].x.p);
-      slack.set(s->persist, slack - diff);
-      if(slack < 0)
-        queue_prop();
-    }
-    return Wt_Keep;
-  }
-
-  watch_result wake_fix_x(int xi) {
-    if(status&S_Red)
-      return Wt_Keep;
-    fixed_xs.push(xi);
-    queue_prop(); 
-    return Wt_Keep;
-  }
-
-  void ex_r(int ex_slack, vec<clause_elt>& expl) {
-    make_expl(Var_None, ex_slack, expl);
-  }
-
-  void ex_x(int xi, pval_t pval, vec<clause_elt>& expl) {
-    intvar::val_t ival(xs[xi].x.ub_of_pval(pval));
-    intvar::val_t lim(k - xs[xi].c*(ival+1) + 1);
-
-    intvar::val_t sum = 0;
-    for(int xj : irange(xi))
-      sum += lb(xs[xj]);
-    for(int xj : irange(xi+1, xs.size()))
-      sum += lb(xs[xj]);
-    expl.push(~r);
-    make_expl(xi, sum - lim, expl);
-  }
-
-  void ex_ps(int pi, pval_t pval, vec<clause_elt>& expl) {
-    if(pi < base) {
-      // 
-    } else {
-      int xi = pi - base;
-      expl.push(xs[xi].x < pval/xs[xi].c);
-    }
-  }
-
-  public: 
-    lin_le_tree(solver_data* s, patom_t _r, vec<int>& ks, vec<intvar>& vs, int _k)
-      : propagator(s), r(_r), k(_k)
-      , nodes((ps_node*) malloc(sizeof(ps_node) * TREE_SZ(vs.size()))), base(TREE_SZ(vs.size())/2)
-      , ps_current(0)
-      , slack(k), status(0)
-      {
-      for(int ii = 0; ii < vs.size(); ii++) {
-        int c = ks[ii];
-        intvar x = vs[ii];
-        if(c < 0) {
-          c = -c;
-          x = -x;
-        }
-        int x_lb = lb_prev(x);
-        if(x_lb != 0) {
-          k -= c * x_lb;
-          x -= x_lb;
-        }
-        elt e = elt(c, x);
-        x.attach(E_LB, watch<&P::wake_x>(xs.size(), Wt_IDEM));
-        xs.push(e);
-      }
-      for(int pi = base + vs.size(); pi < TREE_SZ(vs.size()); ++pi) {
-        nodes[pi] = { 0, 0 };
-      }
-      
-      // Initialize lower bound
-      slack.x = k;
-
-      // And partial sums.
-      ps_preds = malloc(sizeof(pid_t) * base);
-      for(int ii = 0; ii < ps_preds; ii++)
-        ps_preds[ii] = new_pred(*s, 0, k+1, PR_NOBRANCH);
-
-      if(s->state.is_entailed(r)) {
-        // Already active
-        assert(k >= 0);
-        status = S_Active;
-        init_ps();
-      } else {
-        if(k < 0) {
-          enqueue(*s, ~r, reason());
-          status = S_Red;
-        } else {
-          attach(s, r, watch<&P::wake_r>(0, Wt_IDEM));
-        }
-      }
-    }
-
-    ~lin_le_tree(void) {
-      free(nodes);
-    }
-
-    void root_simplify(void) {
-      // Do stuff?   
-    }
-
-    void cleanup(void) {
-      in_queue = false;
-      fixed_xs.clear();
-    }
-    
-    template<class E>
-    void make_expl(int var, int slack, E& ex) {
-      assert(slack >= 0);
-      // First, collect things we can omit entirely, or
-      // include at the previous decision level
-      vec<int> xs_pending;
-      for(int xi : irange(0, xs.size())) {
-        if(xi == var)
-          continue;
-        elt e = xs[xi];
-
-        int x_lb = e.x.lb(s);
-        int x_lb_0 = lb_0(e.x);
-        int diff_0 = e.c * (x_lb - x_lb_0);
-        if(diff_0 <= slack) {
-          slack -= diff_0;
-          continue;
-        }
-        xs_pending.push(xi);
-      }
-
-      int* xp = xs_pending.begin();
-      for(int xi : xs_pending) {
-        elt e = xs[xi];
-        int x_lb = e.x.lb(s);
-        int x_lb_p = lb_prev(e.x);
-        int diff_p = e.c * (x_lb - x_lb_p);
-        if(diff_p <= slack) {
-          slack -= diff_p;
-          EX_PUSH(ex, e.x < x_lb_p); 
-          continue;
-        }
-        *xp = xi; ++xp;
-      }
-      xs_pending.shrink_(xs_pending.end() - xp);
-
-      // Then, add things at the current level
-      assert(slack >= 0);
-      for(int xi : xs_pending) {
-        elt e = xs[xi];
-        int diff = slack/e.c;
-        EX_PUSH(ex, e.x < e.x.lb(s) - diff);
-        slack -= e.c * diff;
-        assert(slack >= 0);
-      }
-    }
-
-    bool propagate(vec<clause_elt>& confl) {
-#ifdef LOG_PROP
-      std::cout << "[[Running linear_le(tree)]]" << std::endl;
-#endif
-      /*
-      static unsigned int count = 0;
-      static unsigned int lim = 1000;
-      */
-
-      if(status&S_Red)
-        return true;
-
-      if(slack < 0) {
-        if(!enqueue(*s, ~r, ex_thunk(ex_nil<&P::ex_r>, -slack-1, expl_thunk::Ex_BTPRED)))
-          return false;
-        trail_change(s->persist, status, (char) S_Red);
-        return true;
-      }
-
-      if(!(status&S_Active))
-        return true;
-      
-      /*
-      if(++count > lim) {
-        fprintf(stderr, "lin_le_tree: %d\n", count);
-        lim *= 1.1;
-      }
-      */
-      // Propagate the ps_tree
-      if(!prop_ps(0, k))
-        return false;
-
-      for(unsigned int xi : fixed_xs) {
-        if(!update_ps_preds(xi))
-          return false;
-      }
-      fixed_xs.clear();
-
-      return true;
-    }
-
-    bool prop_ps(unsigned int pi, int cap) {
-      if(nodes[pi].limit <= cap)
-        return true;
-
-      if(pi < base) {
-        // Not at a leaf, yet.
-        if(!prop_ps(LEFT(pi), cap - nodes[RIGHT(pi)].lb))
-          return false;
-        if(!prop_ps(RIGHT(pi), cap - nodes[LEFT(pi)].lb))
-          return false;
-        nodes[pi].limit = std::max(nodes[LEFT(pi)].lb + nodes[RIGHT(pi)].limit,
-                                  nodes[LEFT(pi)].limit + nodes[RIGHT(pi)].lb);
-      } else {
-        int xi = pi - base;
-        int x_ub = cap/xs[xi].c;
-        if(x_ub < ub(xs[xi].x)) {
-          if(!set_ub(xs[xi].x, x_ub, ex_thunk(ex<&P::ex_x>, xi, expl_thunk::Ex_BTPRED)))
-            return false;
-          nodes[pi].limit = xs[xi].c * x_ub;
-        } else {
-          nodes[pi].limit = ub(xs[xi]);
-        }
-      }
-      return true;
-    }
-
-    patom_t r;
-    vec<elt> xs;
-    int k;
-    
-    // Semi-transient state: rebuilt on the first wakeup after backtracking.
-    ps_node* nodes;
-    pid_t* ps_preds;
-    unsigned int base;
-    char ps_current;
-
-    // Transient state
-    vec<unsigned int> fixed_xs;
-
-    // Persistent state
-    Tint slack;
-    char status;
-};
-#endif
 
 class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
   enum { Var_None = 0, Var_LB = 1, Var_UB = 2 };
@@ -1428,7 +738,7 @@ class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
       if(ii == xi)
         continue;
 #if 1
-      EX_PUSH(expl, vs[ii].x != lb(vs[ii].x));
+      vs[ii].x.explain_eq(lb(vs[ii].x), expl);
 #else
       EX_PUSH(expl, vs[ii].x < lb(vs[ii].x));
       EX_PUSH(expl, vs[ii].x > ub(vs[ii].x));
@@ -1438,7 +748,7 @@ class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
   void ex_r(int _r, pval_t _p, vec<clause_elt>& expl) {
     for(int ii = 0; ii < vs.size(); ++ii) {
 #if 1
-      EX_PUSH(expl, vs[ii].x != lb(vs[ii].x));
+      vs[ii].x.explain_eq(lb(vs[ii].x), expl);
 #else
       EX_PUSH(expl, vs[ii].x < lb(vs[ii].x));
       EX_PUSH(expl, vs[ii].x > ub(vs[ii].x));
@@ -1662,9 +972,10 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   */
 //   new int_linear_le(s, r, ks, vs, k);
 #ifndef USE_CHAIN
-  // return lin_le_inc::post(s, r, ks, vs, k);
-  return lin_le_mtree<int, intvar>::post(s, r, ks, vs, k);
-  // return lin_le_tree::post(s, r, ks, vs, k);
+  if(vs.size() > 5)
+    return lin_le_mtree<int, intvar>::post(s, r, ks, vs, k);
+  else
+    return lin_le_inc::post(s, r, ks, vs, k);
 #else
   return linear_le_chain(s, r, ks, vs, k);
 #endif

@@ -40,9 +40,15 @@ limits no_limit = {
   0
 };
 
+using std::cout;
+using std::endl;
 using std::min;
 using std::max;
 using std::sort;
+
+#ifdef LOG_RESTART
+static double domains_total = 0;
+#endif
 
 namespace geas {
 
@@ -196,6 +202,15 @@ std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
   return o;
 }
 
+// Record that the value of p has changed at the
+// current decision level.
+forceinline void touch_pred(solver_data& s, pid_t p) {
+  if(!s.persist.pred_touched[p]) {
+    s.persist.pred_touched[p] = true;
+    s.persist.touched_preds.push(p);
+    s.wake_vals[p] = s.state.p_last[p];
+  }
+}
 
 // inline bool is_bool(sdata& s, pid_t p) { return s.state.pred_is_bool(p); }
 // inline bool is_bool(sdata& s, pid_t p) { return false; }
@@ -205,6 +220,10 @@ inline int decision_level(sdata& s) {
 }
 
 static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
+#ifdef LOG_RESTART
+  domains_total += (ub - lb);
+#endif
+
   s.pred_callbacks.push();
   s.pred_callbacks.push();
 
@@ -285,6 +304,8 @@ pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub, unsigned char fla
     if(lb != s.state.p_last[p]) {
       infer_info::entry e = { p, s.state.p_last[p], init_lb.expl() };
       s.infer.trail.push(e);
+      // s.persist.pred_ltrail.push(persistence::pred_entry {p, last});
+      touch_pred(s, p);
     }
   }
 
@@ -295,6 +316,8 @@ pid_t new_pred(sdata& s, pred_init init_lb, pred_init init_ub, unsigned char fla
     if(ub != s.state.p_last[p^1]) {
       infer_info::entry e = { p^1, s.state.p_last[p^1], init_ub.expl() };
       s.infer.trail.push(e);
+      // s.persist.pred_ltrail.push(persistence::pred_entry {p^1, last});
+      touch_pred(s, p);
     }
   }
 
@@ -346,6 +369,9 @@ void process_initializers(solver_data& s) {
       if(curr != last) {
         infer_info::entry e = { p, last, inits[ii].init.expl() };
         s.infer.trail.push(e);
+        // Shouldn't be needed, because the initializer will be called again.
+        // s.persist.pred_ltrail.push(persistence::pred_entry {p, last});
+        touch_pred(s, p);
       }
 
       // If this is at its initial value, discard it.
@@ -555,6 +581,7 @@ static int num_props = 0;
 bool _enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
   std::cout << "|- " << p << "{" << s.infer.trail.size() << "}" << std::endl;
+  touch_pred(s, p);
 #endif
 
   /*
@@ -817,15 +844,6 @@ bool propagate_pred(solver_data& s, pid_t p) {
   return true;
 }
 
-// Record that the value of p has changed at the
-// current decision level.
-forceinline void touch_pred(solver_data& s, pid_t p) {
-  if(!s.persist.pred_touched[p]) {
-    s.persist.pred_touched[p] = true;
-    s.persist.touched_preds.push(p);
-    s.wake_vals[p] = s.state.p_last[p];
-  }
-}
 
 forceinline void wakeup_pred(solver_data& s, pid_t p) {
   s.active_prop = s.pred_origin[p];
@@ -1147,7 +1165,7 @@ inline void simplify_at_root(solver_data& s) {
 
     while(head != dest) {
       // assert(head->ws.size() == 0);
-#if 0
+#if 1
       // FIXME
       s.infer.watch_maps[pi].rem(head_val);
       watch_node* w = head;
@@ -1159,6 +1177,7 @@ inline void simplify_at_root(solver_data& s) {
       head = head->succ;
 #endif
     }
+
     s.infer.pred_watch_heads[pi].val = head_val;
     s.infer.pred_watch_heads[pi].ptr = head;
     // Now that entailed watches are deleted, we're committed
@@ -1166,6 +1185,32 @@ inline void simplify_at_root(solver_data& s) {
     // TODO: Also collect inactive watch-nodes.
   }
 #endif
+
+#if 0
+    for(int pi : irange(s.infer.pred_watches.size())) {
+      watch_node* w = s.infer.pred_watches[pi];
+      watch_node* su = w->succ;
+      pval_t succ_val = w->succ_val;
+      while(su) {
+        if(su->ws.size() == 0 && su->callbacks.size() == 0) {
+          s.infer.watch_maps[pi].rem(succ_val);
+          watch_node* r(su);
+          succ_val = r->succ_val;
+          su = r->succ;
+          delete r;
+        } else {
+          w->succ_val = succ_val;
+          w->succ = su;
+          w = su;
+          succ_val = su->succ_val;
+          su = su->succ;
+        }
+      }
+      w->succ = nullptr;
+      w->succ_val = pval_err;
+    }
+#endif
+
 
 #ifdef LOG_RESTART
   int count = 0;
@@ -1178,9 +1223,10 @@ inline void simplify_at_root(solver_data& s) {
         ++stale;
     }
   }
-  fprintf(stderr, "%d watch nodes, %d stale\n", count, stale);
-  fprintf(stderr, "%d propagations, %d clauses, %d learnts\n", num_props,
+  fprintf(stderr, "%% %d watch nodes, %d stale\n", count, stale);
+  fprintf(stderr, "%% %d propagations, %d clauses, %d learnts\n", num_props,
     s.infer.clauses.size(), s.infer.learnts.size());
+  fprintf(stderr, "%% %lf possible values\n", domains_total);
 #endif
   
 
@@ -1364,8 +1410,14 @@ solver::result solver::solve(limits l) {
       for(int ei = 1; ei < s.infer.confl.size(); ei++)
         assert(s.state.is_inconsistent(s.infer.confl[ei].atom));
 #endif
-      bt_to_level(&s, bt_level);
+      if(bt_level < s.infer.trail_lim.size())
+        bt_to_level(&s, bt_level);
       process_initializers(s);
+#ifdef CHECK_STATE
+      assert(s.infer.confl[0].atom.ub(s.state.p_vals));
+      for(int ei = 1; ei < s.infer.confl.size(); ei++)
+        assert(s.state.is_inconsistent(s.infer.confl[ei].atom));
+#endif
 #ifdef CHECK_STATE
       for(pid_t p : s.persist.touched_preds)
         assert(s.wake_vals[p] == s.state.p_vals[p]);
@@ -1407,7 +1459,7 @@ solver::result solver::solve(limits l) {
 
         if(next_restart == 0) {
 #ifdef LOG_RESTART
-          std::cout << "[| Restarting |]" << std::endl;
+          cout << "%%%% [| Restarting |]" << endl;
 #endif
           s.stats.restarts++;
   
@@ -1681,7 +1733,6 @@ bool add_clause_(solver_data& s, vec<clause_elt>& elts) {
     */
   if(elts.size() == 1)
     return true;
-  
   // Binary clause; embed the -other- literal
   // in the head;
   if(elts.size() == 2) {

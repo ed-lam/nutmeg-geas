@@ -296,14 +296,14 @@ public:
     uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
     uint64_t out_dir = e&mask;
     
-    void** p = NULL;
+    // void** p = NULL;
     void* node = root;
     node_t* node_ptr = clear_flag((node_t*) node);
     while(check_flag(node) &&
         node_ptr->mask > mask)
     {
       uint64_t dir = e&node_ptr->mask;
-      p = dir ? &(node_ptr->right) : &(node_ptr->left);
+      // p = dir ? &(node_ptr->right) : &(node_ptr->left);
       node = dir ? node_ptr->right : node_ptr->left;
       node_ptr = clear_flag((node_t*) node);
     }
@@ -342,14 +342,14 @@ public:
     uint64_t mask = get_mask(e^Ops::to_uint(leaf->ref.key));
     uint64_t out_dir = e&mask;
     
-    void** p = NULL;
+    // void** p = NULL;
     void* node = root;
     node_t* node_ptr = clear_flag((node_t*) node);
     while(check_flag(node) &&
         node_ptr->mask > mask)
     {
       uint64_t dir = e&node_ptr->mask;
-      p = dir ? &(node_ptr->right) : &(node_ptr->left);
+      // p = dir ? &(node_ptr->right) : &(node_ptr->left);
       node = dir ? node_ptr->right : node_ptr->left;
       node_ptr = clear_flag((node_t*) node);
     }

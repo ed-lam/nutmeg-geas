@@ -43,12 +43,12 @@ struct support_list {
         nodes[tl].prec = last_rem;
 
         nodes[n].prec = n;
-        set(s->persist, tail, head);
+        tail.set(s->persist, head);
         head = n;
         return true;
       }
     }
-    set(s->persist, tail, head);
+    tail.set(s->persist, head);
     return false;
   }
 

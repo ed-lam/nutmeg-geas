@@ -116,14 +116,14 @@ void bt_preds(solver_data* s, unsigned int l) {
   // Rewind all but the most recent level
   for(int lev = p.pred_ltrail_lim.size()-1; lev > l; --lev) {
     int p_mid = p.pred_ltrail_lim[lev];
-    for(auto e : range(&p.pred_ltrail[p_mid], &p.pred_ltrail[p_end])) {
+    for(auto e : range(p.pred_ltrail + p_mid, p.pred_ltrail + p_end)) {
       st.p_vals[e.p] = e.v;
       st.p_last[e.p] = e.v;
     }
     p_end = p_mid;
   }
   // For the last level, also restore the 'touched' markers.
-  for(auto e : range(&p.pred_ltrail[p_lim], &p.pred_ltrail[p_end])) {
+  for(auto e : range(p.pred_ltrail + p_lim, p.pred_ltrail + p_end)) {
     p.pred_touched[e.p] = true;
     p.touched_preds.push(e.p);
     st.p_vals[e.p] = st.p_last[e.p];

@@ -102,6 +102,22 @@ public:
     maybe_max.remove(k);
   }
 
+  bool check_sat(ctx_t& ctx) {
+    bool has_candidate = false;
+    int z_lb = z.lb(ctx);
+    int z_ub = z.ub(ctx);
+    for(intvar x : xs) {
+      if(x.lb(ctx) > z_ub)
+        return false;
+      if(x.ub(ctx) >= z_lb)
+        has_candidate = true;
+    }
+    return has_candidate;
+  }
+  bool check_unsat(ctx_t& ctx) {
+    return !check_sat(ctx);
+  }
+
   inline bool propagate_z_ub(vec<clause_elt>& confl, bool& mm_trailed) {
     unsigned int seen_var = ub_supp;
     int seen_ub = xs[ub_supp].ub(s);
@@ -235,6 +251,7 @@ first_lb_found:
     return true;
   }
 
+  /*
   bool check_sat(ctx_t& ctx) {
     int zlb = INT_MIN; 
     int zub = INT_MIN;
@@ -244,6 +261,7 @@ first_lb_found:
     }
     return zlb <= z.ub(ctx) && z.lb(ctx) <= zub;
   }
+  */
 
   void root_simplify(void) { }
 

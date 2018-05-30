@@ -497,6 +497,7 @@ public:
     x.attach(E_LU, watch<&P::wake>(1, Wt_IDEM));
   }
  
+
   bool propagate(vec<clause_elt>& confl) {
 #ifdef LOG_PROP
     std::cerr << "[[Running iabs]]" << std::endl;
@@ -563,6 +564,22 @@ public:
     return true;
   }
 
+#if 1
+  bool check_sat(ctx_t& ctx) {
+    int_itv z_itv { z.lb(ctx), z.ub(ctx) };
+    if(x.lb(ctx) <= 0) {
+      int_itv supp = z_itv & int_itv { std::max((intvar::val_t) 0, -x.ub(ctx)), -x.lb(ctx) };
+      if(!supp.empty())
+        return true;
+    }
+    if(x.ub(ctx) >= 0) {
+      int_itv supp = z_itv & int_itv { std::max((intvar::val_t) 0, x.lb(ctx)), x.ub(ctx) };
+      if(!supp.empty())
+        return true;
+    }
+    return false;
+  }
+#else
   bool check_sat(ctx_t& ctx) {
     if(x.lb(ctx) <= 0) {
       int low = std::max((int) lb(z), std::max(0, (int) -x.ub(ctx)));
@@ -578,6 +595,7 @@ public:
     }
     return false;
   }
+#endif
   bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
   void cleanup(void) { is_queued = false; }
@@ -789,14 +807,15 @@ class ineq : public propagator, public prop_inst<ineq> {
       assert(vs[0].lb(s) == vs[1].lb(s));
       intvar::val_t val = vs[0].lb(s);
       EX_PUSH(confl, ~r);
-      /*
       confl.push(vs[0] != val);
       confl.push(vs[1] != val);
-      */
+
+      /*
       EX_PUSH(confl, vs[0] < val);
       EX_PUSH(confl, vs[0] > val);
       EX_PUSH(confl, vs[1] < val);
       EX_PUSH(confl, vs[1] > val);
+      */
       return false; 
     }
     switch(t.kind) {
@@ -846,22 +865,29 @@ class ineq : public propagator, public prop_inst<ineq> {
     trigger t = trigs[active];
     switch(t.kind) {
       case T_Atom:  
+        vs[0].explain_eq(lb(vs[0]), ex);
+        vs[1].explain_eq(lb(vs[1]), ex);
       /*
         ex.push(vs[0] != vs[0].lb());
         ex.push(vs[1] != vs[1].lb());
         */
+        /*
         ex.push(vs[0] < vs[0].lb(s));
         ex.push(vs[0] > vs[0].ub(s));
         ex.push(vs[1] < vs[1].lb(s));
         ex.push(vs[1] > vs[1].ub(s));
+        */
         return;
       case T_Var:
         ex.push(~r);
       /*
         ex.push(vs[1 - t.idx] != vs[1 - t.idx].lb());
         */
+        /*
         ex.push(vs[1 - t.idx] < vs[1 - t.idx].lb(s));
         ex.push(vs[1 - t.idx] > vs[1 - t.idx].ub(s));
+        */
+        vs[1-t.idx].explain_eq(lb(vs[1-t.idx]),ex);
         return;
     }
   }
@@ -966,8 +992,8 @@ public:
     assert(lb(vs[0]) == lb(vs[1]));
     int k = lb(vs[0]);
 #if 1
-    expl.push(vs[0] != k);
-    expl.push(vs[1] != k);
+    vs[0].explain_eq(k, expl);
+    vs[1].explain_eq(k, expl);
 #else
     expl.push(vs[0] < k);
     expl.push(vs[0] > k);
@@ -978,9 +1004,10 @@ public:
 
   void ex_xs(int xi, pval_t _p, vec<clause_elt>& expl) {
     expl.push(~r);
+    assert(is_fixed(vs[1-xi]));
     int k = lb(vs[1-xi]);
 #if 1
-    expl.push(vs[1-xi] != k);
+    vs[1-xi].explain_eq(k, expl);
 #else
     expl.push(vs[1-xi] < k);
     expl.push(vs[1-xi] > k);

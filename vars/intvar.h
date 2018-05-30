@@ -220,6 +220,8 @@ public:
   bool set_lb(val_t min, reason r);
   bool set_ub(val_t max, reason r);
   */
+  bool enforce_eqatoms_lb(val_t old_lb);
+  bool enforce_eqatoms_ub(val_t old_ub);
 
   void attach(intvar_event e, watch_callback c);
   void attach_rem(val_callback<int64_t> c);
@@ -254,6 +256,9 @@ public:
       return ~ext->get_eqatom(from_int(v-off));
     }
   }
+
+  void explain_eq(val_t v, vec<clause_elt>& expl);
+  void explain_neq(val_t v, vec<clause_elt>& expl);
 
   int lb_of_pval(pval_t p) const { return to_int(p)+off; }
   int ub_of_pval(pval_t p) const { return to_int(pval_inv(p))+off; }
@@ -322,6 +327,57 @@ bool make_sparse(intvar x, vec<T>& vals) {
   return x.ext->make_sparse(vs);
 }
 
+inline void intvar::explain_eq(val_t v, vec<clause_elt>& expl) {
+  auto it = ext->eqtable.find(intvar::from_int(v-off));
+  if(it != ext->eqtable.end()) {
+    patom_t at((*it).value);
+    if(at.lb(ext->s->state.p_vals)) {
+      expl.push(~at);
+      return;
+    }
+  }
+
+  solver_data* s(ext->s);
+  // Doesn't already exist.
+  if(lb(s->state.p_last) == ub(s->state.p_last)) {
+    // If it didn't become fixed this level, create a new atom.
+    expl.push((*this) != v);
+  } else {
+    expl.push((*this) < v);
+    expl.push((*this) > v);
+  }
+}
+
+inline void intvar::explain_neq(val_t v, vec<clause_elt>& expl) {
+  auto it = ext->eqtable.find(intvar::from_int(v-off));
+  if(it != ext->eqtable.end()) {
+    patom_t at((*it).value);
+    if(!at.ub(ext->s->state.p_vals)) {
+      expl.push(at);
+      return;
+    }
+  }
+  // Doesn't already exist; check if
+  // we can safely create it.
+  solver_data* s(ext->s);
+  if(lb(s) > v) {
+    if(lb(s->state.p_last) > v) {
+      expl.push((*this) == v);
+    } else {
+      expl.push((*this) <= v);
+    }
+    // expl.push((*this) <= v);
+  } else {
+    assert(ub(s) < v);
+    if(ub(s->state.p_last) < v) {
+      expl.push((*this) == v);
+    } else {
+      expl.push((*this) >= v);
+    }
+    // expl.push((*this) >= v);
+  }
+}
+
 inline void make_eager(intvar x) {
   x.ext->make_eager();
 }
@@ -367,6 +423,7 @@ inline bool intvar::is_fixed(const vec<pval_t>& ctx) const {
 inline bool intvar::is_fixed(const solver_data* s) const { return is_fixed(s->state.p_vals); }
 
 inline num_range_t<intvar::val_t> intvar::domain(solver_data* s) const { return domain(s->state.p_vals); }
+
 /*
 inline intvar::val_t intvar::lb(void) const {
   return to_int(s->state.p_vals[pid]);

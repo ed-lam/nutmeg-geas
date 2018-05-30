@@ -69,11 +69,11 @@ class value_precede : public propagator,
    // x_i = s <- x_j = t & forall (k in 1..j-1, k != i) (x_k != s)
    void ex_s(int tval, pval_t p, vec<clause_elt>& expl) {
      tag_t tag(cast::conv<tag_t, int>(tval));
-     expl.push(xs[tag.q] != cons);
+     xs[tag.q].explain_eq(cons, expl);
      for(int ii : irange(tag.p))
-       expl.push(xs[ii] == pre);
+       xs[ii].explain_neq(pre, expl);
      for(int ii : irange(tag.p+1, tag.q))
-       expl.push(xs[ii] == pre);
+       xs[ii].explain_neq(pre, expl);
    }
 
 public: 

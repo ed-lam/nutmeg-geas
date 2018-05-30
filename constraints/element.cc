@@ -566,16 +566,17 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
 
   void ex_y_lb(int yi, pval_t p, vec<clause_elt>& expl) {
     int lb = ys[yi].lb_of_pval(p);
-    // expl.push(p->x != yi + p->base);
-    expl.push(x < yi + base);
-    expl.push(x > yi + base);
+    // expl.push(x < yi + base);
+    // expl.push(x > yi + base);
+    x.explain_eq(yi+base, expl);
     expl.push(z < lb);
   }
 
   void ex_y_ub(int yi, pval_t p, vec<clause_elt>& expl) {
     int ub = ys[yi].ub_of_pval(p);
-    expl.push(x < yi + base);
-    expl.push(x > yi + base);
+    // expl.push(x < yi + base);
+    // expl.push(x > yi + base);
+    x.explain_eq(yi+base, expl);
     expl.push(z > ub);
   }
    
@@ -598,8 +599,8 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
     // fprintf(stderr, "elem_bnd::ex::lb(z)\n");
     intvar::val_t z_lb = z.lb_of_pval(p);
 
-    expl.push(x < lb(x));
-    expl.push(x > ub(x));
+    EX_PUSH(expl, x < lb(x));
+    EX_PUSH(expl, x > ub(x));
 
     intvar::val_t z_step = lb_0(z)-1;
     vec<int> step_idxs;
@@ -608,16 +609,16 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
         z_step = std::max(z_step, ub(ys[yi]));
         step_idxs.push(yi);
       } else
-        expl.push(ys[yi] < z_lb);
+        EX_PUSH(expl, ys[yi] < z_lb);
     }
     /*
     if(z_step > lb_0(z))
       expl.push(z <= z_step);
       */
     if(step_idxs.size() > 0) {
-      expl.push(z <= z_step);
+      EX_PUSH(expl, z <= z_step);
       for(int yi : step_idxs) {
-        expl.push(ys[yi] > z_step);
+        EX_PUSH(expl, ys[yi] > z_step);
       }
     }
   }
@@ -731,7 +732,7 @@ public:
       int low = vi;
 
       if(low + base > x.lb(s)) {
-        if(!set_lb(x,low + base, expl<&P::ex_x_lb>(lb(x)-base, expl_thunk::Ex_BTPRED)))
+        if(!set_lb_with_eq(x,low + base, expl<&P::ex_x_lb>(lb(x)-base, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -747,7 +748,7 @@ public:
         }
       }
       if(high + base < x.ub(s)) {
-        if(!set_ub(x,high + base, expl<&P::ex_x_ub>(ub(x) - base, expl_thunk::Ex_BTPRED)))
+        if(!set_ub_with_eq(x,high + base, expl<&P::ex_x_ub>(ub(x) - base, expl_thunk::Ex_BTPRED)))
           return false;
       }
 
@@ -763,11 +764,11 @@ public:
       if(low == high) {
         intvar& y = ys[low];
         if(z_supp.lb > y.lb(s)) {
-          if(!set_lb(y, z_supp.lb, expl<&P::ex_y_lb>(low)))
+          if(!set_lb(y, z_supp.lb, expl<&P::ex_y_lb>(low, expl_thunk::Ex_BTPRED)))
             return false;
         }
         if(z_supp.ub < y.ub(s)) {
-          if(!set_ub(y, z_supp.ub, expl<&P::ex_y_ub>(low)))
+          if(!set_ub(y, z_supp.ub, expl<&P::ex_y_ub>(low, expl_thunk::Ex_BTPRED)))
            return false;
         }
       }
