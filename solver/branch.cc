@@ -253,7 +253,7 @@ public:
     for(; p != end; ++p) {
       if(lb(s, *p) == ub(s, *p))
         continue;
-      pval_t p_score = score<ValC>(s, *p);
+      pval_t p_score = score<VarC>(s, *p);
       if(p_score < choice_score) {
         choice = p;
         choice_score = p_score;
@@ -498,7 +498,7 @@ brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>&
     case Var_Smallest:
       return select_basic_brancher<Var_Smallest>(val_choice, preds);
     case Var_Largest:
-      return select_basic_brancher<Var_Smallest>(val_choice, preds);
+      return select_basic_brancher<Var_Largest>(val_choice, preds);
     default:
       NOT_YET;
       return nullptr;
