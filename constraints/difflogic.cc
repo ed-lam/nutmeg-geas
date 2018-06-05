@@ -130,7 +130,7 @@ public:
   watch_result wake_r(int ri) {
     if(!is_finished(activators[ri].c)) {
       act_queue.push(ri);
-      queue_prop();  
+      queue_prop();
     }
     return Wt_Keep;
   }
@@ -307,7 +307,7 @@ bool diff_manager::repair_potential(dim_id s, dim_id d, int wt) {
     pot[p] = /* pot[p] + */ fdist[p];
 
   assert(pot[s] + wt - pot[d] >= 0);
-  check_potential();
+  // check_potential();
 
   fseen.clear();
   return true;
@@ -508,7 +508,7 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
 
   if(r.lb(s->ctx())) {
     // Already active
-    check_potential();
+    // check_potential();
 
     if(pot[dx] + k - pot[dy] < 0 && !repair_potential(dx, dy, k))
       return false;
@@ -519,7 +519,7 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     dims[dy].ub_act.push(act_info { dx, k, ci });
     lb_change.add(dx);
     ub_change.add(dy);
-    check_potential();
+    // check_potential();
     // Worry about the rest later.
   } else {
     // Suspended
@@ -584,20 +584,22 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
   ci.is_active = true;
   dims[ci.x].lb_act.push(act_info { ci.y, ci.wt, c });
   dims[ci.y].ub_act.push(act_info { ci.x, ci.wt, c });
-  check_potential();
+  // check_potential();
   // Find all constraints which are made inconsistent
   if(!process_killed(c))
     return false;
   // Now update lower and upper bounds.
-  if(lb(vars[ci.x]) + ci.wt > lb(vars[ci.y])) {
+  if(lb(vars[ci.x]) - ci.wt > lb(vars[ci.y])) {
     if(!set_lb(vars[ci.y], lb(vars[ci.x]) - ci.wt, expl<&P::ex_lb>(c)))
       return false;
+    lb_check.add(ci.x);
     if(!propagate_active_lb(ci.y))
       return false;
   }
-  if(ub(vars[ci.x]) > ub(vars[ci.y]) - ci.wt) {
+  if(ub(vars[ci.x]) > ub(vars[ci.y]) + ci.wt) {
     if(!set_ub(vars[ci.x], ub(vars[ci.y]) + ci.wt, expl<&P::ex_ub>(c)))
       return false;
+    ub_check.add(ci.x);
     if(!propagate_active_ub(ci.x))
       return false;
   }
@@ -611,6 +613,7 @@ bool diff_manager::process_killed(cst_id c) {
   // relevant nodes. First bit in distance indicates whether it
   // passed through the new edge.
   const diff_info& ci(csts[c]);
+  int l_count = 0;
   {
     int flag_count = 1;
     fdist[ci.x] = 0; flag[ci.x] = 0; fseen.add(ci.x); fqueue.insert(ci.x);
@@ -618,8 +621,10 @@ bool diff_manager::process_killed(cst_id c) {
     while(!fqueue.empty()) {
       dim_id s(fqueue.removeMin());
       int s_wt = fdist[s];
-      if(flag[s])
+      if(flag[s]) {
         dims[s].l_rel = true;
+        l_count++;
+      }
       for(act_info act : dims[s].lb_act) {
         if(!fseen.elem(act.y)) {
           fdist[act.y] = s_wt + act.wt; flag[act.y] = flag[s];
@@ -646,6 +651,7 @@ bool diff_manager::process_killed(cst_id c) {
       }
     }
   }
+  int r_count = 0;
   {
     int flag_count = 1;
     rdist[ci.y] = 0; flag[ci.y] = 0; rseen.add(ci.y); rqueue.insert(ci.y);
@@ -653,8 +659,10 @@ bool diff_manager::process_killed(cst_id c) {
     while(!rqueue.empty()) {
       dim_id d(rqueue.removeMin());
       int d_wt = rdist[d];
-      if(flag[d])
+      if(flag[d]) {
+        r_count++;
         dims[d].r_rel = true;
+      }
       for(act_info act : dims[d].ub_act) {
         if(!rseen.elem(act.y)) {
           flag_count += flag[d];
@@ -682,12 +690,16 @@ bool diff_manager::process_killed(cst_id c) {
       }
     }
   }
+  bool ret = true;
+  int relev = 0;
+  // Cheapo cutoff
+  // fprintf(stderr, "Relevant: [%d | %d]\n", l_count, r_count);
+  if(!l_count || !r_count)
+    goto killed_cleanup;
   
   // Now we walk through _all_ suspended constraints,
   // checking for entailment.
   // TODO: Make more incremental
-  bool ret = true;
-  int relev = 0;
   for(int e : finished.complement()) {
     assert(e < csts.size());
     const diff_info& ei(csts[e]);

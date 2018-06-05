@@ -10,6 +10,7 @@
 #include "utils/interval.h"
 
 #include "constraints/difflogic.h"
+#define USE_DIFFLOGIC
 
 // using max = std::max;
 // using min = std::min;
@@ -1966,7 +1967,7 @@ bool pred_leq(solver_data* s, pid_t x, pid_t y, int k) {
 }
 
 bool int_leq(solver_data* s, intvar x, intvar y, int k) {
-#if 1
+#ifdef USE_DIFFLOGIC
   return difflogic::post(s, at_True, x, y, k);
 #else
   return pred_leq(s, x.p, y.p, k + y.off - x.off);
@@ -1995,7 +1996,7 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   if(s->state.is_entailed(r) && y.ub(s) + k < x.lb(s))
     return false;
 
-#if 1
+#ifdef USE_DIFFLOGIC
   return difflogic::post(s, r, x, y, k);
 #else
   if(s->state.is_entailed(r))
