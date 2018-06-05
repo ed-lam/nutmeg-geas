@@ -347,6 +347,10 @@ void diff_manager::queue_rev(dim_id d, int wt, diff_id r) {
 }
 
 bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int timestamp) {
+  assert(fseen.size() == 0);
+  assert(rseen.size() == 0);
+  assert(fqueue.empty());
+  assert(rqueue.empty());
   queue_fwd(s0, 0, INT_MAX);
   queue_rev(d0, 0, INT_MAX);
   int fmin(0);
@@ -357,6 +361,7 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
   while(fmin + rmin < cap) {
     if(fmin <= rmin) {
       dim_id s(fqueue.removeMin());
+      assert(fdist[s] == fmin);
       for(act_info e : dims[s].lb_act) {
         // The remaining edges weren't at the time of inference.
         if(finished.pos(e.c) >= timestamp)
@@ -373,13 +378,15 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
               d = csts[c].y;
             }
             ret = true;
-            break;
+            goto path_cleanup;
           }
         } else {
           queue_fwd(e.y, fmin + e.wt, e.c);
         }
       }
-      fmin = fqueue.getMin();
+      if(fqueue.empty())
+        goto path_cleanup;
+      fmin = fdist[fqueue.getMin()];
     } else {
       dim_id d(rqueue.removeMin());
       for(act_info e : dims[d].ub_act) {
@@ -396,14 +403,18 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
               d = csts[c].y;
             }
             ret = true;
-            break;
+            goto path_cleanup;
           }
         } else {
           queue_rev(e.y, rmin + e.wt, e.c);
         }
       }
+      if(rqueue.empty())
+        goto path_cleanup;
+      rmin = rdist[rqueue.getMin()];
     }
   }
+path_cleanup:
   fqueue.clear(); fseen.clear();
   rqueue.clear(); rseen.clear();
   // At this point, we've proven the shortest
