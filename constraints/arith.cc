@@ -9,6 +9,8 @@
 #include "mtl/support-list.h"
 #include "utils/interval.h"
 
+#include "constraints/difflogic.h"
+
 // using max = std::max;
 // using min = std::min;
 
@@ -1964,7 +1966,11 @@ bool pred_leq(solver_data* s, pid_t x, pid_t y, int k) {
 }
 
 bool int_leq(solver_data* s, intvar x, intvar y, int k) {
+#if 1
+  return difflogic::post(s, at_True, x, y, k);
+#else
   return pred_leq(s, x.p, y.p, k + y.off - x.off);
+
   /*
   if(ub(y) + k < lb(x))
     return false;
@@ -1980,6 +1986,7 @@ bool int_leq(solver_data* s, intvar x, intvar y, int k) {
   s->infer.pred_ineqs[py^1].push({px^1, k});
   return true;
   */
+#endif
 }
 
 bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
@@ -1988,8 +1995,12 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   if(s->state.is_entailed(r) && y.ub(s) + k < x.lb(s))
     return false;
 
+#if 1
+  return difflogic::post(s, r, x, y, k);
+#else
   if(s->state.is_entailed(r))
     return int_leq(s, x, y, k);
+    // return difflogic::post(s, at_True, x, y, k);
 
   /*
   new pred_le_hr_s(s, x.p, y.p, k, r);
@@ -1999,6 +2010,7 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   // return pred_le_hr::post(s, x.p, y.p, k - x.off + y.off, r);
   // return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
   return int_le_hr::post(s, r, x, y + k);
+#endif
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {

@@ -21,6 +21,10 @@ public:
     }
   }
 
+  void hide(int k) {
+    is_touched[k] = true;
+  }
+
   bool elem(int k) const { return is_touched[k]; }
   void clear(void) {
     for(int t : touched) {

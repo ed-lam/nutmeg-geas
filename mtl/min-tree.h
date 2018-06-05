@@ -301,6 +301,102 @@ protected:
     }
   }
 };
+
+template<class V, class E>
+class bound_tree {
+  typedef unsigned int node_id;
+
+  static node_id left(node_id n) { return (n<<1) + 1; }
+  static node_id right(node_id n) { return (n<<1) + 2; }
+  static node_id sibling(node_id n) { return (n&1) ? n+1 : n-1; }
+  static node_id parent(node_id n) { return (n-1)>>1; }
+  node_id base(void) const { return leaves.size()-1; }
+
+  node_id node_of(unsigned int v) const { return v + base(); }
+  unsigned int leaf_of(node_id n) const { return n - base(); }
+  bool is_internal(node_id n) const { return n < base(); }
+
+public: 
+  bound_tree(E e)
+    : eval(e), nodes(), leaves() {
+    nodes.push(INT_MAX);      
+  }
+
+  // TODO: Fix this so we don't need to re-initialize this when a new
+  // constraint is added. One solution: prefill layers with int-max,
+  // only re-initialize when a level is full.
+  int push(V v) {
+    int id = leaves.size();
+    leaves.push(v);
+    if(id) {
+      nodes.push();
+      nodes.push();
+    }
+    initialize(0);
+    return id;
+  }
+
+  int root_val(void) const { return nodes[0]; }
+
+  int initialize(unsigned int r) {
+    if(is_internal(r)) {
+      int l_e(initialize(left(r)));
+      int r_e(initialize(right(r)));
+      return nodes[r] = std::min(l_e, r_e);
+    } else {
+      assert(r < (unsigned int) nodes.size());
+      assert(leaf_of(r) < leaves.size());
+      return nodes[r] = eval(leaves[leaf_of(r)]);
+    }
+  }
+
+  void decrease(unsigned int v) {
+    // Update parents of v, where v becomes the
+    // subtree min.
+    int v_e(eval(leaves[v]));
+    node_id n(node_of(v));
+
+    while(n) {
+      n = parent(n);
+      if(nodes[n] <= v_e) 
+        return;
+      nodes[n] = v_e;
+    }
+  }
+
+  template<class F>
+  bool forall_lt(F f, int k) {
+    bool okay = true;
+    forall_lt(f, 0, k, okay);
+    return okay;
+  }
+protected:
+  template<class F>
+  int forall_lt(F f, node_id n, int k, bool& okay) {
+    // We can guarantee nodes[n] is a lower bound on children of n.
+    if(k <= nodes[n])
+      return nodes[n];
+    if(is_internal(n)) {
+      int v_l = forall_lt(f, left(n), k, okay);
+      if(!okay) {
+        return nodes[n] = std::min(v_l, nodes[right(n)]);
+      }
+      int v_r = forall_lt(f, right(n), k, okay);
+      return nodes[n] = std::min(v_l, v_r);
+    } else {
+      int l(leaf_of(n));
+      int v = nodes[n] = eval(leaves[l]);
+      if(v < k)
+        okay = f(leaves[l]);
+      return v;
+    }
+  }
+
+  E eval;
+  vec<int> nodes;
+  vec<V> leaves;
+};
+
 }
 
 #endif

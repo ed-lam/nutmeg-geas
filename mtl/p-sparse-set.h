@@ -95,7 +95,7 @@ public:
 
    unsigned int pos(unsigned int val) const
    {
-      assert( elem(val) );
+      // assert( elem(val) );
       return sparse[val];
    }
     
@@ -111,6 +111,29 @@ public:
         unsigned int old_dom = dom;
         while(dom <= new_dom)
           dom *= 1.5;
+        // Of course, this is bad practice -- should check the return value
+        sparse = (unsigned int*) realloc(sparse,sizeof(unsigned int)*dom); 
+        dense = (unsigned int*) realloc(dense,sizeof(unsigned int)*dom);
+
+        // Initialize the newly added elements
+        for(; old_dom < dom; old_dom++) {
+          sparse[old_dom] = old_dom;
+          dense[old_dom] = old_dom;
+        }
+      }
+   }
+
+   void growTo_strict(unsigned int new_dom)
+   {
+      if( dom <= new_dom )
+      {
+        /*
+        unsigned int old_dom = dom;
+        while(dom <= new_dom)
+          dom *= 1.5;
+          */
+        unsigned int old_dom = dom;
+        dom = new_dom;
         // Of course, this is bad practice -- should check the return value
         sparse = (unsigned int*) realloc(sparse,sizeof(unsigned int)*dom); 
         dense = (unsigned int*) realloc(dense,sizeof(unsigned int)*dom);

@@ -194,7 +194,7 @@ public:
     return val_callback<V>(valwatch_fun<V, F>, this, id, flags&Wt_IDEM);
   }
 
-  prop_t get(void) {
+  prop_t get_prop_t(void) {
     return prop_t { propagate, check_sat, root_simplify, cleanup, this }; 
   }
 
