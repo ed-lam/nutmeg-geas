@@ -784,7 +784,7 @@ class ineq : public propagator, public prop_inst<ineq> {
   }
 
   watch_result wake_lb(int wake_gen) {
-    if(wake_gen != gen || !(status&S_Active))
+    if(wake_gen != (int) gen || !(status&S_Active))
       return Wt_Drop;
 
 //    fprintf(stderr, "{%p,lb: %d %d %d\n", this, is_active(trigs[0]), is_active(trigs[1]), is_active(trigs[2]));
@@ -794,7 +794,7 @@ class ineq : public propagator, public prop_inst<ineq> {
   }
 
   watch_result wake_ub(int wake_gen) {
-    if(wake_gen != gen || !(status&S_Active))
+    if(wake_gen != (int) gen || !(status&S_Active))
       return Wt_Drop;
 
 //    fprintf(stderr, "{%p,ub: %d %d %d\n", this, is_active(trigs[0]), is_active(trigs[1]), is_active(trigs[2]));
@@ -1188,8 +1188,8 @@ public:
       kx(_k < 0 ? -_k : 0), ky(_k > 0 ? _k : 0),
       fwatch_gen(0),
       mode(P_None), state(0) {
-    assert(x < s->state.p_vals.size());
-    assert(y < s->state.p_vals.size());
+    assert(x < (unsigned int) s->state.p_vals.size());
+    assert(y < (unsigned int) s->state.p_vals.size());
     /*
     s->pred_callbacks[x].push(watch<&P::wake_xs>(0, Wt_IDEM));
     s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
@@ -1780,8 +1780,8 @@ public:
     : propagator(s), r(_r), x(_x), y(_y),
       kx(_k < 0 ? -_k : 0), ky(_k > 0 ? _k : 0),
       mode(P_None), state(0) {
-    assert(x < s->state.p_vals.size());
-    assert(y < s->state.p_vals.size());
+    assert(x < (unsigned int) s->state.p_vals.size());
+    assert(y < (unsigned int) s->state.p_vals.size());
     s->pred_callbacks[x].push(watch<&P::wake_xs>(0, Wt_IDEM));
     s->pred_callbacks[y^1].push(watch<&P::wake_xs>(1, Wt_IDEM));
 
@@ -2028,7 +2028,7 @@ bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
     return true;
   }
 
-  if(ub - lb < s->opts.eager_threshold)
+  if(ub - lb < (unsigned int) s->opts.eager_threshold)
   // if(0)
   {
     if(pred_lb(s, y)+k < lb) {   

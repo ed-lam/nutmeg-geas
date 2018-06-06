@@ -72,7 +72,7 @@ public:
     int operator()(cst_id c) const {
       if(d->finished.elem(c))
         return INT_MAX;
-      return -d->csts[c].wit - d->csts[c].wt;
+      return -(d->csts[c].wit - d->csts[c].wt);
     }
     diff_manager* d;
   };
@@ -101,6 +101,14 @@ public:
       for(act_info act : dims[d].lb_act) {
         assert(pot[d] + act.wt - pot[act.y] >= 0);
       }
+    }
+  }
+  void check_witnesses(void) {
+    for(unsigned int ci : finished.complement()) {
+      assert(lb(vars[csts[ci].x]) <= csts[ci].wit);
+      assert(csts[ci].wit <= ub(vars[csts[ci].y]) + csts[ci].wt);
+      assert(dims[csts[ci].x].threshold_lb.root_val() <= csts[ci].wit);
+      assert(dims[csts[ci].y].threshold_ub.root_val() <= -(csts[ci].wit - csts[ci].wt));
     }
   }
 
@@ -191,11 +199,15 @@ public:
     for(dim_id v : lb_check) {
       if(!propagate_suspended_lb(v))
         return false;
+      // assert(lb(vars[v]) <= dims[v].threshold_lb.root_val());
     }
     for(dim_id v : ub_check) {
       if(!propagate_suspended_ub(v))
         return false;
+      // assert(-dims[v].threshold_lb.root_val() <= ub(vars[v]));
     }
+    // check_witnesses();
+
     // If we made it this far, commit to the changes.
     set(finished_sz, finished.size());
     return true;
@@ -210,7 +222,8 @@ public:
   bool propagate_active_ub(dim_id d);
   bool propagate_suspended_lb(dim_id d);
   bool propagate_suspended_ub(dim_id d);
-  bool process_killed(cst_id c);
+  bool process_killed(cst_id c, vec<clause_elt>& confl);
+  bool propagate_if_killed(cst_id c, cst_id e, vec<clause_elt>& confl);
   
   void untrail(void);
    
@@ -351,6 +364,8 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
   assert(rseen.size() == 0);
   assert(fqueue.empty());
   assert(rqueue.empty());
+#if 0
+  // FIXME: Update bidirectional search to cope with potentials.
   queue_fwd(s0, 0, INT_MAX);
   queue_rev(d0, 0, INT_MAX);
   int fmin(0);
@@ -358,12 +373,12 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
   // int best(INT_MAX);
 
   bool ret = false;
-  while(fmin + rmin < cap) {
+  while(fmin + rmin <= cap) {
     if(fmin <= rmin) {
       dim_id s(fqueue.removeMin());
       assert(fdist[s] == fmin);
       for(act_info e : dims[s].lb_act) {
-        // The remaining edges weren't at the time of inference.
+        // The remaining edges weren't set at the time of inference.
         if(finished.pos(e.c) >= timestamp)
           break;
         if(rseen.elem(e.y)) {
@@ -395,7 +410,7 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
         if(fseen.elem(e.y)) {
           spval_t wt(fmin + e.wt + fdist[e.y]);
           if(wt <= cap) {
-            // Found a solution
+            // Found a solution. Finish filling in fpred.
             fpred[d] = e.c;
             while(d != d0) {
               cst_id c(rpred[d]);   
@@ -414,12 +429,31 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
       rmin = rdist[rqueue.getMin()];
     }
   }
+  fprintf(stderr, "%% Length bound: %d ( > %d)\n", fmin + rmin, cap);
 path_cleanup:
   fqueue.clear(); fseen.clear();
   rqueue.clear(); rseen.clear();
   // At this point, we've proven the shortest
   // path is has length greater than cap.
   return ret;
+#else
+  queue_fwd(s0, 0, INT_MAX);
+  while(!fqueue.empty()) {
+    dim_id s(fqueue.removeMin());
+    if(s == d0) {
+      fseen.clear(); fqueue.clear();
+      return fdist[s] <= cap;
+    }
+    for(act_info act : dims[s].lb_act) {
+      if(finished.pos(act.c) > timestamp)
+        break;
+      queue_fwd(act.y, fdist[s] + act.wt, act.c);
+    }
+  }
+  fseen.clear();
+  return false;
+#endif
+
 }
 
 
@@ -519,6 +553,8 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     dims[dy].ub_act.push(act_info { dx, k, ci });
     lb_change.add(dx);
     ub_change.add(dy);
+    finished.insert(ci);
+    set(finished_sz, finished.size());
     // check_potential();
     // Worry about the rest later.
   } else {
@@ -532,7 +568,7 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     attach(s, r, watch<&P::wake_r>(activators.size()));
     activators.push(activator { r, ci });
 
-    int m = lb(vars[dx]) + (ub(vars[dy]) - lb(vars[dx]) + k)/2;
+    int m = lb(vars[dx]) + (ub(vars[dy]) + k - lb(vars[dx]))/2;
     di.wit = m; 
     di.x_idx = dims[dx].csts_lb.size();
     di.y_idx = dims[dy].csts_ub.size();
@@ -540,6 +576,9 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     dims[dy].csts_ub.push(ci);
     dims[dx].threshold_lb.push(ci);
     dims[dy].threshold_ub.push(ci);
+    // assert(lb(vars[dx]) <= dims[dx].threshold_lb.root_val());
+    // assert(-dims[dy].threshold_ub.root_val() <= ub(vars[dy]));
+    // check_witnesses();
   }
   return true;
 }
@@ -555,11 +594,16 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
   // active or entailed
   finished.insert(c);
 
-  // Check if the potential function needs repair.
   diff_info& ci(csts[c]);
+
+  // Check if the constraint is already entailed by bounds.
+  if(ub(vars[ci.x]) <= lb(vars[ci.y]) + ci.wt)
+    return true;
+
+  // Check if the potential function needs repair.
   if(pot[ci.x] + ci.wt - pot[ci.y] >= 0) {
     // Potential function is already valid. Check
-    // if the constraint is already entailed.
+    // if the constraint is already entailed by constraints.
     if(exists_path(ci.x, ci.y, ci.wt, finished.size()))
       return true;
   } else {
@@ -586,7 +630,7 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
   dims[ci.y].ub_act.push(act_info { ci.x, ci.wt, c });
   // check_potential();
   // Find all constraints which are made inconsistent
-  if(!process_killed(c))
+  if(!process_killed(c, confl))
     return false;
   // Now update lower and upper bounds.
   if(lb(vars[ci.x]) - ci.wt > lb(vars[ci.y])) {
@@ -606,28 +650,74 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
   return true;
 }
 
+// propagate_if_killed(c, e, confl) checks if constraint e is killed after adding c.
+// Should only be called from process_killed.
+bool diff_manager::propagate_if_killed(cst_id c, cst_id e, vec<clause_elt>& confl) {
+  const diff_info& ci(csts[c]);
+  // assert(e < csts.size());
+  const diff_info& ei(csts[e]);
+
+  if(dims[ei.x].l_rel && dims[ei.y].r_rel) {
+    if((fdist[ei.x]) - ci.wt + (rdist[ei.y]) < - ei.wt) {
+      // Inconsistent
+      finished.insert(e);
+      for(patom_t r : ei.rs) {
+        if(lb(r)) {
+          // ex_r_diff assumes fseen is empty, so collect the reason
+          // directly instead.
+          confl.push(~r);
+          confl.push(~ci.r);
+          dim_id s = ei.x;
+          while(s != ci.y) {
+            cst_id c_s(fpred[s]);
+            confl.push(~csts[c_s].r);
+            s = csts[c_s].x;
+          }
+          dim_id d = ei.y;
+          while(d != ci.x) {
+            cst_id c_d(rpred[d]);
+            confl.push(~csts[c_d].r);
+            d = csts[c_d].y;
+          }
+          return false;
+        }
+        // Since we've just checked lb(r), shouldn't fail.
+        if(!enqueue(*s, ~r, expl<&P::ex_r_diff>(e)))
+          ERROR;
+      }
+    }
+  }
+  return true;
+}
+
 // Identify any suspended constraints which are inconsistent
 // after adding c.
-bool diff_manager::process_killed(cst_id c) {
+bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
   // Run forward and backward passes to compute
   // relevant nodes. First bit in distance indicates whether it
   // passed through the new edge.
   const diff_info& ci(csts[c]);
   int l_count = 0;
+  vec<dim_id> l_set;
   {
     int flag_count = 1;
     fdist[ci.x] = 0; flag[ci.x] = 0; fseen.add(ci.x); fqueue.insert(ci.x);
     fdist[ci.y] = ci.wt; flag[ci.y] = 1; fseen.add(ci.y); fqueue.insert(ci.y);
+    fpred[ci.y] = c;
     while(!fqueue.empty()) {
       dim_id s(fqueue.removeMin());
       int s_wt = fdist[s];
       if(flag[s]) {
         dims[s].l_rel = true;
-        l_count++;
+        l_set.push(s);
+        l_count += dims[s].csts_lb.size();
       }
       for(act_info act : dims[s].lb_act) {
+        if(act.c == c)
+          continue;
         if(!fseen.elem(act.y)) {
           fdist[act.y] = s_wt + act.wt; flag[act.y] = flag[s];
+          fpred[act.y] = act.c;
           fseen.add(act.y); fqueue.insert(act.y);
           flag_count += flag[s];
         } else {
@@ -635,10 +725,12 @@ bool diff_manager::process_killed(cst_id c) {
             assert(fqueue.inHeap(act.y));
             flag_count += flag[s] - flag[act.y];
             fdist[act.y] = s_wt + act.wt; flag[act.y] = flag[s];
+            fpred[act.y] = act.c;
             fqueue.decrease(act.y);
           } else if(s_wt + act.wt == fdist[act.y] && flag[s] < flag[act.y]) {
             flag_count += flag[s] - flag[act.y];
             flag[act.y] = flag[s];
+            fpred[act.y] = act.c;
             fqueue.decrease(act.y);
           }
         }
@@ -652,6 +744,7 @@ bool diff_manager::process_killed(cst_id c) {
     }
   }
   int r_count = 0;
+  vec<dim_id> r_set;
   {
     int flag_count = 1;
     rdist[ci.y] = 0; flag[ci.y] = 0; rseen.add(ci.y); rqueue.insert(ci.y);
@@ -660,24 +753,30 @@ bool diff_manager::process_killed(cst_id c) {
       dim_id d(rqueue.removeMin());
       int d_wt = rdist[d];
       if(flag[d]) {
-        r_count++;
         dims[d].r_rel = true;
+        r_count += dims[d].csts_ub.size();
+        r_set.push(d);
       }
       for(act_info act : dims[d].ub_act) {
+        if(act.c == c)
+          continue;
         if(!rseen.elem(act.y)) {
           flag_count += flag[d];
           rdist[act.y] = d_wt + act.wt; flag[act.y] = flag[d];
+          rpred[act.y] = act.c;
           rseen.add(act.y); rqueue.insert(act.y); 
         } else {
           if(d_wt + act.wt < rdist[act.y]) {
             assert(rqueue.inHeap(act.y));
             flag_count += flag[d] - flag[act.y];
             rdist[act.y] = d_wt + act.wt; flag[act.y] = flag[d];
+            rpred[act.y] = act.c;
             rqueue.decrease(act.y);
           } else if(d_wt + act.wt == rdist[act.y] && flag[d] < flag[act.y]) {
             assert(rqueue.inHeap(act.y));
             flag_count += flag[d] - flag[act.y];
             flag[act.y] = flag[d];
+            rpred[act.y] = act.c;
             rqueue.decrease(act.y);
           }
         }
@@ -691,34 +790,37 @@ bool diff_manager::process_killed(cst_id c) {
     }
   }
   bool ret = true;
-  int relev = 0;
+  // int relev = 0;
   // Cheapo cutoff
   // fprintf(stderr, "Relevant: [%d | %d]\n", l_count, r_count);
-  if(!l_count || !r_count)
-    goto killed_cleanup;
   
   // Now we walk through _all_ suspended constraints,
   // checking for entailment.
-  // TODO: Make more incremental
-  for(int e : finished.complement()) {
-    assert(e < csts.size());
-    const diff_info& ei(csts[e]);
-    assert(ei.x < (unsigned int) dims.size());
-    assert(ei.y < (unsigned int) dims.size());
-    if(dims[ei.x].l_rel && dims[ei.y].r_rel) {
-      ++relev;
-      if((rdist[ei.x]>>1) - ci.wt + (fdist[ei.y]>>1) < - ei.wt) {
-        // Inconsistent
-        finished.insert(e);
-        for(patom_t r : ei.rs) {
-          if(!enqueue(*s, ~r, expl<&P::ex_r_diff>(e))) {
-            ret = false;
-            goto killed_cleanup;
-          }
+  // TODO: Make more incremental.
+  if(l_count <= r_count) {
+    for(dim_id s : l_set) {
+      for(cst_id e : dims[s].csts_lb) {
+        if(finished.elem(e))
+          continue;
+        if(!propagate_if_killed(c, e, confl)) {
+          ret = false;
+          goto killed_cleanup;
+        }
+      }
+    }
+  } else {
+    for(dim_id d : r_set) {
+      for(cst_id e : dims[d].csts_ub) {
+        if(finished.elem(e))
+          continue;
+        if(!propagate_if_killed(c, e, confl)) {
+          ret = false;
+          goto killed_cleanup;
         }
       }
     }
   }
+
 killed_cleanup:
   // Cleanup 
   for(dim_id d : fseen)
@@ -730,14 +832,14 @@ killed_cleanup:
   return ret;
 }
 
-// TODO: If a bound had changed, but it was updated during
-// propagate_active_lb, we don't need to touch it again.
+// A variable is added to Xb_check once we know
+// its corresponding bound has been dealt with.
 bool diff_manager::propagate_active_lb(dim_id d) {
   int v(lb(vars[d]));
   lb_check.add(d);
   for(act_info act : dims[d].lb_act) {
-    // Skip variables with unchanged bounds
     if(!fseen.elem(act.y)) {
+      // Skip variables with unchanged bounds
       if(v - act.wt <= lb(vars[act.y]))
         continue;
       fdist[act.y] = act.wt;
@@ -881,9 +983,12 @@ bool diff_manager::propagate_suspended_lb(dim_id d) {
       finished.insert(ci);
     } else {
       // Choose a new separator.
-      int s = v + (v - c.wt - w)/2;
+      int s = v + (w + c.wt - v)/2;
+      assert(lb(vars[c.x]) <= s);
+      assert(s <= ub(vars[c.y]) + c.wt);
       c.wit = s;
       dims[c.y].threshold_ub.decrease(c.y_idx);
+      // assert(dims[c.y].threshold_ub.root_val() <= -(s - c.wt));
     }
     return true;
   }, v);
@@ -910,9 +1015,12 @@ bool diff_manager::propagate_suspended_ub(dim_id d) {
       finished.insert(ci);
     } else {
       // Choose a new witness.
-      int s = w + (w - c.wt - v)/2;
+      int s = w + (v + c.wt - w)/2;
+      assert(lb(vars[c.x]) <= s);
+      assert(s <= ub(vars[c.y]) + c.wt);
       c.wit = s;
       dims[c.x].threshold_lb.decrease(c.x_idx);
+      // assert(dims[c.x].threshold_lb.root_val() <= s);
     }
     return true;
   }, -v);

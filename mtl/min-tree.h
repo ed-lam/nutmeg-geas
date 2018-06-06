@@ -345,7 +345,7 @@ public:
       return nodes[r] = std::min(l_e, r_e);
     } else {
       assert(r < (unsigned int) nodes.size());
-      assert(leaf_of(r) < leaves.size());
+      assert(leaf_of(r) < (unsigned int) leaves.size());
       return nodes[r] = eval(leaves[leaf_of(r)]);
     }
   }
@@ -355,6 +355,7 @@ public:
     // subtree min.
     int v_e(eval(leaves[v]));
     node_id n(node_of(v));
+    nodes[n] = v_e;
 
     while(n) {
       n = parent(n);
@@ -385,10 +386,10 @@ protected:
       return nodes[n] = std::min(v_l, v_r);
     } else {
       int l(leaf_of(n));
-      int v = nodes[n] = eval(leaves[l]);
-      if(v < k)
+      if(eval(leaves[l]) < k)
         okay = f(leaves[l]);
-      return v;
+      // f might have updated the weight
+      return nodes[n] = eval(leaves[l]);
     }
   }
 
