@@ -151,6 +151,22 @@ let all_different args =
   in
   aux 1
   
+let cumulative args =
+  let s = Pr.get_array Pr.get_int args.(0) in
+  let d = Pr.get_array Pr.get_int args.(1) in
+  let r = Pr.get_array Pr.get_int args.(2) in
+  let b = Pr.get_int args.(3) in  
+  (* Only need to check the start positions. *)
+  Array.for_all (fun t ->
+    (* The sum at time t must be no greater than b. *) 
+    let req = ref 0 in
+    Array.iteri (fun i r ->
+      if s.(i) <= t && t < s.(i) + d.(i) then
+        req := !req + r
+    ) r ;
+    !req <= b
+  ) s
+
 (* Initialize the checkers *)
 let check_funs =
 (*
@@ -206,6 +222,8 @@ let check_funs =
        "array_bool_or", array_bool_or ; 
        "all_different_int", all_different ;
        "fzn_all_different_int", all_different ;
+       "fzn_cumulative", cumulative ;
+       "fzn_cumulative_var", cumulative ;
      ]
 let init () =
   List.iter (fun (id, checker) -> H.add checkers id checker) check_funs
