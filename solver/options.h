@@ -33,6 +33,7 @@ typedef struct {
   double restart_growthrate;
 
   int one_watch;
+  int global_diff;
 
   int eager_threshold;
 } options;

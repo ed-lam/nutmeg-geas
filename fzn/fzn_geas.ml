@@ -812,10 +812,13 @@ let get_options () =
   let defaults = Sol.default_options () in
   let rlimit = !Opts.restart_limit in
   { defaults with
+    Sol.one_watch = !Opts.one_watch ;
+    Sol.global_diff = !Opts.global_diff ;
     Sol.restart_limit =
       match rlimit with
       | Some r -> r
-      | None -> defaults.Sol.restart_limit }
+      | None -> defaults.Sol.restart_limit
+  }
   
 let set_polarity solver env pol_info =
   Array.iteri (fun i ctx ->

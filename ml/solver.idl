@@ -40,6 +40,7 @@ typedef struct {
   double restart_growthrate;
 
   boolean one_watch;
+  boolean global_diff;
 
   int eager_threshold;
 } options;

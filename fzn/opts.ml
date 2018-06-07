@@ -22,6 +22,9 @@ let limits = ref (Solver.unlimited ())
 let obj_probe_limit = ref None
 let core_opt = ref false
 
+let one_watch = ref true
+let global_diff = ref true
+
 let check = ref false
 
 let native = ref false
@@ -90,6 +93,16 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "--obj-probe",
       Arg.Int (fun k -> obj_probe_limit := Some k),
       " : number of conflicts to give speculative objective tightening."
+     ) ;
+     (
+      "--one-watch",
+      Arg.Bool (fun b -> one_watch := b),
+      " : use one-literal watching for learnt clauses (default: true)."
+     ) ;
+     (
+      "--global-diff",
+      Arg.Bool (fun b -> global_diff := b),
+      " : use global difference-logic propagator to handle (reified) inequalities (default: true)."
      ) ;
      (*
      (

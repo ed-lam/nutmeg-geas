@@ -30,6 +30,7 @@ options default_options = {
   1.05, // double restart_growthrate;
 
   1,     // one_watch
+  1,     // global_diff
 
 //  200, // eager_threshold
    10, // eager_threshold
@@ -1109,6 +1110,11 @@ inline clause** simplify_clause(solver_data& s, clause* c, clause** dest) {
     // c has become a binary clause.
     // Inline the clause body, and free the clause.
     // GKG: Should check if this is locked.
+    // >> Should be safe so long as we're at level 0.
+    // FIXME: There is a risk when it comes to one-literal watching:
+    // there may only be one survivor in the clause, so if we were
+    // two-watching, it would already be asserted.
+    // As it is, one of our watch-lists will already be dead.
     detach_clause(s, c);
     /*
     if(!c->extra.one_watch)
@@ -1165,8 +1171,9 @@ inline void simplify_at_root(solver_data& s) {
 
     while(head != dest) {
       // assert(head->ws.size() == 0);
-#if 1
-      // FIXME
+#if 0
+      // FIXME: This is dangerous in combination with
+      // one-watch. See note in simplify_clause.
       s.infer.watch_maps[pi].rem(head_val);
       watch_node* w = head;
       head_val = head->succ_val;

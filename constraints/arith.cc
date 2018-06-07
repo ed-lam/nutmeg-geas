@@ -1968,8 +1968,9 @@ bool pred_leq(solver_data* s, pid_t x, pid_t y, int k) {
 
 bool int_leq(solver_data* s, intvar x, intvar y, int k) {
 #ifdef USE_DIFFLOGIC
-  return difflogic::post(s, at_True, x, y, k);
-#else
+  if(s->opts.global_diff)
+    return difflogic::post(s, at_True, x, y, k);
+#endif
   return pred_leq(s, x.p, y.p, k + y.off - x.off);
 
   /*
@@ -1987,7 +1988,6 @@ bool int_leq(solver_data* s, intvar x, intvar y, int k) {
   s->infer.pred_ineqs[py^1].push({px^1, k});
   return true;
   */
-#endif
 }
 
 bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
@@ -1997,11 +1997,11 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
     return false;
 
 #ifdef USE_DIFFLOGIC
-  return difflogic::post(s, r, x, y, k);
-#else
+  if(s->opts.global_diff)
+    return difflogic::post(s, r, x, y, k);
+#endif
   if(s->state.is_entailed(r))
     return int_leq(s, x, y, k);
-    // return difflogic::post(s, at_True, x, y, k);
 
   /*
   new pred_le_hr_s(s, x.p, y.p, k, r);
@@ -2011,7 +2011,6 @@ bool int_le(solver_data* s, intvar x, intvar y, int k, patom_t r) {
   // return pred_le_hr::post(s, x.p, y.p, k - x.off + y.off, r);
   // return pred_le_hr_s::post(s, x.p, y.p, k - x.off + y.off, r);
   return int_le_hr::post(s, r, x, y + k);
-#endif
 }
 
 bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {

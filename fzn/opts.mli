@@ -23,6 +23,9 @@ val limits : Solver.limits ref
 val obj_probe_limit : int option ref
 val core_opt : bool ref
 
+val one_watch : bool ref
+val global_diff : bool ref
+
 val check : bool ref
 
 val native : bool ref
