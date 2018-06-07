@@ -142,6 +142,26 @@ public:
     }
     return Wt_Keep;
   }
+  // Deactivate redundant constraints
+  watch_result wake_dis(int c) {
+    if(is_finished(c))
+      return Wt_Keep;
+    // Otherwise, look for a replacement
+    diff_info& ci(csts[c]);
+    for(int ri = 1; ri < ci.rs.size(); ++ri) {
+      if(ub(ci.rs[ri])) {
+        std::swap(ci.rs[0], ci.rs[ri]);
+        attach(s, ~ci.rs[0], watch<&P::wake_dis>(c));
+        return Wt_Drop;
+      }
+    }
+    // No other way this can be activated, so
+    // forget about it.
+    untrail();
+    finished.insert(c);
+    return Wt_Keep;
+  }
+
   watch_result wake_lb(int di) {
     if(!lb_change.elem(di)) {
       lb_change.add(di);
@@ -230,8 +250,8 @@ public:
   bool repair_potential(dim_id s, dim_id d, int wt);
   bool exists_path(dim_id s0, dim_id d0, int cap, unsigned int timestamp);
 
-  void queue_fwd(dim_id d, int wt, diff_id r);
-  void queue_rev(dim_id d, int wt, diff_id r);
+  inline void queue_fwd(dim_id d, int wt, diff_id r);
+  inline void queue_rev(dim_id d, int wt, diff_id r);
 
   void ex_lb(int c, pval_t p, vec<clause_elt>& expl);
   void ex_ub(int c, pval_t p, vec<clause_elt>& expl);
@@ -277,8 +297,9 @@ public:
 // Need to compute new potential pot' s.t. pot'[d] + wt - pot[s] >= 0.
 bool diff_manager::repair_potential(dim_id s, dim_id d, int wt) {
   // Compute the change in potential.
-  // To avoid creating a new comparator, we offset all
-  // weights by pot[d].
+  // We offset all weights by - pot[d], so the correction in cmp_fwd_dist
+  // gives us the correct gamma.
+  // As a result, dist[d] is exactly pot'[d].
   assert(fseen.size() == 0);
   assert(fqueue.empty());
   fdist[d] = pot[s] + wt /* - pot[d] */;
@@ -327,7 +348,7 @@ bool diff_manager::repair_potential(dim_id s, dim_id d, int wt) {
 }
 
 // Bidirectional search, through only active edges.
-void diff_manager::queue_fwd(dim_id d, int wt, diff_id r) {
+inline void diff_manager::queue_fwd(dim_id d, int wt, diff_id r) {
   if(fseen.elem(d)) {
     if(wt < fdist[d]) {
       assert(fqueue.inHeap(d));
@@ -343,7 +364,7 @@ void diff_manager::queue_fwd(dim_id d, int wt, diff_id r) {
   }
 }
 // Bidirectional search, through only active edges.
-void diff_manager::queue_rev(dim_id d, int wt, diff_id r) {
+inline void diff_manager::queue_rev(dim_id d, int wt, diff_id r) {
   if(rseen.elem(d)) {
     if(wt < rdist[d]) {
       assert(rqueue.inHeap(d));
@@ -364,25 +385,27 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
   assert(rseen.size() == 0);
   assert(fqueue.empty());
   assert(rqueue.empty());
-#if 0
-  // FIXME: Update bidirectional search to cope with potentials.
+#if 1
   queue_fwd(s0, 0, INT_MAX);
   queue_rev(d0, 0, INT_MAX);
-  int fmin(0);
-  int rmin(0);
-  // int best(INT_MAX);
+
+  // Maintain fmin = dist[s] - pot[s] (similarly for rmin), so the 
+  // path components add up.
+  int fmin(-pot[s0]);
+  int rmin(pot[d0]);
 
   bool ret = false;
   while(fmin + rmin <= cap) {
     if(fmin <= rmin) {
       dim_id s(fqueue.removeMin());
-      assert(fdist[s] == fmin);
+      assert(fdist[s] - pot[s] == fmin);
+      int s_wt = fdist[s];
       for(act_info e : dims[s].lb_act) {
         // The remaining edges weren't set at the time of inference.
         if(finished.pos(e.c) >= timestamp)
           break;
         if(rseen.elem(e.y)) {
-          int wt(fmin + e.wt + rdist[e.y]);
+          int wt(s_wt + e.wt + rdist[e.y]);
           if(wt <= cap) {
             // Found a path. Set the rest of fpred.
             dim_id d(e.y);
@@ -396,19 +419,21 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
             goto path_cleanup;
           }
         } else {
-          queue_fwd(e.y, fmin + e.wt, e.c);
+          queue_fwd(e.y, s_wt + e.wt, e.c);
         }
       }
       if(fqueue.empty())
         goto path_cleanup;
-      fmin = fdist[fqueue.getMin()];
+      fmin = fdist[fqueue.getMin()] - pot[fqueue.getMin()];
     } else {
       dim_id d(rqueue.removeMin());
+      int d_wt = rdist[d];
+      assert(d_wt + pot[d] == rmin);
       for(act_info e : dims[d].ub_act) {
         if(finished.pos(e.c) >= timestamp)
           break;
         if(fseen.elem(e.y)) {
-          spval_t wt(fmin + e.wt + fdist[e.y]);
+          spval_t wt(d_wt + e.wt + fdist[e.y]);
           if(wt <= cap) {
             // Found a solution. Finish filling in fpred.
             fpred[d] = e.c;
@@ -421,15 +446,15 @@ bool diff_manager::exists_path(dim_id s0, dim_id d0, int cap, unsigned int times
             goto path_cleanup;
           }
         } else {
-          queue_rev(e.y, rmin + e.wt, e.c);
+          queue_rev(e.y, d_wt + e.wt, e.c);
         }
       }
       if(rqueue.empty())
         goto path_cleanup;
-      rmin = rdist[rqueue.getMin()];
+      rmin = rdist[rqueue.getMin()] + pot[rqueue.getMin()];
     }
   }
-  fprintf(stderr, "%% Length bound: %d ( > %d)\n", fmin + rmin, cap);
+  // fprintf(stderr, "%% Length bound: %d ( > %d)\n", fmin + rmin, eff_cap);
 path_cleanup:
   fqueue.clear(); fseen.clear();
   rqueue.clear(); rseen.clear();
@@ -566,6 +591,7 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     }
     // if not, set the witness and set up the watches.
     attach(s, r, watch<&P::wake_r>(activators.size()));
+    attach(s, ~r, watch<&P::wake_dis>(ci));
     activators.push(activator { r, ci });
 
     int m = lb(vars[dx]) + (ub(vars[dy]) + k - lb(vars[dx]))/2;
@@ -612,7 +638,7 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
     // in fpred.
     if(!repair_potential(ci.x, ci.y, ci.wt)) {
       // Collect the corresponding failure, and abort.
-      EX_PUSH(confl, ~act);  
+      EX_PUSH(confl, ~act);
       dim_id d_r(ci.x);
       do {
         cst_id c_r(fpred[d_r]);
@@ -636,7 +662,7 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
   if(lb(vars[ci.x]) - ci.wt > lb(vars[ci.y])) {
     if(!set_lb(vars[ci.y], lb(vars[ci.x]) - ci.wt, expl<&P::ex_lb>(c)))
       return false;
-    lb_check.add(ci.x);
+    lb_check.add(ci.y);
     if(!propagate_active_lb(ci.y))
       return false;
   }
@@ -662,6 +688,11 @@ bool diff_manager::propagate_if_killed(cst_id c, cst_id e, vec<clause_elt>& conf
       // Inconsistent
       finished.insert(e);
       for(patom_t r : ei.rs) {
+        /*
+        if(ub(r)) {
+          fprintf(stderr, "%% Useful!\n");
+        }
+        */
         if(lb(r)) {
           // ex_r_diff assumes fseen is empty, so collect the reason
           // directly instead.
@@ -797,6 +828,7 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
   // Now we walk through _all_ suspended constraints,
   // checking for entailment.
   // TODO: Make more incremental.
+#if 1
   if(l_count <= r_count) {
     for(dim_id s : l_set) {
       for(cst_id e : dims[s].csts_lb) {
@@ -820,6 +852,14 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
       }
     }
   }
+#else
+  for(unsigned int e : finished.complement()) {
+    if(!propagate_if_killed(c, e, confl)) {
+      ret = false;
+      goto killed_cleanup;
+    }
+  }
+#endif
 
 killed_cleanup:
   // Cleanup 
@@ -1007,7 +1047,8 @@ bool diff_manager::propagate_suspended_ub(dim_id d) {
     if(w > v + c.wt) {
       // Constraint is now dead. Kill all the
       // activators, and de-suspend the constraint.
-      c.sep = v + c.wt + 1;
+      // c.sep = v + c.wt + 1;
+      c.sep = w;
       for(patom_t r : c.rs) {
         if(!enqueue(*s, ~r, expl<&P::ex_r_bnd>(ci)))
           return false;

@@ -9,6 +9,7 @@ namespace difflogic {
   // r -> (x - y <= k)
   bool post(solver_data* s, patom_t r, intvar x, intvar y, int k);
   bool check_sat(solver_data* s, intvar x, intvar y, int k);
+  bool check_sat(solver_data* s, ctx_t& ctx, intvar x, intvar y, int k);
 }
 
 }
