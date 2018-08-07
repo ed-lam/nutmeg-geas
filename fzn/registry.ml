@@ -104,6 +104,13 @@ let int_div solver args anns =
   let z = force_ivar solver args.(2) in
   Builtins.int_div solver At.at_True z x y
 
+(* FIXME: Not actually getting sharing for tables. *)
+let table_int solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  let rs = Pr.get_array Pr.get_int args.(1) in
+  let t_id = Builtins.build_table solver (Array.length xs) rs in
+  Builtins.table solver t_id xs
+
 (* Specialization of linear inequalities *)
 let simplify_linterms terms k =
   let rec aux acc k' ts =
@@ -776,6 +783,7 @@ let initialize () =
      "fzn_cumulative_var", cumulative_var ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
+     "fzn_table_int", table_int ;
      "value_precede_int", precede_int ;
      "geas_precede_chain", precede_chain_int ;
      "geas_value_precede_chain", value_precede_chain ;

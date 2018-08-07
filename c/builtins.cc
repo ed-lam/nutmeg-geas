@@ -301,6 +301,31 @@ int values_precede_chain_int(solver s, int* ks, int ks_sz,
   return false;
 }
 
+table_id build_table(solver s, int arity, int* elts, int sz) {
+  // Build the rows.
+  assert(sz % arity == 0);
+  int* end(elts+sz);
+
+  vec< vec<int> > rows;
+  while(elts != end) {
+    rows.push();
+    vec<int>& r(rows.last());
+
+    for(int ii = 0; ii < arity; ++ii, ++elts) {
+      r.push(*elts);
+    }
+  }
+  return geas::table::build(get_solver(s)->data, rows);
+}
+
+int table(solver s, table_id t, intvar* vs, int sz) {
+  vec<geas::intvar> xs;
+  intvar* end = vs+sz;
+  for(; vs != end; ++vs) xs.push(*get_intvar(*vs));
+
+  return geas::table::post(get_solver(s)->data, t, xs);
+}
+
 #ifdef __cplusplus
 }
 #endif

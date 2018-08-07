@@ -68,6 +68,15 @@ int precede_int(solver s, int a, int b, intvar* xs, int sz);
 int precede_chain_int(solver s, intvar* xs, int sz);
 int values_precede_chain_int(solver s, int* vs, int vs_sz,
   intvar* xs, int xs_sz);
+
+// Tables
+typedef int table_id;
+table_id build_table(solver s, int arity, int* elts, int sz);
+int table(solver s, table_id t, intvar* xs, int sz);
+
+// Regular
+// typedef int reg_id;
+// reg_id build_regular(solver s, int num_states, 
 #ifdef __cplusplus
 }
 #endif

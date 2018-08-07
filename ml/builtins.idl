@@ -88,3 +88,10 @@ quote(ml, "let bipartite_flow s srcs sinks flows = \
   
 boolean precede_chain_int([in] solver s, [in,size_is(sz)] intvar xs[], int sz);
 boolean precede_int([in] solver s, int a, int b, [in,size_is(sz)] intvar xs[], int sz);
+
+/* Table constraints */
+typedef int table_id;
+table_id build_table([in] solver s, [in] int arity, [in,size_is(sz)] int elts[], int sz);
+boolean table([in] solver s, table_id t, [in,size_is(sz)] intvar xs[], int sz);
+
+/* Regular constraints */

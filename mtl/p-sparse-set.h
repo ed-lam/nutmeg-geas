@@ -51,8 +51,27 @@ public:
    unsigned int* begin(void) { return dense; }
    unsigned int* end(void) { return dense+sz; }
    
+   struct riter {
+     unsigned int operator*(void) const { return *p; }
+     bool operator!=(const riter& o) const { return p != o.p; }
+     riter operator++(void) { --p; return *this; }
+
+     unsigned int* p;
+   };
+
+   struct rrange {
+     riter begin(void) const { return riter {e-1}; };
+     riter end(void) const { return riter {b-1}; }
+
+    unsigned int* b;
+    unsigned int* e; 
+   };
+
    // Iterate over elements _not_ in the set.
    range complement(void) const { return range { dense+sz, dense+dom }; }
+   range slice(unsigned int b, unsigned int e) { return range { dense+b, dense+e }; }
+
+   rrange rev(void) const { return rrange { dense, dense+sz }; }
 
    inline bool elem(unsigned int value) const {
      return sparse[value] < sz;
@@ -146,11 +165,11 @@ public:
       }
    }
 
-   unsigned int size(void) {
+   unsigned int size(void) const {
       return sz;
    }
    
-   unsigned int domain(void) {
+   unsigned int domain(void) const {
       return dom;
    }
        
