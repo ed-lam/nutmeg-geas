@@ -151,6 +151,22 @@ let all_different args =
   in
   aux 1
   
+let table args =
+  let xs = Pr.get_array Pr.get_int args.(0) in
+  let arity = Array.length xs in
+  let ts_flat = Pr.get_array Pr.get_int args.(1) in
+  let sz = Array.length ts_flat / arity in
+  let rec aux k =
+    if k >= sz then
+      false
+    else
+      if xs = Array.init arity (fun i -> ts_flat.(k * arity + i)) then
+        true
+      else
+        aux (k+1)
+  in
+  aux 0
+
 let cumulative args =
   let s = Pr.get_array Pr.get_int args.(0) in
   let d = Pr.get_array Pr.get_int args.(1) in
@@ -224,6 +240,7 @@ let check_funs =
        "fzn_all_different_int", all_different ;
        "fzn_cumulative", cumulative ;
        "fzn_cumulative_var", cumulative ;
+       "fzn_table_int", table ;
      ]
 let init () =
   List.iter (fun (id, checker) -> H.add checkers id checker) check_funs

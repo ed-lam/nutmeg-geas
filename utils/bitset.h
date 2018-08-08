@@ -13,16 +13,15 @@ namespace bitset {
 
   inline idx_ty elt_idx(unsigned int e) { return e / word_bits(); }
   inline idx_ty elt_bit(unsigned int e) { return e % word_bits(); }
-  inline idx_ty elt_mask(unsigned int e) { return 1<<elt_mask(e); }
+  inline word_ty elt_mask(unsigned int e) { return ((word_ty) 1)<<elt_bit(e); }
 
 
   // Standard bit-set. Not really suitable for iteration.
-  /*
   class bitset {
   public:
-    bitset(unsigned int _sz)
-      : sz(req_words(_sz)), mem((word_ty*)(malloc(sizeof(word_ty) * req_words(sz))) {
-      memset(mem, 0, sizeof(word_ty) * sz);
+    bitset(unsigned int sz)
+      : cap(req_words(sz)), mem((word_ty*) malloc(sizeof(word_ty) * req_words(sz))) {
+      memset(mem, 0, sizeof(word_ty) * cap);
     }
     ~bitset(void) {
       free(mem);
@@ -30,13 +29,20 @@ namespace bitset {
   
     bool elem(unsigned int e) const { return mem[elt_idx(e)] & elt_mask(e); }
     bool is_empty(void) const {
-      for(size_t ii = 0; ii < sz; ++ii) {
+      for(size_t ii = 0; ii < cap; ++ii) {
         if(mem[ii])
           return false;
       }
       return true;
     }
 
+    void fill(size_t sz) {
+      assert(req_words(sz) <= cap);
+      // Fill the array with 1s
+      memset(mem, (char) -1, sizeof(word_ty) * req_words(sz));
+      mem[cap-1] &= (elt_mask(sz)-1);
+    }
+    /*
     void clear(void) { memset(mem, 0, sizeof(word_ty) * sz); }
     void insert(unsigned int e) { mem[elt_idx(e)] |= elt_mask(e); }
     void remove(unsigned int e) { mem[elt_idx(e)] &= ~elt_mask(e); }
@@ -49,14 +55,16 @@ namespace bitset {
       for(size_t ii = 0; ii < sz; ++ii)
         mem[ii] &= o.mem[ii];
     }
+    */
+    word_ty& operator[](unsigned int w) const { return mem[w]; }
 
     word_ty get_word(unsigned int w) const { return mem[w]; }
-    size_t num_words(void) const { return sz; }       
+    size_t num_words(void) const { return cap; }
+    size_t size(void) const { return cap; }
   protected:
-    size_t sz;
+    size_t cap;
     word_ty* mem;
   };
-  */
 
   // For when we have a static, sparse set of
   // items (like supports, or transition relations)
@@ -69,8 +77,8 @@ namespace bitset {
     template<class It>
     static size_t idx_sz(It b, It e) {
       if(b != e) {
-        size_t c = 0;
-        unsigned int w(elt_idx(*b)); 
+        size_t c = 1;
+        unsigned int w(elt_idx(*b));
         for(++b; b != e; ++b) {
           if(elt_idx(*b) != w) {
             w = elt_idx(*b);

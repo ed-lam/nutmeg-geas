@@ -11,6 +11,8 @@
 #include "utils/bitset.h"
 
 using namespace geas;
+
+using btset = bitset::bitset;
 using namespace bitset;
 
 struct table_info {
@@ -22,10 +24,7 @@ struct table_info {
   table_info(size_t _arity, size_t _num_tuples)
     : arity(_arity), num_tuples(_num_tuples)
     , domains(arity), supports(arity) {
-    for(size_t ii = 0; ii < arity; ++ii) {
-      domains.push();
-      supports.push();
-    }
+
   }
 
   size_t arity;
@@ -52,7 +51,7 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
 
   vec<int> tperm(tuples.size());
   for(int ii = 0; ii < tuples.size(); ii++)
-    tperm.push(ii);
+    tperm[ii] = ii;
   
   table_info* ti(new table_info(arity, sz));
 
@@ -61,7 +60,11 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
     // Sort tuples by xi-value.
     ti->vals_start.push(ti->val_index.size());
 
-    std::sort(tperm.begin(), tperm.end(), [&tuples, xi](int ii, int jj) { return tuples[ii][xi] < tuples[jj][xi]; });
+    std::sort(tperm.begin(), tperm.end(),
+      [&tuples, xi](int ii, int jj) {
+        if(tuples[ii][xi] == tuples[jj][xi]) return ii < jj;
+        return tuples[ii][xi] < tuples[jj][xi];
+      });
     
     // Now we can iterate through, and collect (a) values, and (b) support tuples.
     int v(tuples[tperm[0]][xi]);
@@ -113,7 +116,7 @@ table_id table_manager::build(vec< vec<int> >& tuples) {
 }
 
 class compact_table : public propagator, public prop_inst<compact_table> {
-  watch_result wakeup(unsigned int vi) {
+  watch_result wakeup(int vi) {
     auto info(table.val_index[vi]);
     if(live_vals[info.var].elem(info.val_id)) {
       if(!changed_vars.elem(info.var)) {
@@ -136,6 +139,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     for(unsigned int vi : dead_vals.slice(0, dead_idx)) {
       table_info::val_info info(table.val_index[vi]);
     
+#if 1
       // If this value was supporting something, add it eagerly.
       support_set& ss(table.supports[info.var][info.val_id]);
       if(try_remove_bits(ex_tuples, ss)) {
@@ -143,6 +147,10 @@ class compact_table : public propagator, public prop_inst<compact_table> {
         if(ex_tuples.is_empty())
           return;
       }
+#else
+      xs[info.var].explain_neq(table.domains[info.var][info.val_id], expl);
+      ex_tuples.clear();
+#endif
     }
     assert(ex_tuples.is_empty());
   }
@@ -166,6 +174,7 @@ public:
     : propagator(s), table(table_manager::get(s)->lookup(t)), xs(_xs)
     , live_vals(xs.size())
     , live_tuples(table.num_tuples)
+    , live_r(0)
     , residual(table.val_index.size(), 0)
     , active_vars(xs.size())
     , dead_vals(table.val_index.size(), 0)
@@ -174,13 +183,16 @@ public:
     , old_live(xs.size(), 0)
     , ex_tuples(table.num_tuples) {
 
+    live_tuples.fill(table.num_tuples);
+
     for(int xi : irange(xs.size())) {
       vec<int>& d(table.domains[xi]);
       make_sparse(xs[xi], d);
-      live_vals.push(p_sparseset(d.size()));
+      live_vals[xi].growTo(d.size());
       for(int k : irange(d.size())) {
         if(in_domain(xs[xi], d[k])) {
-          live_vals.last().insert(k);
+          attach(s, xs[xi] != d[k], watch<&P::wakeup>(table.vals_start[xi] + k));
+          live_vals[xi].insert(k);
         } else {
           dead_vals[dead_sz] = table.vals_start[xi] + k;  
           dead_sz.x = dead_sz + 1;
@@ -189,46 +201,67 @@ public:
       if(live_vals.size() > 1)
         active_vars.insert(xi);
 
-      if(live_vals.last().size() != (unsigned int) d.size()) {
+      if(live_vals[xi].size() != (unsigned int) d.size()) {
         changed_vars.add(xi);
         old_live[xi] = d.size();
       }
     }
+    queue_prop();
   }
 
 
   bool filter(vec<clause_elt>& confl) {
     // Iterate in reverse, so we can safely remove values.
+    unsigned int act_sz = active_vars.size();
     for(unsigned int x : active_vars.rev()) {
+      unsigned int x_sz = live_vals[x].size();
       for(unsigned int k : live_vals[x].rev()) {
         // Check if there is still some support for x = k.
         support_set& ss(table.supports[x][k]);
         auto r(ss[residual[table.vals_start[x] + k]]);        
 
-        if(live_tuples.idx.elem(r.w) && (live_tuples[r.w] & r.bits))
-          return true;
+        if(live_tuples[r.w] & r.bits)
+          goto next_value;
 
         // Otherwise, search for a new support.
+        {
         auto b(ss.begin());
         auto e(ss.end());
 
-        for(; b != e; ++b) {
-          if(live_tuples.idx.elem((*b).w) && (live_tuples[(*b).w] & (*b).bits)) {
-            // Found a new support
-            residual[table.vals_start[x] + k] = (b - ss.begin());   
-            goto next_value;
+          for(; b != e; ++b) {
+            if(live_tuples[(*b).w] & (*b).bits) {
+              // Found a new support
+              residual[table.vals_start[x] + k] = (b - ss.begin());   
+              goto next_value;
+            }
           }
         }
         // No supports left. Try removing it from the domain of x.
         dead_vals[dead_sz] = table.vals_start[x] + k;
-        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(dead_sz)))
+        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(dead_sz))) {
+          active_vars.sz = act_sz;
+          live_vals[x].sz = x_sz;
           return false;
+        }
         set(dead_sz, dead_sz+1);
         live_vals[x].remove(k);
     next_value:
         continue;
       }
+      // If some value was killed, make sure it'll get restored on backtracking.
+      if(live_vals[x].size() != x_sz) {
+        trail_fake(s->persist, live_vals[x].sz, x_sz);
+        // If x is now fixed, we never need to check it again.
+        if(live_vals[x].size() == 1) {
+          trail_push(s->persist, active_vars.sz);
+          active_vars.remove(x);
+        }
+      }
     }
+    // If some variable was disabled, save the old value
+    if(active_vars.size() != act_sz)
+      trail_fake(s->persist, active_vars.sz, act_sz);
+    return true;
   }
 
   void update_tuples(void) {
@@ -237,15 +270,27 @@ public:
       // Ignore resetting for now.
 
       for(unsigned int k : x_vals.slice(x_vals.size(), old_live[x])) {
-        // kill_val(x, k);
+        kill_value(x, k);
       }
     }
     changed_vars.clear();
   }
 
+  bool tuples_nonempty(void) {
+    if(live_tuples[live_r])
+      return true;
+    for(int w : irange(live_tuples.size())) {
+      if(live_tuples[w]) {
+        live_r = w;
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool propagate(vec<clause_elt>& confl) {
     update_tuples();
-    if(live_tuples.idx.size() == 0) {
+    if(!tuples_nonempty()) {
       ex_fail(confl);
       return false;
     }
@@ -253,6 +298,11 @@ public:
       return false;
 
     return true;
+  }
+   
+  void cleanup(void) {
+    is_queued = false;
+    changed_vars.clear();
   }
 
 protected:
@@ -286,47 +336,18 @@ protected:
     return false;
   }
 
-  /*
-  inline void word_remove(p_sparse_bitset& bits, unsigned int w, bitset::word_ty wd) {
-    if(bits[w] & wd) {
-      if(bits[w] & ~wd) {
-        trail_change(s->persist, bits[w], bits[w] & ~wd);
-      } else {
-        trail_push(s->persist, bits.idx.sz);
-        bits.idx.remove(w);
-      }
+  inline void word_remove(btset& bits, support_set::elem_ty e) {
+    if(bits[e.w] & e.bits) {
+      trail_change(s->persist, bits[e.w], bits[e.w] & ~e.bits);
     }
   }
 
-  void kill_value(unsigned int vid v) {
-    support_set& ss(table.val_supports(v)); 
-    for(unsigned int w : ss.words()) {
-      if(!live_tuples.elem(w))
-        continue;
-      word_remove(live_tuples, w, ss[w]);
+  void kill_value(unsigned int x, unsigned int k) {
+    support_set& ss(table.supports[x][k]);
+    for(support_set::elem_ty e : ss) {
+      word_remove(live_tuples, e);
     }
   }
-
-  inline bool check_value(unsigned int v) {
-    unsigned int w(residual[v]);
-    support_set& ss(table.val_supports(v)); 
-
-    // Check if the resdiual is still viable.
-    if(live_tuples.idx.elem(w) && (live_tuples[w] & ss[w]))
-      return true;
-
-    // Otherwise, search.
-    for(unsigned int w : ss.words()) {
-      if(!live_tuples.idx.elem(w))
-        continue;
-      if(live_tuples[w] & ss[w]) {
-        residual[v] = w;
-        return true;
-      }
-    }
-    return false;
-  }
-  */
 
   // The pre-computed table information
   table_info& table;
@@ -336,7 +357,8 @@ protected:
 
   // Persistent state
   vec<p_sparseset> live_vals;
-  p_sparse_bitset live_tuples;
+  btset live_tuples;
+  unsigned int live_r;
 
   vec<unsigned int> residual;
   p_sparseset active_vars;

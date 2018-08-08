@@ -118,7 +118,7 @@ public:
       return sparse[val];
    }
     
-   unsigned int operator [] (unsigned int index) {
+   unsigned int operator [] (unsigned int index) const {
       assert(index < dom);
       return dense[index];
    }
