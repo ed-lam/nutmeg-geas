@@ -597,6 +597,7 @@ static void aconfl_remove(solver_data* s, pid_t p) {
   s->confl.pred_seen.remove(p);
   if(!s->confl.pred_is_assump[p] || s->confl.pred_assval[p] < s->confl.pred_eval[p])
     s->confl.clevel--;
+  assert(s->confl.clevel >= 0);
   assert(!s->confl.pred_seen.elem(p));
 }
 
@@ -731,6 +732,7 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
 void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
   // Have to use separate structures for data, because
   // s.wake_vals and s.pred_queued get reset during backtracking.
+  s->confl.clevel = 0;
   s->confl.pred_is_assump.growTo(s->wake_vals.size(), false);
   s->confl.pred_assval.growTo(s->wake_vals.size(), 0);
   confl.clear();

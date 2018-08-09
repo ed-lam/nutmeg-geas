@@ -468,6 +468,8 @@ static forceinline bool propagate_assumps(solver_data& s) {
 
   int idx = s.assump_end;
 
+  process_initializers(s);
+
   if(!propagate(s))
     s.last_confl = { C_Infer, idx };
   if(decision_level(s) == 0)
