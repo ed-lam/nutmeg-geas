@@ -23,7 +23,8 @@ struct table_info {
 
   table_info(size_t _arity, size_t _num_tuples)
     : arity(_arity), num_tuples(_num_tuples)
-    , domains(arity), supports(arity) {
+    , domains(arity), supports(arity)
+    , row_index(num_tuples) {
 
   }
 
@@ -40,6 +41,7 @@ struct table_info {
 
   vec<int> vals_start;
   vec<val_info> val_index;
+  vec< vec<int> > row_index;
   // Scratch space
   // sparse_bitset mask;
 };
@@ -69,6 +71,7 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
     // Now we can iterate through, and collect (a) values, and (b) support tuples.
     int v(tuples[tperm[0]][xi]);
     vec<int> v_rows { tperm[0] };
+    ti->row_index[tperm[0]].push(ti->val_index.size());
     unsigned int k = 0;
 
     for(int ii = 1; ii < tperm.size(); ++ii) {
@@ -85,6 +88,7 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
         v_rows.clear();
       }
       v_rows.push(t);
+      ti->row_index[t].push(ti->val_index.size());
     }
     ti->val_index.push(table_info::val_info { xi, k });
     ti->domains[xi].push(v);
@@ -127,19 +131,40 @@ class compact_table : public propagator, public prop_inst<compact_table> {
       }
       live_vals[info.var].remove(info.val_id);
 
-      dead_vals[dead_sz] = vi;
-      set(dead_sz, dead_sz+1);
+      trail_push(s->persist, dead_vals.sz);
+      dead_vals.insert(vi);
     }
     return Wt_Keep;
   }
 
   // Assumes ex_tuples has been initialized appropriately.
-  void mk_expl(int dead_idx, vec<clause_elt>& expl) {
+  void mk_expl(unsigned int dead_idx, vec<clause_elt>& expl) {
     // Walk through the available values
+#if 1
+    for(unsigned int w = 0; w < ex_tuples.num_words(); ++w) {
+      while(ex_tuples[w]) {
+        // Which row 
+        size_t r(w * bitset::word_bits() + __builtin_ctzll(ex_tuples[w]));
+        for(int vi : table.row_index[r]) {
+          if(dead_vals.pos(vi) < dead_idx) {
+            // Value is available for expln.
+            table_info::val_info info(table.val_index[vi]);
+            xs[info.var].explain_neq(table.domains[info.var][info.val_id], expl);
+            for(auto e : table.supports[info.var][info.val_id]) {
+              ex_tuples[e.w] &= ~e.bits;
+            }
+            goto next_row;
+          }
+        }
+        ERROR;
+     next_row:
+        continue;
+      }
+    }
+    /*
     for(unsigned int vi : dead_vals.slice(0, dead_idx)) {
       table_info::val_info info(table.val_index[vi]);
     
-#if 1
       // If this value was supporting something, add it eagerly.
       support_set& ss(table.supports[info.var][info.val_id]);
       if(try_remove_bits(ex_tuples, ss)) {
@@ -147,12 +172,16 @@ class compact_table : public propagator, public prop_inst<compact_table> {
         if(ex_tuples.is_empty())
           return;
       }
+    }
+    */
 #else
+    for(unsigned int vi : dead_vals.slize(0, dead_idx)) {
+      table_info::val_info info(table.val_index[vi]);
       xs[info.var].explain_neq(table.domains[info.var][info.val_id], expl);
       ex_tuples.clear();
-#endif
     }
     assert(ex_tuples.is_empty());
+#endif
   }
 
   void ex_val(int dead_idx, pval_t _pi, vec<clause_elt>& expl) {
@@ -166,7 +195,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
 
   void ex_fail(vec<clause_elt>& expl) {
     ex_tuples.fill(table.num_tuples);
-    mk_expl(dead_sz, expl);
+    mk_expl(dead_vals.size(), expl);
   }
 
 public:
@@ -177,12 +206,12 @@ public:
     , live_r(0)
     , residual(table.val_index.size(), 0)
     , active_vars(xs.size())
-    , dead_vals(table.val_index.size(), 0)
-    , dead_sz(0)
+    , dead_vals(table.val_index.size())
     , changed_vars(xs.size())
     , old_live(xs.size(), 0)
     , ex_tuples(table.num_tuples) {
 
+    memset(ex_tuples.mem, 0, sizeof(bitset::word_ty) * ex_tuples.cap);
     live_tuples.fill(table.num_tuples);
 
     for(int xi : irange(xs.size())) {
@@ -194,8 +223,7 @@ public:
           attach(s, xs[xi] != d[k], watch<&P::wakeup>(table.vals_start[xi] + k));
           live_vals[xi].insert(k);
         } else {
-          dead_vals[dead_sz] = table.vals_start[xi] + k;  
-          dead_sz.x = dead_sz + 1;
+          dead_vals.insert(table.vals_start[xi] + k);
         }
       }
       if(live_vals.size() > 1)
@@ -237,13 +265,14 @@ public:
           }
         }
         // No supports left. Try removing it from the domain of x.
-        dead_vals[dead_sz] = table.vals_start[x] + k;
-        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(dead_sz))) {
+        dead_vals.insert(table.vals_start[x] + k);
+        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(dead_vals.size()-1))) {
+          dead_vals.sz--;
           active_vars.sz = act_sz;
           live_vals[x].sz = x_sz;
           return false;
         }
-        set(dead_sz, dead_sz+1);
+        trail_fake(s->persist, dead_vals.sz, dead_vals.sz-1);
         live_vals[x].remove(k);
     next_value:
         continue;
@@ -365,8 +394,7 @@ protected:
 
   // We use dead_vals to reconstruct
   // the state upon explanation.
-  vec<unsigned int> dead_vals;
-  Tint dead_sz;
+  p_sparseset dead_vals;
 
   // Transient data
   boolset changed_vars;
