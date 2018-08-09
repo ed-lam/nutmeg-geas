@@ -104,13 +104,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       Arg.Bool (fun b -> global_diff := b),
       " : use global difference-logic propagator to handle (reified) inequalities (default: true)."
      ) ;
-     (*
      (
       "--core-opt",
       Arg.Set core_opt,
       " : use an unsat-core driven optimization."
      ) ;
-     *)
      (
       "-a",
       Arg.Unit (fun () -> max_solutions := 0),

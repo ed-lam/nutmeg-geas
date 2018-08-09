@@ -44,7 +44,8 @@ let print_atom problem env =
     with Not_found -> try
       let id = H.find atom_names (At.neg at) in
       Format.fprintf fmt "not %s" id
-    with Not_found -> Format.fprintf fmt "??")
+    with Not_found ->
+      Format.fprintf fmt "x%d >= %s" (Int32.to_int at.At.pid) (Int64.to_string @@ At.to_int at.At.value))
 
 let print_nogood problem env =
   let pp_atom = print_atom problem env in
@@ -537,16 +538,20 @@ let update_thresholds thresholds bounds =
     let st = H.find thresholds x in
     assert (b > st.lb) ;
     min d st.residual) max_int bounds in
-  Array.iter (fun (x, _) ->
+  let atoms = Array.map (fun (x, _) ->
     let st = H.find thresholds x in
-    H.replace thresholds x (adjust_ovar_state st delta)) bounds ;
-  delta
+    let at = Sol.ivar_gt x st.lb in
+    H.replace thresholds x (adjust_ovar_state st delta) ;
+    at) bounds in
+  delta, atoms
 
 let log_thresholds thresholds =
   let fmt = Format.err_formatter in
   Format.fprintf fmt "{|@[<hov 2>" ;
-  Hashtbl.iter (fun k st -> Format.fprintf fmt "@ [%d:%d,%d,%d]"
-    (Sol.ivar_pred k |> Int32.to_int) st.coeff st.lb st.residual) thresholds ;
+  Hashtbl.fold (fun k st tl -> (k, st) :: tl) thresholds [] |> List.sort compare |>
+    List.iter (fun (k, st) ->
+  (* Hashtbl.iter (fun k st -> *) Format.fprintf fmt "@ [%d:%d,%d,%d]"
+    (Sol.ivar_pred k |> Int32.to_int) st.coeff st.lb st.residual) (* thresholds *) ;
   Format.fprintf fmt "@ |}@]@."
 
 let post_thresholds solver thresholds =
@@ -624,18 +629,20 @@ let process_core solver pred_map thresholds core =
       (* Create penalty var *)
       let p = Sol.new_intvar solver 0 (Array.length core - 1) in
       (* Relate penalty to core *)
-      let _ = post_bool_sum_geq solver p core (-1) in
-      let _ = Sol.post_clause solver core in
       (* Now update thresholds *)
       let bounds = Array.map (lb_of_atom pred_map) core in    
       (*
       let _ = Util.print_array ~pre:"%% @[[" ~post:"]@]@." ~sep:",@ " 
         (fun fmt (x, b) -> Format.fprintf fmt "x%d >= %d" (Sol.ivar_pred x |> Int32.to_int) b) Format.err_formatter bounds in
         *)
-      let delta = update_thresholds thresholds bounds in
+      let delta, atoms = update_thresholds thresholds bounds in
+      let _ = post_bool_sum_geq solver p atoms (-1) in
+      let _ = Sol.post_clause solver core in
+      (* Format.fprintf Format.err_formatter "%% Adding penalty var: x%d with coefficient %d.@."
+        (Sol.ivar_pred p |> Int32.to_int) delta ; *)
       H.add pred_map (Sol.ivar_pred p) p ;
       H.add thresholds p { coeff = delta ; lb = 0 ; residual = delta ; } ;
-      (* log_thresholds thresholds ; *)
+      (* ) log_thresholds thresholds ; ( *)
       delta
     end
 
@@ -713,13 +720,14 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
       (* Format.fprintf Format.err_formatter "%% [SAT].@." ; *)
       let m = Sol.get_model solver in
       let _ = print_model Format.std_formatter m in
-      (*
+      (* )
       let fmt = Format.err_formatter in
       Format.fprintf fmt "{|@[<hov 2>" ;
-      Hashtbl.iter (fun x st -> Format.fprintf fmt "@ [%d:%d|%d]"
-        (Sol.ivar_pred x |> Int32.to_int) st.lb (Sol.int_value m x)) thresholds ;
+      Hashtbl.fold (fun x st tl -> (x, st) :: tl) thresholds [] |> List.sort compare
+        |> List.iter (fun (x, st) -> Format.fprintf fmt "@ [%d:%d|%d]"
+        (Sol.ivar_pred x |> Int32.to_int) st.lb (Sol.int_value m x)) ;
       Format.fprintf fmt "@ |}@]@." ;
-      *)
+      ( *)
       Sol.retract_all solver ;
       let coeff' = next_coeff thresholds min_coeff in
       if coeff' = 0 then
@@ -735,7 +743,7 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
   | Sol.UNSAT -> 
     let core = Sol.get_conflict solver in
     begin
-      (* print_nogood Format.err_formatter core ;  *)
+      (* ) print_nogood Format.err_formatter core ; ( *)
       Sol.retract_all solver ;
       assert (Array.length core > 0) ;
       if Array.length core = 0 then
