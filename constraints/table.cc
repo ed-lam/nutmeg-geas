@@ -144,7 +144,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     for(unsigned int w = 0; w < ex_tuples.num_words(); ++w) {
       while(ex_tuples[w]) {
         // Which row 
-        size_t r(w * bitset::word_bits() + __builtin_ctzll(ex_tuples[w]));
+        size_t r(w * word_bits() + __builtin_ctzll(ex_tuples[w]));
         for(int vi : table.row_index[r]) {
           if(dead_vals.pos(vi) < dead_idx) {
             // Value is available for expln.
@@ -211,7 +211,7 @@ public:
     , old_live(xs.size(), 0)
     , ex_tuples(table.num_tuples) {
 
-    memset(ex_tuples.mem, 0, sizeof(bitset::word_ty) * ex_tuples.cap);
+    memset(ex_tuples.mem, 0, sizeof(word_ty) * ex_tuples.cap);
     live_tuples.fill(table.num_tuples);
 
     for(int xi : irange(xs.size())) {
