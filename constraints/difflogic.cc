@@ -11,6 +11,8 @@
 #include "mtl/bool-set.h"
 #include "mtl/min-tree.h"
 
+// #define CHEAP_DIFFLOGIC
+
 using namespace geas;
 
 class diff_manager : public propagator, public prop_inst<diff_manager>, public solver_ext<diff_manager> {
@@ -44,6 +46,11 @@ public:
     // The position of c in the lb/ub lists.
     unsigned int x_idx;
     unsigned int y_idx;
+
+    // Track whether or not cst is in the
+    // Xb_susp list for x/y.
+    bool in_x_susp;
+    bool in_y_susp;
 
     // r_1 \/ r_2 \/ ... \/ r_n -> x <= y+k
     vec<patom_t> rs; // Possible activators
@@ -91,6 +98,9 @@ public:
 
     bound_tree<int, eval_lb_wit> threshold_lb;
     bound_tree<int, eval_ub_wit> threshold_ub;
+
+    vec<cst_id> lb_susp;
+    vec<cst_id> ub_susp;
 
     bool l_rel;
     bool r_rel;
@@ -576,10 +586,10 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     di.is_active = true;
     dims[dx].lb_act.push(act_info { dy, k, ci });
     dims[dy].ub_act.push(act_info { dx, k, ci });
-    lb_change.add(dx);
-    ub_change.add(dy);
     finished.insert(ci);
     set(finished_sz, finished.size());
+    lb_change.add(dx);
+    ub_change.add(dy);
     // check_potential();
     // Worry about the rest later.
   } else {
@@ -602,6 +612,12 @@ bool diff_manager::post(patom_t r, intvar x, intvar y, int k) {
     dims[dy].csts_ub.push(ci);
     dims[dx].threshold_lb.push(ci);
     dims[dy].threshold_ub.push(ci);
+    dims[dx].lb_susp.push(ci);
+    dims[dy].ub_susp.push(ci);
+    di.in_x_susp = true;
+    di.in_y_susp = true;
+    lb_change.add(dx);
+    ub_change.add(dy);
     // assert(lb(vars[dx]) <= dims[dx].threshold_lb.root_val());
     // assert(-dims[dy].threshold_ub.root_val() <= ub(vars[dy]));
     // check_witnesses();
@@ -656,8 +672,10 @@ bool diff_manager::activate(cst_id c, patom_t act, vec<clause_elt>& confl) {
   dims[ci.y].ub_act.push(act_info { ci.x, ci.wt, c });
   // check_potential();
   // Find all constraints which are made inconsistent
+#ifndef CHEAP_DIFFLOGIC
   if(!process_killed(c, confl))
     return false;
+#endif
   // Now update lower and upper bounds.
   if(lb(vars[ci.x]) - ci.wt > lb(vars[ci.y])) {
     if(!set_lb(vars[ci.y], lb(vars[ci.x]) - ci.wt, expl<&P::ex_lb>(c)))
@@ -741,7 +759,7 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
       if(flag[s]) {
         dims[s].l_rel = true;
         l_set.push(s);
-        l_count += dims[s].csts_lb.size();
+        l_count += dims[s].lb_susp.size();
       }
       for(act_info act : dims[s].lb_act) {
         if(act.c == c)
@@ -785,7 +803,7 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
       int d_wt = rdist[d];
       if(flag[d]) {
         dims[d].r_rel = true;
-        r_count += dims[d].csts_ub.size();
+        r_count += dims[d].ub_susp.size();
         r_set.push(d);
       }
       for(act_info act : dims[d].ub_act) {
@@ -831,6 +849,10 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
 #if 1
   if(l_count <= r_count) {
     for(dim_id s : l_set) {
+      cst_id* pi(dims[s].lb_susp.begin());
+      cst_id* pj(pi);
+      cst_id* pe(dims[s].lb_susp.end());
+      /*
       for(cst_id e : dims[s].csts_lb) {
         if(finished.elem(e))
           continue;
@@ -839,9 +861,54 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
           goto killed_cleanup;
         }
       }
+      */
+      for(; pi != pe; ++pi) {
+        cst_id e(*pi);
+        if(finished.elem(e)) {
+          csts[e].in_x_susp = false;
+          continue;
+        }
+        if(!propagate_if_killed(c, e, confl)) {
+          // Copy remaining.
+          for(; pi != pe; ++pi) {
+            *pj = *pi;
+            ++pj;
+          }
+          dims[s].lb_susp.shrink(pe - pj);
+          ret = false;
+          goto killed_cleanup;
+        }
+        *pj = *pi;
+        ++pj;
+      }
+      dims[s].lb_susp.shrink(pe - pj);
     }
   } else {
     for(dim_id d : r_set) {
+      cst_id *pi(dims[d].ub_susp.begin());
+      cst_id *pj(pi);
+      cst_id *pe(dims[d].ub_susp.end());
+      for(; pi != pe; ++pi) {
+        cst_id e(*pi);
+        if(finished.elem(e)) {
+          csts[e].in_y_susp = false;
+          continue;
+        }
+        if(!propagate_if_killed(c, e, confl)) {
+          // Copy remaining
+          for(; pi != pe; ++pi) {
+            *pj = *pi;
+            ++pj;
+          }
+          dims[d].ub_susp.shrink(pe - pj);
+          ret = false;
+          goto killed_cleanup;
+        }
+        *pj = *pi;
+        ++pj;
+      }
+      dims[d].ub_susp.shrink(pe - pj);
+      /*
       for(cst_id e : dims[d].csts_ub) {
         if(finished.elem(e))
           continue;
@@ -850,6 +917,7 @@ bool diff_manager::process_killed(cst_id c, vec<clause_elt>& confl) {
           goto killed_cleanup;
         }
       }
+      */
     }
   }
 #else
@@ -996,6 +1064,14 @@ void diff_manager::untrail(void) {
       dims[csts[c].y].ub_act.pop();
       csts[c].is_active = false;
     }
+    if(!csts[c].in_x_susp) {
+      csts[c].in_x_susp = true;
+      dims[csts[c].x].lb_susp.push(c);
+    }
+    if(!csts[c].in_y_susp) {
+      csts[c].in_y_susp = true;
+      dims[csts[c].y].ub_susp.push(c);
+    }
     // In either case, repair the witnesses.
     dims[csts[c].x].threshold_lb.decrease(csts[c].x_idx); 
     dims[csts[c].y].threshold_ub.decrease(csts[c].y_idx); 
@@ -1015,7 +1091,7 @@ bool diff_manager::propagate_suspended_lb(dim_id d) {
     if(v > w + c.wt) {
       // Constraint is now dead. Kill all the
       // activators, and de-suspend the constraint.
-      c.sep = v;   
+      c.sep = v;
       for(patom_t r : c.rs) {
         if(!enqueue(*s, ~r, expl<&P::ex_r_bnd>(ci)))
           return false;
@@ -1076,6 +1152,31 @@ bool post(solver_data* s, patom_t r, intvar x, intvar y, int k) {
 }
 
 bool check_sat(solver_data* s, patom_t r, intvar x, intvar y, int k) {
+  // Is it already inconsistent because of bounds?
+  if(x.lb(s) > y.ub(s) + k)
+    return false;
+
+  diff_manager* d(diff_manager::get(s));
+  // Get the dims
+  auto it_x(d->dim_map.find(x.p));
+  auto it_y(d->dim_map.find(y.p));
+  // Unconstrained if either variable is unavailable.
+  if(it_x == d->dim_map.end() || it_y == d->dim_map.end())
+    return true;
+  // Otherwise, correct k for the offset.
+  diff_manager::dim_id dx((*it_x).second);
+  diff_manager::dim_id dy((*it_y).second);
+  k += (d->vars[dx].off - x.off);
+  k -= (d->vars[dy].off - y.off);
+
+  // Is it satisfied by the current model?
+  if(d->pot[dx] + k - d->pot[dy] >= 0)
+    return true; 
+  // Otherwise, check if there's a negative cycle.
+  return !d->exists_path(dy, dx, -k-1, d->finished.size());
+}
+
+bool check_sat(solver_data* s, ctx_t& ctx, intvar x, intvar y, int k) {
   NOT_YET;
   return true;
 }
