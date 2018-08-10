@@ -764,6 +764,10 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
   }
 
 
+#if 0
+  // WARNING: This runs into troubles if late
+  // variables, which have an incomplete history,
+  // need to be explained at an earlier level.
   unsigned int pos = s->infer.trail.size()-1;
   while(s->confl.clevel > 0) {
     while(!aconfl_needed(s, s->infer.trail[pos])) {
@@ -779,6 +783,34 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
     aconfl_add_reason(s, pos, ex_val, e.expl);
     --pos;
   }
+#else
+  // This alternate approach should be bulletproof.
+  if(s->confl.clevel > 0) {
+    int l = s->infer.trail_lim.size();
+    do {
+      unsigned int pos = s->infer.trail.size()-1;
+      unsigned int top = s->infer.trail_lim.last();
+      for(; pos > top; --pos) {
+        if(!aconfl_needed(s, s->infer.trail[pos]))
+          continue;
+        infer_info::entry e(s->infer.trail[pos]);
+
+        pval_t ex_val(s->confl.pred_eval[e.pid]);
+        assert(s->state.is_entailed(patom_t(e.pid, ex_val)));
+        aconfl_remove(s, e.pid);
+        aconfl_add_reason(s, pos, ex_val, e.expl);
+        if(!s->confl.clevel)
+          goto assumption_finished;
+      }
+
+      --l;
+      bt_to_level(s, l);
+      process_initializers(*s);
+
+    } while(l >= 0);
+  }
+assumption_finished:
+#endif
   
   // Now collect the conflict
   for(unsigned int p : s->confl.pred_seen) {
