@@ -584,7 +584,6 @@ static int num_props = 0;
 bool _enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
   std::cout << "|- " << p << "{" << s.infer.trail.size() << "}" << std::endl;
-  touch_pred(s, p);
 #endif
 
   /*
