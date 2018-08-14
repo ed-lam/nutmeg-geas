@@ -10,6 +10,8 @@
 #include "mtl/bool-set.h"
 #include "utils/bitset.h"
 
+// #define TABLE_STATS
+
 using namespace geas;
 
 using btset = bitset::bitset;
@@ -141,7 +143,9 @@ class compact_table : public propagator, public prop_inst<compact_table> {
   void mk_expl(unsigned int dead_idx, vec<clause_elt>& expl) {
     // Walk through the available values
 #if 1
-    for(unsigned int w = 0; w < ex_tuples.num_words(); ++w) {
+    // fprintf(stderr, "%% %d words of %d\n", ex_tuples.idx.size(), live_tuples.num_words());
+    // for(unsigned int w = 0; w < ex_tuples.num_words(); ++w) {
+    for(int w : ex_tuples.idx) {
       while(ex_tuples[w]) {
         // Which row 
         size_t r(w * word_bits() + __builtin_ctzll(ex_tuples[w]));
@@ -175,7 +179,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     }
     */
 #else
-    for(unsigned int vi : dead_vals.slize(0, dead_idx)) {
+    for(unsigned int vi : dead_vals.slice(0, dead_idx)) {
       table_info::val_info info(table.val_index[vi]);
       xs[info.var].explain_neq(table.domains[info.var][info.val_id], expl);
       ex_tuples.clear();
@@ -184,16 +188,36 @@ class compact_table : public propagator, public prop_inst<compact_table> {
 #endif
   }
 
-  void ex_val(int dead_idx, pval_t _pi, vec<clause_elt>& expl) {
-    unsigned int vi(dead_vals[dead_idx]);
+  void print_stats(void) {
+#ifdef TABLE_STATS
+    size_t used_count(0);
+    for(size_t ii = 0; ii < used_rows.num_words(); ++ii)
+      used_count += __builtin_popcountll(used_rows[ii]);
+    fprintf(stderr, "%% prop(%d): used %d of %d. %d wipeouts\n", prop_id, used_count, table.num_tuples, wipeouts);
+#endif
+  }
+  void ex_val(int vi, pval_t _pi, vec<clause_elt>& expl) {
+    int dead_idx(dead_pos[vi]);
     
     // Collect the set of tuples we need to explain.
     table_info::val_info ex_info(table.val_index[vi]);
+#ifdef TABLE_STATS
+    for(auto s : table.supports[ex_info.var][ex_info.val_id])
+      used_rows[s.w] |= s.bits;
+    print_stats();
+#endif
+      
     ex_tuples.init(table.supports[ex_info.var][ex_info.val_id]);
     mk_expl(dead_idx, expl);
+#ifdef TABLE_STATS
+    fprintf(stderr, "%% ex-size: %d\n", expl.size());
+#endif
   }
 
   void ex_fail(vec<clause_elt>& expl) {
+#ifdef TABLE_STATS
+    ++wipeouts;
+#endif
     ex_tuples.fill(table.num_tuples);
     mk_expl(dead_vals.size(), expl);
   }
@@ -207,9 +231,15 @@ public:
     , residual(table.val_index.size(), 0)
     , active_vars(xs.size())
     , dead_vals(table.val_index.size())
+    , dead_pos(table.val_index.size(), 0)
     , changed_vars(xs.size())
     , old_live(xs.size(), 0)
-    , ex_tuples(table.num_tuples) {
+    , ex_tuples(table.num_tuples)
+#ifdef TABLE_STATS
+    , used_rows(table.num_tuples)
+    , wipeouts(0)
+#endif
+    {
 
     memset(ex_tuples.mem, 0, sizeof(word_ty) * ex_tuples.cap);
     live_tuples.fill(table.num_tuples);
@@ -237,6 +267,20 @@ public:
     queue_prop();
   }
 
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+  bool check_sat(ctx_t& ctx) {
+    for(const vec<int>& r : table.row_index) {
+      for(int vi : r) {
+        table_info::val_info info(table.val_index[vi]);
+        if(!xs[info.var].in_domain_exhaustive(ctx, table.domains[info.var][info.val_id]))
+          goto next_row;
+      }
+      return true;
+    next_row:
+      continue;
+    }
+    return false;
+  }
 
   bool filter(vec<clause_elt>& confl) {
     // Iterate in reverse, so we can safely remove values.
@@ -246,7 +290,8 @@ public:
       for(unsigned int k : live_vals[x].rev()) {
         // Check if there is still some support for x = k.
         support_set& ss(table.supports[x][k]);
-        auto r(ss[residual[table.vals_start[x] + k]]);        
+        int val_idx = table.vals_start[x] + k;
+        auto r(ss[residual[val_idx]]);
 
         if(live_tuples[r.w] & r.bits)
           goto next_value;
@@ -259,20 +304,21 @@ public:
           for(; b != e; ++b) {
             if(live_tuples[(*b).w] & (*b).bits) {
               // Found a new support
-              residual[table.vals_start[x] + k] = (b - ss.begin());   
+              residual[val_idx] = (b - ss.begin());   
               goto next_value;
             }
           }
         }
         // No supports left. Try removing it from the domain of x.
-        dead_vals.insert(table.vals_start[x] + k);
-        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(dead_vals.size()-1))) {
-          dead_vals.sz--;
+        // dead_vals.insert(table.vals_start[x] + k);
+        dead_pos[val_idx] = dead_vals.size();
+        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(val_idx))) {
+          // dead_vals.sz--;
           active_vars.sz = act_sz;
           live_vals[x].sz = x_sz;
           return false;
         }
-        trail_fake(s->persist, dead_vals.sz, dead_vals.sz-1);
+        // trail_fake(s->persist, dead_vals.sz, dead_vals.sz-1);
         live_vals[x].remove(k);
     next_value:
         continue;
@@ -394,13 +440,20 @@ protected:
 
   // We use dead_vals to reconstruct
   // the state upon explanation.
+  // Only records the _externally_ killed values.
   p_sparseset dead_vals;
+  vec<int> dead_pos;
 
   // Transient data
   boolset changed_vars;
   vec<unsigned int> old_live;
 
   p_sparse_bitset ex_tuples;
+
+#ifdef TABLE_STATS
+  btset used_rows;
+  unsigned int wipeouts;
+#endif
 };
 
 namespace geas {

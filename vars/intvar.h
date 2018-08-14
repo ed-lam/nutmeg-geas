@@ -212,6 +212,7 @@ public:
   val_t lb(const solver_data* s) const;
   val_t ub(const solver_data* s) const;
   bool in_domain(const ctx_t& ctx, int k) const;
+  bool in_domain_exhaustive(const ctx_t& ctx, int k) const;
 
   bool is_fixed(const vec<pval_t>& ctx) const;
   bool is_fixed(const solver_data*) const;
@@ -298,6 +299,45 @@ inline bool in_domain(const ctx_t& ctx, intvar x, int k) {
     return x.ext->kind != ivar_ext::IV_Strict;
 
   return (*it).value.ub(ctx);
+  /*
+  if(it != x.ext->eqtable.end()) {
+    // If there's an equality atom,
+    // could it be true?
+    return (*it).value.ub(ctx);
+  }
+
+  return true;
+  */
+}
+
+// Doesn't assume the bounds have been 
+inline bool in_domain_exhaustive(const ctx_t& ctx, intvar x, int k) {
+  if(x.ub(ctx) < k)
+    return false;
+  if(x.lb(ctx) > k)
+    return false;
+
+  bool seen = false;
+  for(auto p : x.ext->eqtable) {
+    int p_k = x.lb_of_pval(p.key);
+    if(k == p_k) {
+      if(!p.value.ub(ctx))
+        return false;
+      seen = true;
+    } else {
+      if(p.value.lb(ctx))
+        return false;
+    }
+  }
+  return x.ext->kind != ivar_ext::IV_Strict || seen;
+  // Iterate through all the eqatoms.
+  /*
+  auto it = x.ext->eqtable.find(intvar::from_int(k-x.off));
+  if(it == x.ext->eqtable.end())
+    return x.ext->kind != ivar_ext::IV_Strict;
+
+  return (*it).value.ub(ctx);
+  */
   /*
   if(it != x.ext->eqtable.end()) {
     // If there's an equality atom,
@@ -415,6 +455,9 @@ inline intvar::val_t intvar::lb(const solver_data* s) const { return lb(s->state
 inline intvar::val_t intvar::ub(const solver_data* s) const { return ub(s->state.p_vals); }
 inline bool intvar::in_domain(const ctx_t& ctx, int k) const {
   return geas::in_domain(ctx, *this, k);
+}
+inline bool intvar::in_domain_exhaustive(const ctx_t& ctx, int k) const {
+  return geas::in_domain_exhaustive(ctx, *this, k);
 }
 
 inline bool intvar::is_fixed(const vec<pval_t>& ctx) const {
