@@ -33,6 +33,8 @@ public:
   bool check_sat(void);
   virtual void root_simplify(void) { }
   virtual void cleanup(void) { is_queued = false; }
+
+  virtual void report_internal(void) { };
   
   // Convenient syntactic sugar (definitions in propagator_ext.h):
   // For trailing:

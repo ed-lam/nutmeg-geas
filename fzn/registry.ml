@@ -109,7 +109,7 @@ let table_int solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   let rs = Pr.get_array Pr.get_int args.(1) in
   let t_id = Builtins.build_table solver (Array.length xs) rs in
-  Builtins.table solver t_id xs
+  Builtins.table solver t_id xs Builtins.Table_CT
 
 (* Specialization of linear inequalities *)
 let simplify_linterms terms k =

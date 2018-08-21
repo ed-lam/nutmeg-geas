@@ -70,9 +70,10 @@ int values_precede_chain_int(solver s, int* vs, int vs_sz,
   intvar* xs, int xs_sz);
 
 // Tables
+typedef enum { Table_Clause, Table_Elem, Table_CT, Table_Default } table_mode;
 typedef int table_id;
 table_id build_table(solver s, int arity, int* elts, int sz);
-int table(solver s, table_id t, intvar* xs, int sz);
+int table(solver s, table_id t, intvar* xs, int sz, table_mode m);
 
 // Regular
 // typedef int reg_id;

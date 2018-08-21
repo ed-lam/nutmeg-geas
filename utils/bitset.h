@@ -94,7 +94,7 @@ namespace bitset {
 
     template<class It>
     static size_t mem_sz(It b, It e) {
-      return req_words(1 + *std::max_element(b, e));
+      return (b != e) ? req_words(1 + *std::max_element(b, e)) : 0;
     }
 
     template<class It>
@@ -115,6 +115,9 @@ namespace bitset {
         }
       }
     }
+
+    template<class V>
+    static support_set make(const V& v) { return support_set(v.begin(), v.end()); }
 
     elem_ty* begin(void) const { return mem; }
     elem_ty* end(void) const { return mem+sz; } 
@@ -179,17 +182,39 @@ namespace bitset {
         mem[e.w] = e.bits; 
       }
     }
-    /*
-    void union_with(const sparse_bitset& o) {
-      for(unsigned int w : o.idx) {
-        if(!idx.elem(w)) {
-          idx.insert(w);
-          mem[w] = o.mem[w];
+
+    void union_with(const support_set& o) {
+      for(auto e : o) {
+        if(!idx.elem(e.w)) {
+          idx.insert(e.w);
+          mem[e.w] = e.bits;
         } else {
-          mem[w] |= o.mem[w];
+          mem[e.w] |= e.bits;
         }
       }
     }
+
+    void remove(const support_set& o) {
+      for(auto e : o) {
+        if(idx.elem(e.w)) {
+          word_ty bits(mem[e.w] & ~e.bits);
+          if(!bits)
+            idx.remove(e.w);
+          mem[e.w] = bits;
+        }
+      }
+    }
+
+    bool has_intersection(const support_set& o) const {
+      for(auto e : o) {
+        if(!idx.elem(e.w))
+          continue;
+        if(mem[e.w] & e.bits)
+          return true;
+      }
+      return false;
+    }
+
     void intersect_with(const p_sparse_bitset& o) {
       // Reverse order, since we'll be swapping things
       // to the end.
@@ -200,14 +225,14 @@ namespace bitset {
           continue;
         }
         word_ty m(mem[w] & o.mem[w]);
+        mem[w] = m;
         if(!m) {
           idx.remove(w);
           continue;
         }
-        mem[w] = m;
       }
     }
-    */
+
     word_ty& operator[](unsigned int w) {
       return mem[w];
     }

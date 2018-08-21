@@ -1,6 +1,7 @@
 #include "solver/solver.h"
 #include "solver/model.h"
 #include "solver/branch.h"
+#include "solver/var_branch.h"
 #include "solver/priority-branch.h"
 #include "engine/logging.h"
 
@@ -122,11 +123,20 @@ forceinline geas::ValChoice get_valc(val_choice c) {
 }
 
 brancher new_int_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) {
+  /*
   vec<geas::pid_t> vars;
   intvar* end = vs+sz;
   for(; vs != end; ++vs)
     vars.push(get_intvar(*vs)->p);
   return ((brancher) geas::basic_brancher(get_varc(varc), get_valc(valc), vars));
+  */
+  vec<geas::intvar> vars;
+  intvar* end = vs+sz;
+  for(; vs != end; ++vs)
+    vars.push(*get_intvar(*vs));
+  geas::var_chooser<geas::intvar> score(get_varc(varc));  
+  geas::val_chooser<geas::intvar> sel(get_valc(valc));
+  return ((brancher) new geas::score_brancher<geas::intvar, geas::var_chooser<geas::intvar>, geas::val_chooser<geas::intvar>>(score, sel, vars));
 }
 
 brancher new_bool_brancher(var_choice varc, val_choice valc, atom* vs, int sz) {

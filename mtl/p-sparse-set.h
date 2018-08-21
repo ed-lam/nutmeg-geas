@@ -70,6 +70,7 @@ public:
    // Iterate over elements _not_ in the set.
    range complement(void) const { return range { dense+sz, dense+dom }; }
    range slice(unsigned int b, unsigned int e) { return range { dense+b, dense+e }; }
+   range all_values(void) const { return range { dense, dense+dom }; }
 
    rrange rev(void) const { return rrange { dense, dense+sz }; }
 

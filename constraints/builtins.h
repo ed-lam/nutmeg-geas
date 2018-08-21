@@ -62,8 +62,9 @@ bool int_value_precede(solver_data* s, int pre, int post, vec<intvar>& xs);
 // table.cc
 typedef int table_id;
 namespace table {
+  enum TableMode { Table_Clause, Table_Elem, Table_CT, Table_Default };
   table_id build(solver_data* s, vec< vec<int> >& rows);
-  bool post(solver_data* s, table_id t, vec<intvar>& xs);
+  bool post(solver_data* s, table_id t, vec<intvar>& xs, TableMode mode = Table_Default);
 }
 
 }

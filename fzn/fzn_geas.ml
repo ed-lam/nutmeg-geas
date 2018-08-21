@@ -534,10 +534,17 @@ let adjust_ovar_state st k =
       residual = st.coeff; }
 
 let update_thresholds thresholds bounds =
+  (* let diff = ref max_int in *)
   let delta = Array.fold_left (fun d (x, b) ->
     let st = H.find thresholds x in
     assert (b > st.lb) ;
+    (* diff := min (b - st.lb) !diff ; *)
     min d st.residual) max_int bounds in
+  (*
+  let _ = if !diff > 1 then
+    Format.fprintf Format.err_formatter "%% bound improvement: %d@." !diff
+  in
+  *)
   let atoms = Array.map (fun (x, _) ->
     let st = H.find thresholds x in
     let at = Sol.ivar_gt x st.lb in

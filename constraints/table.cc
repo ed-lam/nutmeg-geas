@@ -1,16 +1,20 @@
 //======== Implementation of compact-table constraints ============
 // Registers a manager with the solver, so we can share most of the support structures.
+#include <algorithm>
+#include <numeric>
 #include "solver/solver_data.h"
 #include "solver/solver_ext.h"
 #include "engine/propagator.h"
 #include "engine/propagator_ext.h"
 
 #include "constraints/builtins.h"
+#include "constraints/mdd.h"
 
 #include "mtl/bool-set.h"
 #include "utils/bitset.h"
 
-// #define TABLE_STATS
+#define TABLE_STATS
+#define WEAKEN_EXPL
 
 using namespace geas;
 
@@ -26,7 +30,8 @@ struct table_info {
   table_info(size_t _arity, size_t _num_tuples)
     : arity(_arity), num_tuples(_num_tuples)
     , domains(arity), supports(arity)
-    , row_index(num_tuples) {
+    , row_index(num_tuples)
+    , m_id(-1) {
 
   }
 
@@ -37,6 +42,11 @@ struct table_info {
   // support_set* val_support;
   support_set& val_supports(size_t x, size_t k) { return supports[x][k]; }
 
+  // Reconstruct the tuples, but in terms of value indices (not
+  // actual values).
+  void rebuild_index_tuples(vec< vec<int> >& out_tuples);
+  void rebuild_proj_tuples(int var, int val_id, vec<vec<int> >& out_tuples);
+
   // Initial domains (and mappings from value-id to actual value)
   vec< vec<int> > domains;
   vec< vec<support_set> > supports;
@@ -44,6 +54,11 @@ struct table_info {
   vec<int> vals_start;
   vec<val_info> val_index;
   vec< vec<int> > row_index;
+
+  // In the mdd, values are indices into domains, not
+  // the values themselves.
+  mdd::mdd_id m_id;
+  vec<mdd::mdd_id> val_mdds;
   // Scratch space
   // sparse_bitset mask;
 };
@@ -84,7 +99,7 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
         ti->val_index.push(table_info::val_info { xi, k });
         ti->domains[xi].push(v);
         ti->supports[xi].push(support_set(v_rows.begin(), v_rows.end()));
-
+        ti->val_mdds.push(-1);
         ++k;
         v = tuples[t][xi];
         v_rows.clear();
@@ -97,6 +112,40 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
     ti->supports[xi].push(support_set(v_rows.begin(), v_rows.end()));
   }
   return ti;
+}
+
+void table_info::rebuild_index_tuples(vec< vec<int> >& out_tuples) {
+  out_tuples.clear();
+  for(const vec<int>& r : row_index) {
+    out_tuples.push();
+    for(int v : r) {
+      out_tuples.last().push(val_index[v].val_id);
+    }
+  }
+}
+
+void table_info::rebuild_proj_tuples(int var, int val_id, vec< vec<int> >& out_tuples) {
+  out_tuples.clear();
+  // for(const vec<int>& r : row_index) {
+  for(auto e : supports[var][val_id]) {
+    int base(word_bits() * e.w);
+    word_ty bits(e.bits);
+    while(bits) {
+      /*
+      if(val_index[r[var]].val_id != val_id)
+        continue;
+        */
+      int ri = base + __builtin_ctzll(bits);
+      vec<int>& r(row_index[ri]);
+      bits &= bits-1;
+
+      out_tuples.push();
+      for(int vi = 0; vi < var; ++vi)
+        out_tuples.last().push(val_index[r[var]].val_id);
+      for(int vi = var+1; vi < r.size(); ++vi)
+        out_tuples.last().push(val_index[r[var]].val_id);
+    }
+  }
 }
 
 class table_manager : public solver_ext<table_manager> {
@@ -134,10 +183,89 @@ class compact_table : public propagator, public prop_inst<compact_table> {
       live_vals[info.var].remove(info.val_id);
 
       trail_push(s->persist, dead_vals.sz);
+      dead_pos[vi] = dead_vals.size();
       dead_vals.insert(vi);
     }
     return Wt_Keep;
   }
+
+  inline bool var_fixed_at(int xi, unsigned int dead_idx) {
+    if(live_vals[xi].size() > 1)
+      return false;
+    // Look at the second value
+    return dead_pos[table.vals_start[xi] + live_vals[xi][1]] < (int) dead_idx;
+  }
+
+  /*
+  void expl_from_mdd(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
+    // Mark the set of edges which, currently, have a path to true.
+    // Available stores the values consistent 
+    reaching[table.arity].fill(m.num_edges[table.arity-1]);
+    for(int xi = table.arity-1; xi > 0; --xi) {
+      // Collect the interesting values
+      available.clear();
+      for(int k : live_vals[xi].all_values()) {
+        if(dead_idx <= dead_pos[table.vals_start[xi] + k])
+          continue;
+        available.union_with(m.val_support[xi][k]);
+      }
+      
+      reaching[xi].clear();
+      for(int n : irange(m.num_nodes[l])) {
+        if(reaching[xi+1].has_intersection(m.edge_hd[xi][n])) {
+          reaching[xi].union_with(m.edge_tl[xi][n]);
+        }
+      }
+      reaching[xi].intersect_with(available);
+    }
+    
+
+    // Walk back down the MDD, collecting the actual explanation.
+    reached.clear();
+    int x0(0);
+    for(int k : irange(m.val_support[0].size())) {
+      if(dead_pos[table.vals_start[x0] + k] < dead_idx) {
+        // Could appear in the explanation 
+        if(reaching[0].has_intersection(m.val_support[0][k])) {
+          // Must be in the explanation
+          xs[x0].explain_neq(table.domains[x0][k], expl);
+          continue;
+        }
+      }
+      reached.union_with(m.val_support[0][k]);
+    }
+
+    for(int l = 1; l < proj_vars.size(); ++l) {
+      // Collect the set of edges we _could_ traverse, if
+      // domains were unconstrained.
+      int xi(proj_vars[l]);
+      reached[l].clear();
+      for(int n : irange(m.num_nodes[l])) { 
+        if(reached[l-1].has_intersection(m.edge_TL[l][n]))
+          reached[l].union_with(m.edge_HD[l][n]);
+      }
+      
+      for(int k : irange(m.val_support[l].size())) {
+        if(dead_pos[table.vals_start[xi] + k] < dead_idx) {
+          for(auto e : m.val_support[l][k]) {
+            if(reached.idx.elem(e.w) && reaching[l].idx.elem(e.w)) {
+              if(e.bits & reached[e.w] & reaching[l][e.w]) {
+                // Value must be forbidden     
+                xs[xi].explain_neq(table.domains[xi][k], expl);
+                reached[l].remove(m.val_support[l][k]);
+                goto next_value;
+              }
+            }
+          }
+        }
+    next_value:
+      continue;
+      }
+      if(reached[l].empty())
+        return;
+    }
+  }
+  */
 
   // Assumes ex_tuples has been initialized appropriately.
   void mk_expl(unsigned int dead_idx, vec<clause_elt>& expl) {
@@ -145,7 +273,12 @@ class compact_table : public propagator, public prop_inst<compact_table> {
 #if 1
     // fprintf(stderr, "%% %d words of %d\n", ex_tuples.idx.size(), live_tuples.num_words());
     // for(unsigned int w = 0; w < ex_tuples.num_words(); ++w) {
-    for(int w : ex_tuples.idx) {
+    auto b(ex_tuples.idx.begin());
+    auto e(ex_tuples.idx.end());
+    // for(int w : ex_tuples.idx) {
+restart_expl:
+    for(; b != e; ++b) {
+      int w(*b);
       while(ex_tuples[w]) {
         // Which row 
         size_t r(w * word_bits() + __builtin_ctzll(ex_tuples[w]));
@@ -153,6 +286,26 @@ class compact_table : public propagator, public prop_inst<compact_table> {
           if(dead_vals.pos(vi) < dead_idx) {
             // Value is available for expln.
             table_info::val_info info(table.val_index[vi]);
+#ifdef WEAKEN_EXPL
+            if(var_fixed_at(info.var, dead_idx)) {
+              // Variable is fixed, use this instead.
+              int ex_v(live_vals[info.var][0]);
+              xs[info.var].explain_eq(table.domains[info.var][ex_v], expl);
+              unsigned int old_sz = ex_tuples.idx.size();
+              ex_tuples.idx.clear();
+              for(auto e : table.supports[info.var][ex_v]) {
+                if(ex_tuples.idx.pos(e.w) < old_sz) {
+                  if(ex_tuples[e.w] & e.bits) {
+                    ex_tuples[e.w] &= e.bits;
+                    ex_tuples.idx.insert(e.w);
+                  }
+                }
+              }
+              b = ex_tuples.idx.begin();
+              e = ex_tuples.idx.end();
+              goto restart_expl;
+            }
+#endif
             xs[info.var].explain_neq(table.domains[info.var][info.val_id], expl);
             for(auto e : table.supports[info.var][info.val_id]) {
               ex_tuples[e.w] &= ~e.bits;
@@ -190,27 +343,52 @@ class compact_table : public propagator, public prop_inst<compact_table> {
 
   void print_stats(void) {
 #ifdef TABLE_STATS
-    size_t used_count(0);
+    int used_count(0);
     for(size_t ii = 0; ii < used_rows.num_words(); ++ii)
       used_count += __builtin_popcountll(used_rows[ii]);
-    fprintf(stderr, "%% prop(%d): used %d of %d. %d wipeouts\n", prop_id, used_count, table.num_tuples, wipeouts);
+    fprintf(stderr, "%% prop(%d): used %d of %d. %d wipeouts\n", prop_id, used_count, (int) table.num_tuples, wipeouts);
 #endif
   }
+
+#ifdef TABLE_STATS
+  void report_internal(void) {
+    int total_uses = std::accumulate(ex_count.begin(), ex_count.end(), 0);
+    int max_uses = *std::max_element(ex_count.begin(), ex_count.end());
+    int total_props = std::accumulate(prop_count.begin(), prop_count.end(), 0);
+    int max_props = *std::max_element(prop_count.begin(), prop_count.end());
+    fprintf(stderr, "%% compact-table[%d|%d]: arity %d, size %d, vals %d\n", cons_id, prop_id, (int) table.arity, (int) table.num_tuples, table.val_index.size());
+    fprintf(stderr, "%%%%  %d wipeouts, explanations: %.02lf mean, %d max\n", wipeouts, 1.0*total_uses/ex_count.size(), max_uses);
+    fprintf(stderr, "%%%%  propagations: %.02lf mean, %d max", 1.0*total_props/prop_count.size(), max_props);
+    fprintf(stderr, "\n");
+  }
+#endif
+
   void ex_val(int vi, pval_t _pi, vec<clause_elt>& expl) {
     int dead_idx(dead_pos[vi]);
-    
+    // Construct the MDD
+    if(table.val_mdds[vi] < 0) {
+      vec< vec<int> > tuples;
+      table.rebuild_proj_tuples(table.val_index[vi].var, table.val_index[vi].val_id, tuples);
+      table.val_mdds[vi] = mdd::of_tuples(s, tuples);
+      mdd::mdd_info& mi(mdd::lookup(s, table.val_mdds[vi]));
+      int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
+      int num_edges = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0);
+      fprintf(stderr, "MDD id: %d (%d nodes, %d edges) {P %p}\n", table.val_mdds[vi], num_nodes, num_edges, &table);
+    }
+
     // Collect the set of tuples we need to explain.
     table_info::val_info ex_info(table.val_index[vi]);
 #ifdef TABLE_STATS
+    ex_count[vi]++;
     for(auto s : table.supports[ex_info.var][ex_info.val_id])
       used_rows[s.w] |= s.bits;
-    print_stats();
+    // print_stats();
 #endif
       
     ex_tuples.init(table.supports[ex_info.var][ex_info.val_id]);
     mk_expl(dead_idx, expl);
 #ifdef TABLE_STATS
-    fprintf(stderr, "%% ex-size: %d\n", expl.size());
+    // fprintf(stderr, "%% ex-size: %d\n", expl.size());
 #endif
   }
 
@@ -218,6 +396,16 @@ class compact_table : public propagator, public prop_inst<compact_table> {
 #ifdef TABLE_STATS
     ++wipeouts;
 #endif
+    // Construct the MDD
+    if(table.m_id < 0) {
+      vec< vec<int> > tuples;
+      table.rebuild_index_tuples(tuples);
+      table.m_id = mdd::of_tuples(s, tuples);
+      mdd::mdd_info& mi(mdd::lookup(s, table.m_id));
+      int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
+      int num_edges = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0);
+      fprintf(stderr, "MDD id: %d (%d nodes, %d edges) {T %p}\n", table.m_id, num_nodes, num_edges, &table);
+    }
     ex_tuples.fill(table.num_tuples);
     mk_expl(dead_vals.size(), expl);
   }
@@ -238,6 +426,8 @@ public:
 #ifdef TABLE_STATS
     , used_rows(table.num_tuples)
     , wipeouts(0)
+    , ex_count(table.val_index.size(), 0)
+    , prop_count(table.val_index.size(), 0)
 #endif
     {
 
@@ -253,6 +443,7 @@ public:
           attach(s, xs[xi] != d[k], watch<&P::wakeup>(table.vals_start[xi] + k));
           live_vals[xi].insert(k);
         } else {
+          dead_pos[table.vals_start[xi] + k] = dead_vals.size();
           dead_vals.insert(table.vals_start[xi] + k);
         }
       }
@@ -312,6 +503,9 @@ public:
         // No supports left. Try removing it from the domain of x.
         // dead_vals.insert(table.vals_start[x] + k);
         dead_pos[val_idx] = dead_vals.size();
+#ifdef TABLE_STATS
+        prop_count[val_idx]++;
+#endif
         if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(val_idx))) {
           // dead_vals.sz--;
           active_vars.sz = act_sz;
@@ -453,6 +647,8 @@ protected:
 #ifdef TABLE_STATS
   btset used_rows;
   unsigned int wipeouts;
+  vec<int> ex_count;
+  vec<int> prop_count;
 #endif
 };
 
@@ -462,8 +658,70 @@ namespace table {
   table_id build(solver_data* s, vec< vec<int> >& rows) {
     return table_manager::get(s)->build(rows);    
   }
-  bool post(solver_data* s, table_id t, vec<intvar>& xs) {
-    return compact_table::post(s, t, xs);
+
+  bool decompose(solver_data* s, table_info& t, vec<intvar>& xs) {
+    intvar rvar(new_intvar(s, 0, t.num_tuples-1));
+    
+    vec< vec<patom_t> > dom_atoms(xs.size());
+    for(int xi : irange(xs.size())) {
+      for(int k : t.domains[xi])
+        dom_atoms[xi].push(xs[xi] == k);
+    }
+
+    // Clauses for each row
+    for(int ri : irange(t.row_index.size())) {
+      patom_t at(rvar != ri);
+      for(int v : t.row_index[ri]) {
+        table_info::val_info info(t.val_index[v]);
+        if(!add_clause(s, at, dom_atoms[info.var][info.val_id]))
+          return false;
+      }
+    }
+    // Clauses for each value
+    for(table_info::val_info info : t.val_index) {
+      vec<clause_elt> cl { ~dom_atoms[info.var][info.val_id] };
+      for(auto e : t.supports[info.var][info.val_id]) {
+        int base(word_bits() * e.w);
+        word_ty bits(e.bits);
+        while(bits) {
+          int r(base + __builtin_ctzll(bits));
+          bits &= bits-1;
+          cl.push(rvar == r); 
+        }
+      }
+      if(!add_clause(*s, cl))
+        return false;
+    }
+    return true;
+  }
+  bool decompose_elem(solver_data* s, table_info& t, vec<intvar>& xs) {
+    intvar r(new_intvar(s, 1, t.num_tuples));
+    for(int xi : irange(xs.size())) {
+      vec<int> ys;
+      for(vec<int>& r : t.row_index) {
+        assert(r.size() == xs.size());
+        int vi(r[xi]);
+        assert(t.val_index[vi].var == xi);
+        ys.push(t.domains[xi][t.val_index[vi].val_id]);
+      }
+      if(!int_element(s, xs[xi], r, ys, at_True))
+        return false;
+    }
+    return true;
+  }
+
+  bool post(solver_data* s, table_id t, vec<intvar>& xs, TableMode m) {
+    switch(m) {
+      case Table_Clause:
+        return decompose(s, table_manager::get(s)->lookup(t), xs);
+      case Table_Elem:
+        return decompose_elem(s, table_manager::get(s)->lookup(t), xs);
+      case Table_CT:
+      case Table_Default:
+        return compact_table::post(s, t, xs);
+    }
+    ERROR;
+    return false;
   }
 }
 

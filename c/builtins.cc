@@ -318,12 +318,12 @@ table_id build_table(solver s, int arity, int* elts, int sz) {
   return geas::table::build(get_solver(s)->data, rows);
 }
 
-int table(solver s, table_id t, intvar* vs, int sz) {
+int table(solver s, table_id t, intvar* vs, int sz, table_mode m) {
   vec<geas::intvar> xs;
   intvar* end = vs+sz;
   for(; vs != end; ++vs) xs.push(*get_intvar(*vs));
 
-  return geas::table::post(get_solver(s)->data, t, xs);
+  return geas::table::post(get_solver(s)->data, t, xs, (geas::table::TableMode) m);
 }
 
 #ifdef __cplusplus
