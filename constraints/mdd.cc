@@ -136,15 +136,14 @@ struct mddfier {
       m->edge_HD.push();
       m->edge_TL.push();
       m->val_support.push();
+
+      m->edge_value.push();
     }
-    m->val_support.push();
-    m->edge_HD.push();
     m->edge_TL.push();
     // True terminal
     m->num_nodes.push(1);
 
     // Allocate bit-vectors
-    // TODO: Do something for val_support.
     for(int ii = 0; ii < levels.size(); ++ii) {
       vec<key>& level(levels[ii]);  
       int ei = 0;
@@ -153,15 +152,18 @@ struct mddfier {
       vec< vec<int> > val_supports(m->num_vals[ii]);
 
       for(int ni = 0; ni < level.size(); ++ni) {
-        for(key k : level) {
+        key k(level[ni]);
+        // for(key k : level) {
           for(edge e : k) {
             hd_supports[ni].push(ei);
             tl_supports[e.dest].push(ei);
             val_supports[e.val].push(ei);
+            m->edge_value[ii].push(e.val);
             ++ei;
           }
-        }
+        // }
       }
+      assert(ei == m->num_edges[ii]);
       for(const vec<int>& s : val_supports) {
         m->val_support[ii].push(bitset::support_set::make(s));
       }

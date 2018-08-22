@@ -34,11 +34,25 @@ public:
       }
    }
 
+   p_sparseset(p_sparseset&& o)
+    : dom(o.dom), sz(o.sz), sparse(o.sparse), dense(o.dense) {
+      o.dom = 0;
+      o.sz = 0;
+      o.sparse = nullptr;
+      o.dense = nullptr;
+    }
+
    ~p_sparseset() {
       if( sparse )
          free(sparse);
       if( dense )
          free(dense);  
+   }
+
+   void swap(p_sparseset& o) {
+     std::swap(sz, o.sz);
+     std::swap(sparse, o.sparse);
+     std::swap(dense, o.dense);
    }
 
    struct range {
@@ -48,8 +62,8 @@ public:
      unsigned int* s;
      unsigned int* e;
    };
-   unsigned int* begin(void) { return dense; }
-   unsigned int* end(void) { return dense+sz; }
+   unsigned int* begin(void) const { return dense; }
+   unsigned int* end(void) const { return dense+sz; }
    
    struct riter {
      unsigned int operator*(void) const { return *p; }
@@ -129,6 +143,7 @@ public:
       if( dom <= new_dom )
       {
         unsigned int old_dom = dom;
+        dom = std::max(dom, 2u);
         while(dom <= new_dom)
           dom *= 1.5;
         // Of course, this is bad practice -- should check the return value
@@ -179,6 +194,10 @@ public:
 protected:
    unsigned int* sparse;
    unsigned int* dense;
+};
+
+namespace std {
+  inline void swap(p_sparseset& x, p_sparseset& y) { return x.swap(y); }
 };
 
 #endif

@@ -17,6 +17,8 @@ struct mdd_info {
   vec< vec<bitset::support_set> > val_support;
   vec< vec<bitset::support_set> > edge_HD;
   vec< vec<bitset::support_set> > edge_TL;
+
+  vec< vec<int> > edge_value;
 };
 
 typedef int mdd_id;

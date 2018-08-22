@@ -31,8 +31,12 @@ struct table_info {
     : arity(_arity), num_tuples(_num_tuples)
     , domains(arity), supports(arity)
     , row_index(num_tuples)
-    , m_id(-1) {
-
+    , m_id(-1)
+    , available(1)
+    , reaching(1)
+    , reaching_succ(1) {
+    for(int ii = 0; ii < arity; ++ii)
+      forbidden.push(p_sparse_bitset(1));
   }
 
   size_t arity;
@@ -59,8 +63,12 @@ struct table_info {
   // the values themselves.
   mdd::mdd_id m_id;
   vec<mdd::mdd_id> val_mdds;
-  // Scratch space
-  // sparse_bitset mask;
+
+  // Scratch space.
+  p_sparse_bitset available;
+  p_sparse_bitset reaching;
+  p_sparse_bitset reaching_succ;
+  vec<p_sparse_bitset> forbidden;
 };
 
 table_info* construct_table_info(vec< vec<int> >& tuples) {
@@ -131,19 +139,16 @@ void table_info::rebuild_proj_tuples(int var, int val_id, vec< vec<int> >& out_t
     int base(word_bits() * e.w);
     word_ty bits(e.bits);
     while(bits) {
-      /*
-      if(val_index[r[var]].val_id != val_id)
-        continue;
-        */
       int ri = base + __builtin_ctzll(bits);
       vec<int>& r(row_index[ri]);
       bits &= bits-1;
+      assert(r[var] == vals_start[var] + val_id);
 
       out_tuples.push();
       for(int vi = 0; vi < var; ++vi)
-        out_tuples.last().push(val_index[r[var]].val_id);
+        out_tuples.last().push(val_index[r[vi]].val_id);
       for(int vi = var+1; vi < r.size(); ++vi)
-        out_tuples.last().push(val_index[r[var]].val_id);
+        out_tuples.last().push(val_index[r[vi]].val_id);
     }
   }
 }
@@ -196,6 +201,82 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     return dead_pos[table.vals_start[xi] + live_vals[xi][1]] < (int) dead_idx;
   }
 
+  void mdd_mark_forbidden(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx) {
+    /*
+    p_sparse_bitset& reaching(table.reaching);
+    p_sparse_bitset& reaching_succ(table.reaching_succ);
+    p_sparse_bitset& available(table.available);
+    vec<p_sparse_bitset>& forbidden(table.forbidden);
+    */
+
+    table.reaching.clear();
+    table.reaching.fill(m.num_edges[proj_vars.size()-1]);
+    for(int l = proj_vars.size()-1; l > 0; --l) {
+      table.available.clear(); 
+      int xi(proj_vars[l]);
+      int base = table.vals_start[xi];
+      for(int k : irange(m.val_support[l].size())) {
+        if(!live_vals[xi].elem(k) && dead_pos[base + k] < dead_idx)
+          continue;
+        table.available.union_with(m.val_support[l][k]);
+      }
+
+      table.forbidden[l].set(table.reaching);
+      table.forbidden[l].remove(table.available);
+      table.reaching.intersect_with(table.available);
+
+      table.reaching_succ.clear();
+      for(int ni = 0; ni < m.num_nodes[l]; ++ni) {
+        if(table.reaching.has_intersection(m.edge_TL[l][ni]))
+          table.reaching_succ.union_with(m.edge_HD[l][ni]);
+      }
+      // table.reaching.set(table.reaching_succ);
+      std::swap(table.reaching, table.reaching_succ);
+    }
+    table.forbidden[0].set(table.reaching);
+  }
+  void mdd_retrieve_expln(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
+    /*
+    p_sparse_bitset& reaching(table.reaching);
+    p_sparse_bitset& reaching_succ(table.reaching_succ);
+    vec<p_sparse_bitset>& forbidden(table.forbidden);
+    */
+
+    table.reaching.fill(m.num_edges[0]);
+    for(int l = 0; l < proj_vars.size(); ++l) {
+      int xi(proj_vars[l]);
+      
+      for(int w : table.forbidden[l].idx) {
+        word_ty f_bits(table.forbidden[l][w]);
+        // If there is some edge which must be blocked here, add
+        // the corresponding value to the explanation, and remove
+        // all matching edges.
+        while(table.reaching[w] & f_bits) {
+          int f_edge = word_bits() * w + __builtin_ctzll(table.reaching[w] & f_bits);
+          int v_id = m.edge_value[l][f_edge];
+          table.reaching.remove(m.val_support[l][v_id]);
+          xs[xi].explain_neq(table.domains[xi][v_id], expl);
+        }
+      }
+      if(table.reaching.is_empty())
+        return;
+      
+      assert(l+1 < proj_vars.size()); 
+      table.reaching_succ.clear();
+      for(int ni = 0; ni < m.num_nodes[l+1]; ++ni) {
+        if(table.reaching.has_intersection(m.edge_TL[l+1][ni])) {
+          table.reaching_succ.union_with(m.edge_HD[l+1][ni]);
+        }
+      }
+      // table.reaching.set(table.reaching_succ);
+      std::swap(table.reaching, table.reaching_succ);
+    }
+  }
+
+  void expl_from_mdd(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
+    mdd_mark_forbidden(proj_vars, m, dead_idx);
+    mdd_retrieve_expln(proj_vars, m, dead_idx, expl);
+  }
   /*
   void expl_from_mdd(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
     // Mark the set of edges which, currently, have a path to true.
@@ -272,10 +353,8 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     // Walk through the available values
 #if 1
     // fprintf(stderr, "%% %d words of %d\n", ex_tuples.idx.size(), live_tuples.num_words());
-    // for(unsigned int w = 0; w < ex_tuples.num_words(); ++w) {
     auto b(ex_tuples.idx.begin());
     auto e(ex_tuples.idx.end());
-    // for(int w : ex_tuples.idx) {
 restart_expl:
     for(; b != e; ++b) {
       int w(*b);
@@ -318,19 +397,6 @@ restart_expl:
         continue;
       }
     }
-    /*
-    for(unsigned int vi : dead_vals.slice(0, dead_idx)) {
-      table_info::val_info info(table.val_index[vi]);
-    
-      // If this value was supporting something, add it eagerly.
-      support_set& ss(table.supports[info.var][info.val_id]);
-      if(try_remove_bits(ex_tuples, ss)) {
-        xs[info.var].explain_neq(table.domains[info.var][info.val_id], expl);
-        if(ex_tuples.is_empty())
-          return;
-      }
-    }
-    */
 #else
     for(unsigned int vi : dead_vals.slice(0, dead_idx)) {
       table_info::val_info info(table.val_index[vi]);
@@ -374,8 +440,25 @@ restart_expl:
       int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
       int num_edges = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0);
       fprintf(stderr, "MDD id: %d (%d nodes, %d edges) {P %p}\n", table.val_mdds[vi], num_nodes, num_edges, &table);
+
+      int width_max = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0, [](unsigned int i, unsigned int j) { return std::max(i, j); });
+      table.available.growTo(width_max);
+      table.reaching.growTo(width_max);
+      table.reaching_succ.growTo(width_max);
+      for(p_sparse_bitset& f : table.forbidden)
+        f.growTo(width_max);
+
     }
 
+#if 0
+    vec<int> proj_vars;  
+    int xi(table.val_index[vi].var);
+    for(int ii = 0; ii < table.arity; ++ii) {
+      if(xi != ii)
+        proj_vars.push(ii);
+    }
+    expl_from_mdd(proj_vars, mdd::lookup(s, table.val_mdds[vi]), dead_idx, expl);
+#else
     // Collect the set of tuples we need to explain.
     table_info::val_info ex_info(table.val_index[vi]);
 #ifdef TABLE_STATS
@@ -389,6 +472,7 @@ restart_expl:
     mk_expl(dead_idx, expl);
 #ifdef TABLE_STATS
     // fprintf(stderr, "%% ex-size: %d\n", expl.size());
+#endif
 #endif
   }
 
@@ -405,6 +489,14 @@ restart_expl:
       int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
       int num_edges = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0);
       fprintf(stderr, "MDD id: %d (%d nodes, %d edges) {T %p}\n", table.m_id, num_nodes, num_edges, &table);
+
+      // Grow the scratch-space.
+      int width_max = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0, [](unsigned int i, unsigned int j) { return std::max(i, j); });
+      table.available.growTo(width_max);
+      table.reaching.growTo(width_max);
+      table.reaching_succ.growTo(width_max);
+      for(p_sparse_bitset& f : table.forbidden)
+        f.growTo(width_max);
     }
     ex_tuples.fill(table.num_tuples);
     mk_expl(dead_vals.size(), expl);
@@ -652,6 +744,311 @@ protected:
 #endif
 };
 
+// Introduces Boolean row variables
+class compact_table_rvar : public propagator, public prop_inst<compact_table_rvar> {
+  watch_result wakeup(int vi) {
+    auto info(table.val_index[vi]);
+    if(live_vals[info.var].elem(info.val_id)) {
+      if(!changed_vars.elem(info.var)) {
+        queue_prop();
+        changed_vars.add(info.var);
+        old_live[info.var] = live_vals[info.var].size();
+        trail_push(s->persist, live_vals[info.var].sz);
+      }
+      live_vals[info.var].remove(info.val_id);
+    }
+    return Wt_Keep;
+  }
+
+  watch_result wake_row(int ri) {
+    unsigned int w(elt_idx(ri));  
+    word_ty b(elt_mask(ri));
+    if(live_tuples[w] & b) {
+      trail_push(s->persist, live_tuples[w]);
+      live_tuples[w] &= ~b;
+      queue_prop();
+    }
+    return Wt_Keep;
+  } 
+  void print_stats(void) {
+#ifdef TABLE_STATS
+    int used_count(0);
+    for(int ii = 0; ii < used_rows.num_words(); ++ii)
+      used_count += __builtin_popcountll(used_rows[ii]);
+    fprintf(stderr, "%% prop(%d): used %d of %d. %d wipeouts\n", prop_id, used_count, (int) table.num_tuples, wipeouts);
+#endif
+  }
+
+  void ex_val(int vi, pval_t _pi, vec<clause_elt>& expl) {
+    // Collect the set of tuples we need to explain.
+    table_info::val_info ex_info(table.val_index[vi]);
+
+    for(auto e : table.supports[ex_info.var][ex_info.val_id]) {
+      unsigned int base(e.w * word_bits());
+      word_ty bits(e.bits);
+      while(bits) {
+        expl.push(row_vars[base + __builtin_ctzll(bits)]);
+        bits &= (bits-1); // Clear lowest bit.
+      }
+    }
+  }
+
+  void ex_fail(vec<clause_elt>& expl) {
+#ifdef TABLE_STATS
+    ++wipeouts;
+#endif
+    for(patom_t r : row_vars)
+      expl.push(r);
+  }
+
+public:
+  compact_table_rvar(solver_data* s, table_id t, vec<intvar>& _xs)
+    : propagator(s), table(table_manager::get(s)->lookup(t)), xs(_xs)
+    , live_vals(xs.size())
+    , live_tuples(table.num_tuples)
+    , live_r(0)
+    , residual(table.val_index.size(), 0)
+    , active_vars(xs.size())
+    , changed_vars(xs.size())
+    , old_live(xs.size(), 0)
+    , ex_tuples(table.num_tuples)
+#ifdef TABLE_STATS
+    , used_rows(table.num_tuples)
+    , wipeouts(0)
+#endif
+    {
+
+    memset(ex_tuples.mem, 0, sizeof(word_ty) * ex_tuples.cap);
+    live_tuples.fill(table.num_tuples);
+
+    for(int ri = 0; ri < table.num_tuples; ++ri) {
+      patom_t r(new_bool(*s));
+      attach(s, ~r, watch<&P::wake_row>(row_vars.size()));
+      row_vars.push(r);
+    }
+
+    for(int xi : irange(xs.size())) {
+      vec<int>& d(table.domains[xi]);
+      make_sparse(xs[xi], d);
+      live_vals[xi].growTo(d.size());
+      for(int k : irange(d.size())) {
+        if(in_domain(xs[xi], d[k])) {
+          attach(s, xs[xi] != d[k], watch<&P::wakeup>(table.vals_start[xi] + k));
+          live_vals[xi].insert(k);
+        }
+      }
+      if(live_vals.size() > 1)
+        active_vars.insert(xi);
+
+      if(live_vals[xi].size() != (unsigned int) d.size()) {
+        changed_vars.add(xi);
+        old_live[xi] = d.size();
+      }
+    }
+    queue_prop();
+  }
+
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+  bool check_sat(ctx_t& ctx) {
+    for(const vec<int>& r : table.row_index) {
+      for(int vi : r) {
+        table_info::val_info info(table.val_index[vi]);
+        if(!xs[info.var].in_domain_exhaustive(ctx, table.domains[info.var][info.val_id]))
+          goto next_row;
+      }
+      return true;
+    next_row:
+      continue;
+    }
+    return false;
+  }
+
+  bool filter(vec<clause_elt>& confl) {
+    // Iterate in reverse, so we can safely remove values.
+    unsigned int act_sz = active_vars.size();
+    for(unsigned int x : active_vars.rev()) {
+      unsigned int x_sz = live_vals[x].size();
+      for(unsigned int k : live_vals[x].rev()) {
+        // Check if there is still some support for x = k.
+        support_set& ss(table.supports[x][k]);
+        int val_idx = table.vals_start[x] + k;
+        auto r(ss[residual[val_idx]]);
+
+        if(live_tuples[r.w] & r.bits)
+          goto next_value;
+
+        // Otherwise, search for a new support.
+        {
+        auto b(ss.begin());
+        auto e(ss.end());
+
+          for(; b != e; ++b) {
+            if(live_tuples[(*b).w] & (*b).bits) {
+              // Found a new support
+              residual[val_idx] = (b - ss.begin());   
+              goto next_value;
+            }
+          }
+        }
+        // No supports left. Try removing it from the domain of x.
+        // dead_vals.insert(table.vals_start[x] + k);
+        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(val_idx))) {
+          active_vars.sz = act_sz;
+          live_vals[x].sz = x_sz;
+          return false;
+        }
+        live_vals[x].remove(k);
+    next_value:
+        continue;
+      }
+      // If some value was killed, make sure it'll get restored on backtracking.
+      if(live_vals[x].size() != x_sz) {
+        trail_fake(s->persist, live_vals[x].sz, x_sz);
+        // If x is now fixed, we never need to check it again.
+        if(live_vals[x].size() == 1) {
+          trail_push(s->persist, active_vars.sz);
+          active_vars.remove(x);
+        }
+      }
+    }
+    // If some variable was disabled, save the old value
+    if(active_vars.size() != act_sz)
+      trail_fake(s->persist, active_vars.sz, act_sz);
+    return true;
+  }
+
+  bool update_tuples(void) {
+    for(unsigned int x : changed_vars) {
+      p_sparseset& x_vals(live_vals[x]);
+      // Ignore resetting for now.
+
+      for(unsigned int k : x_vals.slice(x_vals.size(), old_live[x])) {
+        if(!kill_value(x, k))
+          return false;
+      }
+    }
+    changed_vars.clear();
+    return true;
+  }
+
+  bool tuples_nonempty(void) {
+    if(live_tuples[live_r])
+      return true;
+    for(int w : irange(live_tuples.size())) {
+      if(live_tuples[w]) {
+        live_r = w;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool propagate(vec<clause_elt>& confl) {
+    if(!update_tuples())
+      return false;
+    if(!tuples_nonempty()) {
+      ex_fail(confl);
+      return false;
+    }
+    if(!filter(confl))
+      return false;
+
+    return true;
+  }
+   
+  void cleanup(void) {
+    is_queued = false;
+    changed_vars.clear();
+  }
+
+protected:
+  // Compute S - T, returning true if S changed (so S & T was non-empty).
+  bool try_remove_bits(p_sparse_bitset& bits, support_set& rem) {
+    auto it(rem.begin());
+    auto en(rem.end());
+    // Search for a word with non-empty intersection with bits.
+    for(; it != en; ++it) {
+      unsigned int w((*it).w);
+      if(!bits.idx.elem(w))
+        continue;
+      if(bits[w] & (*it).bits) {
+        // Non-empty. Remove bits in this word...
+        word_ty r(bits[w] & ~(*it).bits);
+        bits[w] = r;
+        if(!r) bits.idx.remove(w);
+
+        // And any remaining words.
+        for(++it; it != en; ++it) {
+          unsigned int w((*it).w);
+          if(!bits.idx.elem(w))
+            continue;
+          word_ty r(bits[w] & ~(*it).bits);
+          bits[w] = r;
+          if(!r) bits.idx.remove(w);
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  inline bool word_remove(btset& bits, support_set::elem_ty e, patom_t at) {
+    if(bits[e.w] & e.bits) {
+      unsigned int base(e.w * word_bits());
+      word_ty rem(bits[e.w] & e.bits);
+      while(rem) {
+        if(!enqueue(*s, ~row_vars[base + __builtin_ctzll(rem)], at))
+          return false;
+        rem &= rem-1;
+      }
+      trail_change(s->persist, bits[e.w], bits[e.w] & ~e.bits);
+    }
+    return true;
+  }
+
+  bool kill_value(unsigned int x, unsigned int k) {
+    support_set& ss(table.supports[x][k]);
+    patom_t at(xs[x] == table.domains[x][k]);
+    for(support_set::elem_ty e : ss) {
+      if(!word_remove(live_tuples, e, at))
+        return false;
+    }
+    return true;
+  }
+
+  // The pre-computed table information
+  table_info& table;
+
+  // Parameters
+  vec<intvar> xs;
+  vec<patom_t> row_vars;
+
+  // Persistent state
+  vec<p_sparseset> live_vals;
+  btset live_tuples;
+  unsigned int live_r;
+
+  vec<unsigned int> residual;
+  p_sparseset active_vars;
+
+  // We use dead_vals to reconstruct
+  // the state upon explanation.
+  // Only records the _externally_ killed values.
+  p_sparseset dead_vals;
+  vec<int> dead_pos;
+
+  // Transient data
+  boolset changed_vars;
+  vec<unsigned int> old_live;
+
+  p_sparse_bitset ex_tuples;
+
+#ifdef TABLE_STATS
+  btset used_rows;
+  unsigned int wipeouts;
+#endif
+};
+
 namespace geas {
 
 namespace table {
@@ -719,6 +1116,7 @@ namespace table {
       case Table_CT:
       case Table_Default:
         return compact_table::post(s, t, xs);
+    //   return compact_table_rvar::post(s, t, xs);
     }
     ERROR;
     return false;

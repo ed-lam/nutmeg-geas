@@ -139,7 +139,33 @@ namespace bitset {
       // Don't need to initialize mem.
     }
 
-    ~p_sparse_bitset(void) { free(mem); }
+    p_sparse_bitset(p_sparse_bitset&& o)
+      : cap(o.cap)
+      , mem(o.mem)
+      , idx(std::move(o.idx)) {
+        o.cap = 0;
+        o.mem = nullptr;
+    }
+
+    void swap(p_sparse_bitset& o) {
+      std::swap(cap, o.cap);
+      std::swap(mem, o.mem);
+      std::swap(idx, o.idx);
+    }
+
+    ~p_sparse_bitset(void) {
+      if(mem)
+        free(mem);
+    }
+
+    void growTo(unsigned int sz) {
+      size_t new_cap(req_words(sz));
+      if(cap < new_cap) {
+        idx.growTo(new_cap);
+        mem = (word_ty*) realloc(mem, sizeof(word_ty) * new_cap);
+        cap = new_cap;
+      }
+    }
 
     void clear(void) { idx.clear(); }
     bool elem(unsigned int e) const {
@@ -167,10 +193,16 @@ namespace bitset {
     }
 
     void fill(size_t sz) {
-      assert(req_words(sz) == cap);
-      idx.sz = cap;
+      assert(req_words(sz) <= cap);
+      if(req_words(sz) == cap)
+        idx.sz = cap;
+      else {
+        idx.clear();
+        for(int ii = 0; ii < req_words(sz); ++ii)
+          idx.insert(ii);
+      }
       // Fill the array with 1s
-      memset(mem, (char) -1, sizeof(word_ty) * cap);
+      memset(mem, (char) -1, sizeof(word_ty) * req_words(sz));
       if(elt_bit(sz))
         mem[cap-1] &= (elt_mask(sz)-1);
     }
@@ -215,6 +247,21 @@ namespace bitset {
       return false;
     }
 
+    void set(const support_set& o) {
+      idx.clear();
+      for(auto e : o) {
+        idx.insert(e.w);
+        mem[e.w] = e.bits; 
+      }
+    }
+    void set(const p_sparse_bitset& o) {
+      idx.clear();
+      for(int w : o.idx) {
+        idx.insert(w);
+        mem[w] = o.mem[w];
+      }
+    }
+
     void intersect_with(const p_sparse_bitset& o) {
       // Reverse order, since we'll be swapping things
       // to the end.
@@ -228,9 +275,32 @@ namespace bitset {
         mem[w] = m;
         if(!m) {
           idx.remove(w);
-          continue;
         }
       }
+    }
+
+    // TODO: Check which index is smaller, and use that.
+    void remove(const p_sparse_bitset& o) {
+      for(int p = idx.size()-1; p >= 0; --p) {
+        unsigned int w(idx[p]);
+        if(!o.idx.elem(w))
+          continue;  
+        word_ty m(mem[w] & ~o.mem[w]);
+        mem[w] = m;
+        if(!m) {
+          idx.remove(w);
+        }
+      }
+    }
+
+    bool has_intersection(const p_sparse_bitset& o) const {
+      if(o.idx.size() < idx.size())
+        return o.has_intersection(*this);
+      for(unsigned int w : idx) {
+        if(o.idx.elem(w) && (mem[w] & o.mem[w]))
+          return true;
+      }
+      return false;
     }
 
     word_ty& operator[](unsigned int w) {
@@ -262,6 +332,11 @@ namespace bitset {
   };
 
 }
+
+namespace std {
+  using namespace bitset;
+  inline void swap(p_sparse_bitset& x, p_sparse_bitset& y) { return x.swap(y); }
+};
 
 
 #endif
