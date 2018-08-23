@@ -17,6 +17,7 @@ module At = Atom
 module B = Builtins
 
 open Build
+open Registry
 
 exception Unknown_constraint of string
 

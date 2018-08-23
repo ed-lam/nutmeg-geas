@@ -60,6 +60,7 @@ quote(mlmli, "type t  = solver");
 
 [mlname(default_options)] options default_opts(void);
 solver new_solver([in] options o);
+int solver_id([in] solver s);
 // bool propagate([in] solver);
 
 brancher new_int_brancher(var_choice varc, val_choice valc, [in,size_is(sz)] intvar vs[], int sz);

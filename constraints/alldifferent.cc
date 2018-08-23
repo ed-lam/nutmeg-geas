@@ -68,6 +68,33 @@ public:
   vec<int> fixed;
 };
 
+// If the link points down, there's slack.
+// If it points up, it's a union-find.
+#if 0
+struct tl_entry {
+  int link;
+  int cap;
+};
+struct timeline {
+  int find(int k) {
+    if(tl[k].link > k)
+      return tl[k].link = find(tl[k].link);
+    return k;
+  }
+  
+  int extend(int k) {
+    k = find(k);
+    tl[k].cap -= 1;
+    if(tl[k].cap) {
+      return k;
+    } else {
+
+    }
+  }
+
+  vec<tl_entry> tl;
+};
+
 class alldiff_b : public propagator {
   typedef typename intvar::val_t val_t;
 
@@ -134,19 +161,73 @@ class alldiff_b : public propagator {
       return true;
     }
 
+    int pathmax(int* p, int k) {
+      while(k < p[k])
+        k = p[k];  
+      return k;
+    }
+    int pathset(int* p, int x, int y, int z) {
+      do {
+        o = p[x];
+        p[x] = 
+    }
+
+    void setup(void) {
+      // Collect the set of distinct bounds
+
+    }
+    
+    // The algorithm, directly copied from 'A fast and simple algorithm
+    // for bounds consistency of the alldifferent constraint'
+    bool update_lb(void) {
+      for (i = 1; i <= nb+1; i++) {
+        t[i] = h[i] = i-1;
+        d[i] = bounds[i] - bounds[i-1];
+      }
+      for (i = 0; i < niv; i++) {
+        (x, y) = (maxsorted[i]->minrank, maxsorted[i]->maxrank)
+        z = pathmax(t, x+1);
+        j = t[z];
+        if (--d[z] == 0) {
+          t[z] = z+1;
+          z = pathmax(t, t[z]);
+          t[z] = j;
+        }
+        pathset(t, x+1, z, z);
+        if (d[z] < bounds[z] - bounds[y])
+          return false;
+        if (h[x] > x) {
+          w = pathmax(h, h[x]);
+          if(!set_lb(xs[maxsorted[i].var], bounds[w], expl<&P::ex_lb>(maxsorted[i].var, expl_thunk::Ex_BTPRED)))
+            return false;
+          pathset(h, x, w, w);
+        }
+        if (d[z] == bounds[z] - bounds[y]) {
+          pathset(h, h[y], j-1, y);
+          h[y] = j-1;
+        }
+      }
+      return true;
+    }
+
+
     // Parameters
-    vec<intvar> vs;
+    vec<intvar> xs;
 
-    // Temporary storage
-    vec<int> lb_ord; // Vars orderd by lb
-    vec<int> ub_ord; // Vars ordered by ub
+    // Temporary state
+    vec<int> perm;
 
-    vec<val_t> lbs;
-    vec<val_t> ubs;
+    vec<int> bounds;
+    vec<int> t;
+    vec<int> d;
 
-    boolset lb_change;
-    boolset ub_change;
+      vec<val_t> lbs;
+      vec<val_t> ubs;
+
+      boolset lb_change;
+      boolset ub_change;
 };
+#endif
 
 bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True) {
   assert(r == at_True);

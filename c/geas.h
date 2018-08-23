@@ -60,6 +60,8 @@ options default_opts(void);
 solver new_solver(options opts);
 void destroy_solver(solver);
 
+int solver_id(solver);
+
 intvar new_intvar(solver, int lb, int ub);
 void destroy_intvar(intvar);
 intvar permute_intvar(solver, intvar, int* vals, int sz);

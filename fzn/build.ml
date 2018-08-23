@@ -17,7 +17,25 @@ exception Unknown_constraint of string
 
 let put = Format.fprintf
 
-type env = { ivars : Solver.intvar array ; bvars : Atom.atom array }
+
+(* Process-independent atoms *)
+type epred =
+  | Ptrue
+  | Pbool of int
+  | Pge of int * int
+  | Peq of int * int
+
+type eatom =
+  | Pos of epred
+  | Neg of epred
+ 
+(* type env = { ivars : Solver.intvar array ; bvars : Atom.atom array } *)
+open Registry
+
+
+let neg_eatom = function
+  | Pos p -> Neg p
+  | Neg p -> Pos p
 
 let get_idom model x =
  let vinfo = Dy.get model.Pr.ivals x in
@@ -99,8 +117,9 @@ let post_constraint solver env ident exprs anns =
   try
     (* let handler = H.find registry ident in *)
     let handler = Registry.lookup ident in
-    let args = Array.map (resolve_expr env) exprs in
-    handler solver args anns
+    (* let args = Array.map (resolve_expr env) exprs in 
+    handler solver args anns *)
+    handler solver env exprs anns
   with
   | Pr.Type_mismatch ->
     (Format.fprintf Format.err_formatter "Error: type mismatch in '%s'.@." ident ;
@@ -273,6 +292,25 @@ let make_atoms s ivars bdefs =
   *)
 
 (* let build_problem solver problem ctxs idefs bdefs = *)
+let build_lookup ivars bvars : At.t -> eatom option =
+  let imap = H.create 17 in
+  let bmap = H.create 17 in 
+  Array.iteri (fun i x -> H.add imap (Sol.ivar_pred x) (i, (Sol.ivar_ge x 0).At.value)) ivars ;
+  Array.iteri (fun i at -> H.add bmap at i) bvars ;
+  let ige_lookup at =
+    let (x, v0) = H.find imap at.At.pid in
+    Pos (Pge (x, Int64.to_int (Int64.sub at.At.value v0)))
+  in
+  let pos_lookup at =
+    try ige_lookup at
+    with Not_found ->
+      Pos (Pbool (H.find bmap at))
+  in
+  (fun at ->
+    try Some (pos_lookup at)
+    with Not_found ->
+      Some (neg_eatom (pos_lookup (At.neg at))))
+
 let build_problem solver p ctxs =
   let (idefs, bdefs, problem) = p in
   (* Allocate variables *)
@@ -288,3 +326,17 @@ let build_problem solver p ctxs =
           problem.Pr.constraints ;
   (* Then, return the bindings *)
   env
+
+let atom_lookup env = build_lookup env.ivars env.bvars
+
+let atom_of_epred env p =
+  match p with
+  | Ptrue -> At.at_True
+  | Pbool b -> env.bvars.(b)
+  | Pge (x, k) -> Sol.ivar_ge env.ivars.(x) k
+  | Peq (x, k) -> Sol.ivar_eq env.ivars.(x) k
+
+let atom_of_eatom env at =
+  match at with
+  | Pos p -> atom_of_epred env p
+  | Neg p -> At.neg (atom_of_epred env p)

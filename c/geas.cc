@@ -1,7 +1,7 @@
 #include "solver/solver.h"
 #include "solver/model.h"
 #include "solver/branch.h"
-#include "solver/var_branch.h"
+// #include "solver/var_branch.h"
 #include "solver/priority-branch.h"
 #include "engine/logging.h"
 
@@ -84,6 +84,10 @@ int compare_intvar(intvar x, intvar y) {
   return get_intvar(x)->p - get_intvar(y)->p;
 }
 
+int solver_id(solver s) {
+  return reinterpret_cast<uintptr_t>(get_solver(s));
+}
+
 long hash_intvar(intvar x) {
   unsigned long hash = 5381;
   hash = ((hash<<5) + hash) + get_intvar(x)->p;
@@ -123,13 +127,13 @@ forceinline geas::ValChoice get_valc(val_choice c) {
 }
 
 brancher new_int_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) {
-  /*
+#if 1
   vec<geas::pid_t> vars;
   intvar* end = vs+sz;
   for(; vs != end; ++vs)
     vars.push(get_intvar(*vs)->p);
   return ((brancher) geas::basic_brancher(get_varc(varc), get_valc(valc), vars));
-  */
+#else
   vec<geas::intvar> vars;
   intvar* end = vs+sz;
   for(; vs != end; ++vs)
@@ -137,6 +141,7 @@ brancher new_int_brancher(var_choice varc, val_choice valc, intvar* vs, int sz) 
   geas::var_chooser<geas::intvar> score(get_varc(varc));  
   geas::val_chooser<geas::intvar> sel(get_valc(valc));
   return ((brancher) new geas::score_brancher<geas::intvar, geas::var_chooser<geas::intvar>, geas::val_chooser<geas::intvar>>(score, sel, vars));
+#endif
 }
 
 brancher new_bool_brancher(var_choice varc, val_choice valc, atom* vs, int sz) {

@@ -6,13 +6,32 @@ module At = Atom
 module B = Builtins
 module S = Solver
 
+type env = { ivars : Solver.intvar array ; bvars : Atom.atom array }
 type expr = (Solver.intvar, Atom.t) Problem.expr
 
 type poster = Solver.t -> expr array -> Problem.ann_expr list -> bool
+type raw_poster = Solver.t -> env -> Problem.fzn_expr array -> Problem.ann_expr list -> bool
 
 let registry = H.create 17
 
-let register ident poster = H.add registry ident poster
+(* Replace variable identifiers with the corresponding
+ * intvar/atom *)
+let rec resolve_expr env expr =
+  match expr with
+  | Pr.Ilit v -> Pr.Ilit v
+  | Pr.Ivar iv -> Pr.Ivar env.ivars.(iv)
+  | Pr.Blit b -> Pr.Blit b
+  | Pr.Bvar bv -> Pr.Bvar env.bvars.(bv)
+  | Pr.Set dom -> Pr.Set dom
+  | Pr.Arr es -> Pr.Arr (Array.map (resolve_expr env) es)
+
+let lift_poster (p : poster) : raw_poster =
+  fun solver env args anns ->
+    let res_args = Array.map (resolve_expr env) args in
+    p solver res_args anns
+  
+let register ident poster = H.add registry ident (lift_poster poster)
+let register_raw ident (poster : raw_poster) = H.add registry ident poster
 
 
 let lookup ident = H.find registry ident
@@ -104,11 +123,25 @@ let int_div solver args anns =
   let z = force_ivar solver args.(2) in
   Builtins.int_div solver At.at_True z x y
 
-(* FIXME: Not actually getting sharing for tables. *)
-let table_int solver args anns =
+(* TODO: Should really be keeping rs as an identifier, to
+ * be resolved only when needed. *)
+let get_table =
+  let t = H.create 17 in
+  fun s len rs ->
+    try H.find t (S.solver_id s, rs)
+    with Not_found ->
+      begin
+        let t_id = Builtins.build_table s len rs in
+        H.add t (S.solver_id s, rs) t_id ;
+        t_id
+      end
+    
+let table_int solver env exprs anns =
+  let args = Array.map (resolve_expr env) exprs in
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   let rs = Pr.get_array Pr.get_int args.(1) in
-  let t_id = Builtins.build_table solver (Array.length xs) rs in
+  (* let t_id = Builtins.build_table solver (Array.length xs) rs in *)
+  let t_id = get_table solver (Array.length xs) rs in
   Builtins.table solver t_id xs Builtins.Table_CT
 
 (* Specialization of linear inequalities *)
@@ -783,10 +816,15 @@ let initialize () =
      "fzn_cumulative_var", cumulative_var ;
      "fzn_disjunctive", disjunctive ;
      "fzn_global_cardinality", global_card ;
-     "fzn_table_int", table_int ;
+     (* "fzn_table_int", table_int ; *)
      "value_precede_int", precede_int ;
      "geas_precede_chain", precede_chain_int ;
      "geas_value_precede_chain", value_precede_chain ;
       ] in
+  let raw_handlers = [
+     "fzn_table_int", table_int
+  ] in
   List.iter (fun (id, handler) ->
-             register id handler) handlers
+             register id handler) handlers ;
+  List.iter (fun (id, handler) ->
+             register_raw id handler) raw_handlers
