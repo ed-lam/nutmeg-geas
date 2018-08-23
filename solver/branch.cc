@@ -1,7 +1,7 @@
 #include "mtl/Heap.h"
 #include "solver/solver_data.h"
 #include "solver/branch.h"
-#include "vars/intvar.h"
+// #include "vars/intvar.h"
 
 namespace geas {
 
