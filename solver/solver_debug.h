@@ -6,6 +6,7 @@
 // #define LOG_ALL
 // #define LOG_RESTART
 // #define LOG_GC
+// #define REPORT_INTERNAL_STATS
 
 /*
 #ifdef LOG_ALL

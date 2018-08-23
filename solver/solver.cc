@@ -203,6 +203,19 @@ std::ostream& operator<<(std::ostream& o, const clause_elt& e) {
   return o;
 }
 
+struct stat_reporter {
+  stat_reporter(solver_data* _s)
+    : s(_s) { }
+
+  ~stat_reporter(void) {
+    for(propagator* p : s->propagators) {
+      p->report_internal(); 
+    }
+  }
+  solver_data* s;
+};
+
+
 // Record that the value of p has changed at the
 // current decision level.
 forceinline void touch_pred(solver_data& s, pid_t p) {
@@ -465,6 +478,9 @@ inline void simplify_at_root(solver_data& s);
 
 static forceinline bool propagate_assumps(solver_data& s) {
   s.infer.confl.clear();
+#ifdef REPORT_INTERNAL_STATS
+  stat_reporter rp(&s);
+#endif
 
   int idx = s.assump_end;
 
@@ -1318,7 +1334,6 @@ static double getTime(void) {
 
 // Solving
 solver::result solver::solve(limits l) {
-
   // Top-level failure
   sdata& s(*data);
   s.abort_solve = 0;
@@ -1328,6 +1343,9 @@ solver::result solver::solve(limits l) {
   /* Establish a handler for SIGINT and SIGTERM signals. */
   set_handlers();
 
+#ifdef REPORT_INTERNAL_STATS
+  stat_reporter rep(data);
+#endif
 //  int max_conflicts = 200000;
   int max_conflicts = l.conflicts;
   double max_time = INFINITY;
