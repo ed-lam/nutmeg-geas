@@ -95,11 +95,18 @@ struct mddfier {
     std::sort(pb, pe, [this, level](int i, int j) { return tuples[i][level] < tuples[j][level]; });
     vec<edge> children;
     if(level == tuples[0].size() - 1) {
-      // Last level. Just build the edge    
-      for(; pb != pe; ++pb) {
-        children.push(edge { tuples[*pb][level], 0 }); 
+      // Last level. Just add the (unique) edges directly
+      int v = tuples[*pb][level];
+      children.push(edge { v, 0 });
+      for(++pb; pb != pe; ++pb) {
+        if(tuples[*pb][level] == v)
+          continue;
+        v = tuples[*pb][level];
+        children.push(edge { v, 0 });
       }
     } else {
+      // Shouldn't be any duplicates at other levels, because
+      // we're bundling them together at the recursive call.
       while(pb != pe) {
         int v(tuples[*pb][level]);
         // Collect the range corresponding to this value
@@ -116,6 +123,12 @@ struct mddfier {
     return get_node(level, children);
   }
 
+  struct flat_edge {
+    int node;
+    int val;
+    node_id dest;
+  };
+
   mdd_info* operator()(void) {
     vec<int> perm(tuples.size(), 0);
     for(int ii = 0; ii < perm.size(); ++ii)
@@ -129,15 +142,17 @@ struct mddfier {
     mdd_info* m(new mdd_info());
     for(int ii = 0; ii < levels.size(); ++ii) {
       m->num_nodes.push(levels[ii].size());
-      m->num_edges.push(std::accumulate(levels[ii].begin(), levels[ii].end(),
-        0, [](int s, key k) { return s + k.size; }));
+      /*
       m->num_vals.push(1 + std::accumulate(levels[ii].begin(), levels[ii].end(),
         0, [](int s, key k) { return std::accumulate(k.begin(), k.end(), s, [](int s, edge e) { return std::max(s, e.val); }); }));
+      */
+      m->values.push();
+
       m->edge_HD.push();
       m->edge_TL.push();
       m->val_support.push();
 
-      m->edge_value.push();
+      m->edge_value_id.push();
     }
     m->edge_TL.push();
     // True terminal
@@ -149,20 +164,39 @@ struct mddfier {
       int ei = 0;
       vec< vec<int> > hd_supports(m->num_nodes[ii]);
       vec< vec<int> > tl_supports(m->num_nodes[ii+1]);
-      vec< vec<int> > val_supports(m->num_vals[ii]);
+      vec< vec<int> > val_supports;
 
+      // Construct the 
+      vec<int> eperm;
+      vec<flat_edge> flat;
       for(int ni = 0; ni < level.size(); ++ni) {
-        key k(level[ni]);
-        // for(key k : level) {
-          for(edge e : k) {
-            hd_supports[ni].push(ei);
-            tl_supports[e.dest].push(ei);
-            val_supports[e.val].push(ei);
-            m->edge_value[ii].push(e.val);
-            ++ei;
-          }
-        // }
+        for(edge e : level[ni]) {
+          flat.push(flat_edge { ni, e.val, e.dest });
+          eperm.push(eperm.size());
+        }
       }
+      m->num_edges.push(flat.size());
+
+      std::sort(eperm.begin(), eperm.end(), [&flat](int e, int f) { return flat[e].val < flat[f].val; });
+
+      int* b(eperm.begin());
+      int* e(eperm.end());
+
+      while(b != e) {
+        int v = flat[*b].val;
+        int v_id = m->values[ii].size();
+         
+        m->values[ii].push(v);
+        val_supports.push();
+        for(; b != e && flat[*b].val == v; ++b) {
+          hd_supports[flat[*b].node].push(ei);
+          tl_supports[flat[*b].dest].push(ei);
+          val_supports[v_id].push(ei);
+          m->edge_value_id[ii].push(v_id);
+          ++ei;
+        }
+      }
+
       assert(ei == m->num_edges[ii]);
       for(const vec<int>& s : val_supports) {
         m->val_support[ii].push(bitset::support_set::make(s));

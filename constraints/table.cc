@@ -15,6 +15,7 @@
 
 // #define TABLE_STATS
 // #define WEAKEN_EXPL
+#define EXPLAIN_BY_MDD
 
 using namespace geas;
 
@@ -48,7 +49,7 @@ struct table_info {
 
   // Reconstruct the tuples, but in terms of value indices (not
   // actual values).
-  void rebuild_index_tuples(vec< vec<int> >& out_tuples);
+  // void rebuild_index_tuples(vec< vec<int> >& out_tuples);
   void rebuild_proj_tuples(int var, int val_id, vec<vec<int> >& out_tuples);
 
   // Initial domains (and mappings from value-id to actual value)
@@ -123,6 +124,7 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
   return ti;
 }
 
+/*
 void table_info::rebuild_index_tuples(vec< vec<int> >& out_tuples) {
   out_tuples.clear();
   for(const vec<int>& r : row_index) {
@@ -132,6 +134,7 @@ void table_info::rebuild_index_tuples(vec< vec<int> >& out_tuples) {
     }
   }
 }
+*/
 
 void table_info::rebuild_proj_tuples(int var, int val_id, vec< vec<int> >& out_tuples) {
   out_tuples.clear();
@@ -146,9 +149,11 @@ void table_info::rebuild_proj_tuples(int var, int val_id, vec< vec<int> >& out_t
 
       out_tuples.push();
       for(int vi = 0; vi < var; ++vi)
-        out_tuples.last().push(val_index[r[vi]].val_id);
+        // out_tuples.last().push(val_index[r[vi]].val_id);
+        out_tuples.last().push(r[vi]);
       for(int vi = var+1; vi < r.size(); ++vi)
-        out_tuples.last().push(val_index[r[vi]].val_id);
+        // out_tuples.last().push(val_index[r[vi]].val_id);
+        out_tuples.last().push(r[vi]);
     }
   }
 }
@@ -201,7 +206,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     return dead_pos[table.vals_start[xi] + live_vals[xi][1]] < (int) dead_idx;
   }
 
-  void mdd_mark_forbidden(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx) {
+  void mdd_mark_forbidden(mdd::mdd_info& m, unsigned int dead_idx) {
     /*
     p_sparse_bitset& reaching(table.reaching);
     p_sparse_bitset& reaching_succ(table.reaching_succ);
@@ -210,13 +215,11 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     */
 
     table.reaching.clear();
-    table.reaching.fill(m.num_edges[proj_vars.size()-1]);
-    for(int l = proj_vars.size()-1; l > 0; --l) {
-      table.available.clear(); 
-      int xi(proj_vars[l]);
-      int base = table.vals_start[xi];
-      for(int k : irange(m.val_support[l].size())) {
-        if(dead_vals.pos(base+k) < dead_idx)
+    table.reaching.fill(m.num_edges.last());
+    for(int l = m.values.size()-1; l > 0; --l) {
+      table.available.clear();
+      for(int k : irange(m.values[l].size())) {
+        if(dead_vals.pos(m.values[l][k]) < dead_idx)
           continue;
         table.available.union_with(m.val_support[l][k]);
       }
@@ -235,7 +238,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     }
     table.forbidden[0].set(table.reaching);
   }
-  void mdd_retrieve_expln(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
+  void mdd_retrieve_expln(mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
     /*
     p_sparse_bitset& reaching(table.reaching);
     p_sparse_bitset& reaching_succ(table.reaching_succ);
@@ -243,9 +246,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     */
 
     table.reaching.fill(m.num_edges[0]);
-    for(int l = 0; l < proj_vars.size(); ++l) {
-      int xi(proj_vars[l]);
-      
+    for(int l = 0; l < m.values.size(); ++l) {
       for(int w : table.forbidden[l].idx) {
         if(!table.reaching.idx.elem(w))
           continue;
@@ -255,15 +256,17 @@ class compact_table : public propagator, public prop_inst<compact_table> {
         // all matching edges.
         while(table.reaching[w] & f_bits) {
           int f_edge = word_bits() * w + __builtin_ctzll(table.reaching[w] & f_bits);
-          int v_id = m.edge_value[l][f_edge];
+          int v_id = m.edge_value_id[l][f_edge];
           table.reaching.remove(m.val_support[l][v_id]);
-          xs[xi].explain_neq(table.domains[xi][v_id], expl);
+          int xi(table.val_index[m.values[l][v_id]].var);
+          int k(table.domains[xi][table.val_index[m.values[l][v_id]].val_id]);
+          xs[xi].explain_neq(k, expl);
         }
       }
       if(table.reaching.is_empty())
         return;
       
-      assert(l+1 < proj_vars.size());
+      assert(l+1 < m.values.size());
       table.reaching_succ.clear();
       for(int ni = 0; ni < m.num_nodes[l+1]; ++ni) {
         if(table.reaching.has_intersection(m.edge_TL[l+1][ni])) {
@@ -275,9 +278,9 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     }
   }
 
-  void expl_from_mdd(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
-    mdd_mark_forbidden(proj_vars, m, dead_idx);
-    mdd_retrieve_expln(proj_vars, m, dead_idx, expl);
+  void expl_from_mdd(mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
+    mdd_mark_forbidden(m, dead_idx);
+    mdd_retrieve_expln(m, dead_idx, expl);
   }
   /*
   void expl_from_mdd(vec<int>& proj_vars, mdd::mdd_info& m, unsigned int dead_idx, vec<clause_elt>& expl) {
@@ -357,7 +360,9 @@ class compact_table : public propagator, public prop_inst<compact_table> {
     // fprintf(stderr, "%% %d words of %d\n", ex_tuples.idx.size(), live_tuples.num_words());
     auto b(ex_tuples.idx.begin());
     auto e(ex_tuples.idx.end());
+#ifdef WEAKEN_EXPL
 restart_expl:
+#endif
     for(; b != e; ++b) {
       int w(*b);
       while(ex_tuples[w]) {
@@ -419,13 +424,23 @@ restart_expl:
   }
 
 #ifdef TABLE_STATS
+  int median_of(vec<int>& xs) {
+    vec<int> perm;
+    for(int ii : irange(xs.size()))
+      perm.push(ii);
+    std::nth_element(perm.begin(), perm.begin() + (perm.end() - perm.begin())/2, perm.end(),
+      [&xs](int i, int j) { return xs[i] < xs[j]; }); 
+    return xs[perm[perm.size()/2]];
+  }
+
   void report_internal(void) {
     int total_uses = std::accumulate(ex_count.begin(), ex_count.end(), 0);
     int max_uses = *std::max_element(ex_count.begin(), ex_count.end());
+    int median_uses = median_of(ex_count);
     int total_props = std::accumulate(prop_count.begin(), prop_count.end(), 0);
     int max_props = *std::max_element(prop_count.begin(), prop_count.end());
     fprintf(stderr, "%% compact-table[%d|%d]: arity %d, size %d, vals %d\n", cons_id, prop_id, (int) table.arity, (int) table.num_tuples, table.val_index.size());
-    fprintf(stderr, "%%%%  %d wipeouts, explanations: %.02lf mean, %d max\n", wipeouts, 1.0*total_uses/ex_count.size(), max_uses);
+    fprintf(stderr, "%%%%  %d wipeouts, explanations: %.02lf mean, %d median, %d max\n", wipeouts, 1.0*total_uses/ex_count.size(), median_uses, max_uses);
     fprintf(stderr, "%%%%  propagations: %.02lf mean, %d max", 1.0*total_props/prop_count.size(), max_props);
     fprintf(stderr, "\n");
   }
@@ -454,17 +469,11 @@ restart_expl:
 
     }
 
-#if 1
-    vec<int> proj_vars;  
-    int xi(table.val_index[vi].var);
-    for(int ii = 0; ii < table.arity; ++ii) {
-      if(xi != ii)
-        proj_vars.push(ii);
-    }
+#ifdef EXPLAIN_BY_MDD
 #ifdef TABLE_STATS
     ex_count[vi]++;
 #endif
-    expl_from_mdd(proj_vars, mdd::lookup(s, table.val_mdds[vi]), dead_idx, expl);
+    expl_from_mdd(mdd::lookup(s, table.val_mdds[vi]), dead_idx, expl);
 #else
     // Collect the set of tuples we need to explain.
     table_info::val_info ex_info(table.val_index[vi]);
@@ -490,8 +499,8 @@ restart_expl:
     // Construct the MDD
     if(table.m_id < 0) {
       vec< vec<int> > tuples;
-      table.rebuild_index_tuples(tuples);
-      table.m_id = mdd::of_tuples(s, tuples);
+      // table.rebuild_index_tuples(tuples);
+      table.m_id = mdd::of_tuples(s, table.row_index);
       mdd::mdd_info& mi(mdd::lookup(s, table.m_id));
       /*
       int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
@@ -507,11 +516,8 @@ restart_expl:
       for(p_sparse_bitset& f : table.forbidden)
         f.growTo(width_max);
     }
-#if 1
-    vec<int> proj_vars;
-    for(int xi = 0; xi < xs.size(); ++xi)
-      proj_vars.push(xi);
-    expl_from_mdd(proj_vars, mdd::lookup(s, table.m_id), dead_vals.size(), expl);
+#ifdef EXPLAIN_BY_MDD
+    expl_from_mdd(mdd::lookup(s, table.m_id), dead_vals.size(), expl);
 #else
     ex_tuples.fill(table.num_tuples);
     mk_expl(dead_vals.size(), expl);

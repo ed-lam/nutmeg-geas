@@ -7,18 +7,19 @@
 namespace geas {
   namespace mdd {
 
+// TODO: Condense the MDD value sets.
 struct mdd_info {
   mdd_info(void) { }
 
   vec<unsigned int> num_nodes;
   vec<unsigned int> num_edges;
-  vec<unsigned int> num_vals;
+  vec< vec<int> > values;
 
   vec< vec<bitset::support_set> > val_support;
   vec< vec<bitset::support_set> > edge_HD;
   vec< vec<bitset::support_set> > edge_TL;
 
-  vec< vec<int> > edge_value;
+  vec< vec<int> > edge_value_id;
 };
 
 typedef int mdd_id;

@@ -41,7 +41,7 @@ namespace bitset {
       // Fill the array with 1s
       memset(mem, (char) -1, sizeof(word_ty) * req_words(sz));
       if(elt_bit(sz))
-        mem[cap-1] &= (elt_mask(sz)-1);
+        mem[req_words(sz)-1] &= (elt_mask(sz)-1);
     }
     /*
     void clear(void) { memset(mem, 0, sizeof(word_ty) * sz); }
@@ -204,7 +204,7 @@ namespace bitset {
       // Fill the array with 1s
       memset(mem, (char) -1, sizeof(word_ty) * req_words(sz));
       if(elt_bit(sz))
-        mem[cap-1] &= (elt_mask(sz)-1);
+        mem[req_words(sz)-1] &= (elt_mask(sz)-1);
     }
     
     void init(const support_set& ss) {
