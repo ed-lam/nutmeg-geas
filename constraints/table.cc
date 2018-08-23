@@ -13,8 +13,8 @@
 #include "mtl/bool-set.h"
 #include "utils/bitset.h"
 
-#define TABLE_STATS
-#define WEAKEN_EXPL
+// #define TABLE_STATS
+// #define WEAKEN_EXPL
 
 using namespace geas;
 
@@ -118,6 +118,7 @@ table_info* construct_table_info(vec< vec<int> >& tuples) {
     ti->val_index.push(table_info::val_info { xi, k });
     ti->domains[xi].push(v);
     ti->supports[xi].push(support_set(v_rows.begin(), v_rows.end()));
+    ti->val_mdds.push(-1);
   }
   return ti;
 }
@@ -134,7 +135,6 @@ void table_info::rebuild_index_tuples(vec< vec<int> >& out_tuples) {
 
 void table_info::rebuild_proj_tuples(int var, int val_id, vec< vec<int> >& out_tuples) {
   out_tuples.clear();
-  // for(const vec<int>& r : row_index) {
   for(auto e : supports[var][val_id]) {
     int base(word_bits() * e.w);
     word_ty bits(e.bits);
@@ -216,7 +216,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
       int xi(proj_vars[l]);
       int base = table.vals_start[xi];
       for(int k : irange(m.val_support[l].size())) {
-        if(!live_vals[xi].elem(k) && dead_pos[base + k] < dead_idx)
+        if(dead_vals.pos(base+k) < dead_idx)
           continue;
         table.available.union_with(m.val_support[l][k]);
       }
@@ -227,8 +227,8 @@ class compact_table : public propagator, public prop_inst<compact_table> {
 
       table.reaching_succ.clear();
       for(int ni = 0; ni < m.num_nodes[l]; ++ni) {
-        if(table.reaching.has_intersection(m.edge_TL[l][ni]))
-          table.reaching_succ.union_with(m.edge_HD[l][ni]);
+        if(table.reaching.has_intersection(m.edge_HD[l][ni]))
+          table.reaching_succ.union_with(m.edge_TL[l][ni]);
       }
       // table.reaching.set(table.reaching_succ);
       std::swap(table.reaching, table.reaching_succ);
@@ -247,6 +247,8 @@ class compact_table : public propagator, public prop_inst<compact_table> {
       int xi(proj_vars[l]);
       
       for(int w : table.forbidden[l].idx) {
+        if(!table.reaching.idx.elem(w))
+          continue;
         word_ty f_bits(table.forbidden[l][w]);
         // If there is some edge which must be blocked here, add
         // the corresponding value to the explanation, and remove
@@ -261,7 +263,7 @@ class compact_table : public propagator, public prop_inst<compact_table> {
       if(table.reaching.is_empty())
         return;
       
-      assert(l+1 < proj_vars.size()); 
+      assert(l+1 < proj_vars.size());
       table.reaching_succ.clear();
       for(int ni = 0; ni < m.num_nodes[l+1]; ++ni) {
         if(table.reaching.has_intersection(m.edge_TL[l+1][ni])) {
@@ -437,9 +439,11 @@ restart_expl:
       table.rebuild_proj_tuples(table.val_index[vi].var, table.val_index[vi].val_id, tuples);
       table.val_mdds[vi] = mdd::of_tuples(s, tuples);
       mdd::mdd_info& mi(mdd::lookup(s, table.val_mdds[vi]));
+      /*
       int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
       int num_edges = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0);
       fprintf(stderr, "MDD id: %d (%d nodes, %d edges) {P %p}\n", table.val_mdds[vi], num_nodes, num_edges, &table);
+      */
 
       int width_max = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0, [](unsigned int i, unsigned int j) { return std::max(i, j); });
       table.available.growTo(width_max);
@@ -450,13 +454,16 @@ restart_expl:
 
     }
 
-#if 0
+#if 1
     vec<int> proj_vars;  
     int xi(table.val_index[vi].var);
     for(int ii = 0; ii < table.arity; ++ii) {
       if(xi != ii)
         proj_vars.push(ii);
     }
+#ifdef TABLE_STATS
+    ex_count[vi]++;
+#endif
     expl_from_mdd(proj_vars, mdd::lookup(s, table.val_mdds[vi]), dead_idx, expl);
 #else
     // Collect the set of tuples we need to explain.
@@ -486,9 +493,11 @@ restart_expl:
       table.rebuild_index_tuples(tuples);
       table.m_id = mdd::of_tuples(s, tuples);
       mdd::mdd_info& mi(mdd::lookup(s, table.m_id));
+      /*
       int num_nodes = std::accumulate(mi.num_nodes.begin(), mi.num_nodes.end(), 0);
       int num_edges = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0);
       fprintf(stderr, "MDD id: %d (%d nodes, %d edges) {T %p}\n", table.m_id, num_nodes, num_edges, &table);
+      */
 
       // Grow the scratch-space.
       int width_max = std::accumulate(mi.num_edges.begin(), mi.num_edges.end(), 0, [](unsigned int i, unsigned int j) { return std::max(i, j); });
@@ -498,8 +507,15 @@ restart_expl:
       for(p_sparse_bitset& f : table.forbidden)
         f.growTo(width_max);
     }
+#if 1
+    vec<int> proj_vars;
+    for(int xi = 0; xi < xs.size(); ++xi)
+      proj_vars.push(xi);
+    expl_from_mdd(proj_vars, mdd::lookup(s, table.m_id), dead_vals.size(), expl);
+#else
     ex_tuples.fill(table.num_tuples);
     mk_expl(dead_vals.size(), expl);
+#endif
   }
 
 public:
