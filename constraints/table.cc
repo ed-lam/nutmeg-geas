@@ -553,8 +553,11 @@ public:
       make_sparse(xs[xi], d);
       live_vals[xi].growTo(d.size());
       for(int k : irange(d.size())) {
+        patom_t at(xs[xi] != d[k]);
+        val_atoms.push(at);
         if(in_domain(xs[xi], d[k])) {
-          attach(s, xs[xi] != d[k], watch<&P::wakeup>(table.vals_start[xi] + k));
+          // attach(s, xs[xi] != d[k], watch<&P::wakeup>(table.vals_start[xi] + k));
+          attach(s, at, watch<&P::wakeup>(table.vals_start[xi] + k));
           live_vals[xi].insert(k);
         } else {
           dead_pos[table.vals_start[xi] + k] = dead_vals.size();
@@ -620,7 +623,7 @@ public:
 #ifdef TABLE_STATS
         prop_count[val_idx]++;
 #endif
-        if(!enqueue(*s, xs[x] != table.domains[x][k], expl<&P::ex_val>(val_idx))) {
+        if(!enqueue(*s, val_atoms[val_idx] /*xs[x] != table.domains[x][k]*/, expl<&P::ex_val>(val_idx))) {
           // dead_vals.sz--;
           active_vars.sz = act_sz;
           live_vals[x].sz = x_sz;
@@ -737,6 +740,7 @@ protected:
 
   // Parameters
   vec<intvar> xs;
+  vec<patom_t> val_atoms;
 
   // Persistent state
   vec<p_sparseset> live_vals;
@@ -757,7 +761,7 @@ protected:
   vec<unsigned int> old_live;
 
   p_sparse_bitset ex_tuples;
-
+  
 #ifdef TABLE_STATS
   bitset used_rows;
   unsigned int wipeouts;
