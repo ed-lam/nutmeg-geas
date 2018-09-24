@@ -19,8 +19,8 @@
 
 using namespace geas;
 
-using btset = bitset::bitset;
-using namespace bitset;
+// using btset = btset::bitset;
+using namespace btset;
 
 struct table_info {
   struct val_info {
@@ -719,7 +719,7 @@ protected:
     return false;
   }
 
-  inline void word_remove(btset& bits, support_set::elem_ty e) {
+  inline void word_remove(bitset& bits, support_set::elem_ty e) {
     if(bits[e.w] & e.bits) {
       trail_change(s->persist, bits[e.w], bits[e.w] & ~e.bits);
     }
@@ -740,7 +740,7 @@ protected:
 
   // Persistent state
   vec<p_sparseset> live_vals;
-  btset live_tuples;
+  bitset live_tuples;
   unsigned int live_r;
 
   vec<unsigned int> residual;
@@ -759,7 +759,7 @@ protected:
   p_sparse_bitset ex_tuples;
 
 #ifdef TABLE_STATS
-  btset used_rows;
+  bitset used_rows;
   unsigned int wipeouts;
   vec<int> ex_count;
   vec<int> prop_count;
@@ -1014,7 +1014,7 @@ protected:
     return false;
   }
 
-  inline bool word_remove(btset& bits, support_set::elem_ty e, patom_t at) {
+  inline bool word_remove(bitset& bits, support_set::elem_ty e, patom_t at) {
     if(bits[e.w] & e.bits) {
       unsigned int base(e.w * word_bits());
       word_ty rem(bits[e.w] & e.bits);
@@ -1047,7 +1047,7 @@ protected:
 
   // Persistent state
   vec<p_sparseset> live_vals;
-  btset live_tuples;
+  bitset live_tuples;
   unsigned int live_r;
 
   vec<unsigned int> residual;
@@ -1066,7 +1066,7 @@ protected:
   p_sparse_bitset ex_tuples;
 
 #ifdef TABLE_STATS
-  btset used_rows;
+  bitset used_rows;
   unsigned int wipeouts;
 #endif
 };

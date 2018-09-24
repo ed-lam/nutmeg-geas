@@ -199,13 +199,13 @@ struct mddfier {
 
       assert(ei == m->num_edges[ii]);
       for(const vec<int>& s : val_supports) {
-        m->val_support[ii].push(bitset::support_set::make(s));
+        m->val_support[ii].push(btset::support_set::make(s));
       }
       for(const vec<int>& s : hd_supports) {
-        m->edge_HD[ii].push(bitset::support_set::make(s));
+        m->edge_HD[ii].push(btset::support_set::make(s));
       }
       for(const vec<int>& s : tl_supports) {
-        m->edge_TL[ii+1].push(bitset::support_set::make(s));
+        m->edge_TL[ii+1].push(btset::support_set::make(s));
       }
     }
 
@@ -263,7 +263,7 @@ struct mdd_info {
   vec< val_info > val_index;
 };
 
-using btset = bitset::bitset;
+using btset = btset::bitset;
 using namespace bitset;
 
 namespace geas {

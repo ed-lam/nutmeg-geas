@@ -4,7 +4,7 @@
 #include "solver/solver_data.h"
 
 // Standard bitset.
-namespace bitset {
+namespace btset {
 
   typedef uint64_t word_ty;
   typedef unsigned int idx_ty;
@@ -18,16 +18,26 @@ namespace bitset {
 
   // Standard bit-set. Not really suitable for iteration.
   class bitset {
+    bitset(const bitset& o)
+      : cap(0), mem(nullptr) { }
+    bitset& operator=(const bitset& o) { return *this; }
   public:
     bitset(unsigned int sz)
       : cap(req_words(sz)), mem((word_ty*) malloc(sizeof(word_ty) * req_words(sz))) {
       memset(mem, 0, sizeof(word_ty) * cap);
     }
+    bitset(bitset&& o)
+      : cap(o.cap), mem(o.mem) {
+        o.cap = 0;
+        o.mem = nullptr;
+      }
     ~bitset(void) {
-      free(mem);
+      if(mem)
+        free(mem);
     }
   
     bool elem(unsigned int e) const { return mem[elt_idx(e)] & elt_mask(e); }
+    void insert(unsigned int e) { mem[elt_idx(e)] |= elt_mask(e); }
     bool is_empty(void) const {
       for(size_t ii = 0; ii < cap; ++ii) {
         if(mem[ii])
@@ -331,10 +341,10 @@ namespace bitset {
     p_sparseset idx;
   };
 
-}
+};
 
 namespace std {
-  using namespace bitset;
+  using namespace btset;
   inline void swap(p_sparse_bitset& x, p_sparse_bitset& y) { return x.swap(y); }
 };
 

@@ -15,9 +15,9 @@ struct mdd_info {
   vec<unsigned int> num_edges;
   vec< vec<int> > values;
 
-  vec< vec<bitset::support_set> > val_support;
-  vec< vec<bitset::support_set> > edge_HD;
-  vec< vec<bitset::support_set> > edge_TL;
+  vec< vec<btset::support_set> > val_support;
+  vec< vec<btset::support_set> > edge_HD;
+  vec< vec<btset::support_set> > edge_TL;
 
   vec< vec<int> > edge_value_id;
 };
