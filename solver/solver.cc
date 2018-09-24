@@ -592,6 +592,11 @@ void solver::clear_assumptions(void) {
   data->assump_end = 0;
 }
 
+void solver::restart(void) {
+  if(decision_level(*data) > 0)
+    bt_to_level(data, 0);
+}
+
 #ifdef LOG_RESTART
 static int num_props = 0;
 #endif
