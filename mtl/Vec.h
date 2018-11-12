@@ -92,8 +92,10 @@ public:
       if(data) { free(data); }
       data = o.data;
       sz = o.sz;
+      cap = o.cap;
       o.data = NULL;
       o.sz = 0;
+      o.cap = 0;
       return *this;
     }
     vec<T>&  operator=(vec<T>& other) {

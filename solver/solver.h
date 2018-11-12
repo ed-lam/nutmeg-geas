@@ -38,6 +38,8 @@ public:
   result solve(limits l = no_limit);
   void abort(void);
 
+  bool is_aborted(void) const;
+
   // Retrieve a model
   model get_model(void);
 
@@ -50,7 +52,10 @@ public:
   void clear_assumptions(void);
   void get_conflict(vec<patom_t>& atom);
 
-  void restart(void);
+  // Controlling search
+  void backtrack(void); // Backtrack one level
+  unsigned int level(void) const; // What is the current decision level?
+  void restart(void);  // Backtrack to level 0.
 
   void level_push(void);
   void level_pop(void);

@@ -56,10 +56,11 @@ namespace geas {
 /* This flag controls early solver termination */
 volatile static sig_atomic_t global_abort = 0;
 
-/* The signal handler just sets the flag and re-enables itself. */
+/* The signal handler just sets the flag. Now _doesn't_
+ * re-enable itself. */
 void catch_int (int sig) {
   global_abort = 1;
-  signal (sig, catch_int);
+  // signal (sig, catch_int);
 }
 void set_handlers(void) {
   signal(SIGINT, catch_int);
@@ -153,7 +154,8 @@ solver_data::solver_data(const options& _opts)
       // Dynamic parameters
       learnt_act_inc(opts.learnt_act_inc),
       pred_act_inc(opts.pred_act_inc),
-      learnt_dbmax(opts.learnt_dbmax) {
+      learnt_dbmax(opts.learnt_dbmax),
+      abort_solve(0) {
   new_pred(*this, 0, 0);
   man_registry& r(get_reg());
   managers.growTo(r.sz, manager_t { nullptr, nullptr });
@@ -272,7 +274,7 @@ static pid_t alloc_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
 }
 
 pid_t new_pred(sdata& s, pval_t lb, pval_t ub, unsigned char flags) {
-  assert(decision_level(s) == 0);
+  // assert(decision_level(s) == 0);
   pid_t p = alloc_pred(s, lb, ub, flags);
 
   run_callbacks(s.on_pred);
@@ -595,6 +597,17 @@ void solver::clear_assumptions(void) {
 void solver::restart(void) {
   if(decision_level(*data) > 0)
     bt_to_level(data, 0);
+}
+
+void solver::backtrack(void) {
+  if(decision_level(*data) > 0) {
+    bt_to_level(data, decision_level(*data)-1);
+    process_initializers(*data);
+  }
+}
+
+unsigned int solver::level(void) const {
+  return decision_level(*data);
 }
 
 #ifdef LOG_RESTART
@@ -1336,6 +1349,8 @@ static double getTime(void) {
   gettimeofday(&t, NULL);
   return t.tv_sec + ((double) t.tv_usec)/1e6;
 }
+
+bool solver::is_aborted(void) const { return global_abort || data->abort_solve; }
 
 // Solving
 solver::result solver::solve(limits l) {
