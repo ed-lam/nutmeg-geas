@@ -15,7 +15,7 @@
 
 using namespace geas;
 
-class diff_manager : public propagator, public prop_inst<diff_manager>, public solver_ext<diff_manager> {
+class diff_manager : public propagator, public prop_inst<diff_manager>, public solver_ext_nofree<diff_manager> {
 public:
   typedef unsigned int diff_id;
   typedef unsigned int dim_id;
