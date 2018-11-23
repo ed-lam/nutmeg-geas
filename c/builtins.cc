@@ -10,6 +10,7 @@
 #include "solver/solver_data.h"
 #include "constraints/builtins.h"
 #include "constraints/flow/flow.h"
+#include "constraints/linear-par.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,18 @@ int linear_le(solver s, atom r, int_linterm* ts, int sz, int k) {
   return geas::linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
 #endif
 
+}
+
+int slice_linear_le(solver s, atom r, slice_linterm* ts, int sz, int k) {
+  vec<int> ks;
+  vec<geas::int_slice> xs;
+  for(int ii = 0; ii < sz; ii++) {
+    ks.push(ts[ii].c);
+    xs.push(*get_intslice(ts[ii].x));
+  }
+  // return geas::linear_le(get_solver(s)->data, ks, xs,  k, get_atom(r));
+  return geas::lin_leq<int, geas::int_slice>::post(get_solver(s)->data, ks, xs, k, get_atom(r));
+  return true;
 }
 
 int linear_ne(solver s, atom r, int_linterm* ts, int sz, int k) {

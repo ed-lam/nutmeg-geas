@@ -11,6 +11,12 @@ boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int 
 boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
 
 typedef struct {
+  [mlname(sc)] int c;
+  [mlname(sx)] intslice x;
+} slice_linterm;
+boolean slice_linear_le([in] solver s, atom r, [in,size_is(sz)] slice_linterm ts[], int sz, int k);
+
+typedef struct {
   [mlname(ac)] int c;
   [mlname(ax)] atom x; 
 } at_linterm;

@@ -4,12 +4,16 @@
 #include "solver/model.h"
 #include "c/atom.h"
 #include "c/geas.h"
+#include "vars/slice.h"
 
 inline geas::solver* get_solver(solver s) {
   return (geas::solver*) s;
 }
 inline geas::intvar* get_intvar(intvar v) {
   return (geas::intvar*) v;
+}
+inline geas::int_slice* get_intslice(intslice v) {
+  return (geas::int_slice*) v;
 }
 inline geas::fp::fpvar* get_fpvar(fpvar v) {
   return (geas::fp::fpvar*) v;

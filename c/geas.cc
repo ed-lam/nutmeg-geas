@@ -84,6 +84,48 @@ int compare_intvar(intvar x, intvar y) {
   return get_intvar(x)->p - get_intvar(y)->p;
 }
 
+intslice slice_of_intvar(intvar x) {
+  geas::int_slice s(geas::int_slice::from_intvar(*get_intvar(x)));
+  return (intslice) (new geas::int_slice(s));
+}
+intslice slice_from(intslice s, int lb) {
+  geas::int_slice gs(*get_intslice(s));
+  return (intslice) (new geas::int_slice(gs.from(lb)));
+}
+intslice slice_upto(intslice s, int ub) {
+  geas::int_slice gs(*get_intslice(s));
+  return (intslice) (new geas::int_slice(gs.upto(ub)));
+}
+intslice slice_rezero(intslice s, int zero_val) {
+  geas::int_slice gs(*get_intslice(s));
+  return (intslice) (new geas::int_slice(gs.re_zero(zero_val)));
+}
+
+void destroy_intslice(intslice s) {
+  delete get_intslice(s);
+}
+int compare_intslice(intslice s, intslice t) {
+  geas::int_slice gs(*get_intslice(s));
+  geas::int_slice gt(*get_intslice(t));
+  if(gs.p != gt.p)
+    return gs.p - gt.p;
+  if(gs.lb_pos != gt.lb_pos)
+    return gs.lb_val - gt.lb_val;
+  if(gs.lb_val != gt.lb_val)
+    return gs.lb_val - gt.lb_val;
+  return gs.delta - gt.delta;
+}
+long hash_intslice(intslice s) {
+  geas::int_slice gs(*get_intslice(s));
+  unsigned long hash = 5381;
+  hash = ((hash<<5) + hash) + gs.p;
+  hash = ((hash<<5) + hash) + gs.lb_pos;
+  hash = ((hash<<5) + hash) + gs.lb_val;
+  hash = ((hash<<5) + hash) + gs.delta;
+  return hash;
+}
+
+
 int solver_id(solver s) {
   return reinterpret_cast<uintptr_t>(get_solver(s));
 }
@@ -334,6 +376,9 @@ void destroy_model(model m) {
 int int_value(model m, intvar v) {
   return get_intvar(v)->model_val(*get_model(m));
 }
+int intslice_value(model m, intslice v) {
+  return get_intslice(v)->model_val(*get_model(m));
+}
 float float_value(model m, fpvar v) {
   return get_fpvar(v)->model_val(*get_model(m));
 }
@@ -359,6 +404,10 @@ atom ivar_le(intvar v, int k) {
 
 atom ivar_eq(intvar v, int k) {
   return unget_atom( (*get_intvar(v)) == k );
+}
+
+atom islice_le(intslice v, int k) {
+  return unget_atom( (*get_intslice(v)) <= k );
 }
 
 atom fpvar_le(fpvar v, float k) {

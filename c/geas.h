@@ -22,6 +22,8 @@ typedef struct intvar_s* intvar;
 struct fpvar_s;
 typedef struct fpvar_s* fpvar;
 
+struct intslice_s;
+typedef struct intslice_s* intslice;
 /*
 struct opt_intvar_s;
 typedef struct opt_intvar_s* opt_intvar;
@@ -77,6 +79,15 @@ opt_intvar intvar_make_opt(solver, intvar v);
 void destroy_opt_intvar(intvar);
 */
 
+intslice slice_of_intvar(intvar);
+intslice slice_from(intslice, int lb);
+intslice slice_upto(intslice, int ub);
+intslice slice_rezero(intslice, int zero_val);
+
+int compare_intslice(intslice, intslice);
+long hash_intslice(intslice);
+void destroy_intslice(intslice);
+
 fpvar new_floatvar(solver, float lb, float ub);
 void destroy_floatvar(fpvar);
 
@@ -119,6 +130,7 @@ model get_model(solver);
 void destroy_model(model);
 
 int int_value(model, intvar);
+int intslice_value(model, intslice);
 float float_value(model, fpvar);
 int atom_value(model, atom);
 
@@ -130,6 +142,7 @@ atom ivar_le(intvar, int);
 atom ivar_eq(intvar, int);
 atom fpvar_le(fpvar, float);
 atom fpvar_lt(fpvar, float);
+atom islice_le(intslice, int);
 
 pred_t new_pred(solver, int, int);
 atom pred_ge(pred_t, int);

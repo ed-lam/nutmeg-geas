@@ -22,8 +22,15 @@ int linear_ne(solver s, atom r, int_linterm* ts, int sz, int k);
 
 typedef struct {
   int c;
+  intslice x; 
+} slice_linterm;
+
+typedef struct {
+  int c;
   atom x;
 } at_linterm;
+
+int slice_linear_le(solver s, atom r, slice_linterm* ts, int sz, int k);
 
 // int bool_linear_le(solver s, atom r, at_linterm* ts, int sz, int k);
 int bool_linear_le(solver s, atom, intvar, at_linterm* ts, int sz, int k);

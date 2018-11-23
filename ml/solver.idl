@@ -8,9 +8,13 @@ quote(c, "void free_solver(solver* s) { destroy_solver(*s); }");
 quote(c, "void free_model(model* m) { destroy_model(*m); }");
 quote(c, "void free_intvar(intvar* v) { destroy_intvar(*v); }");
 quote(c, "void free_floatvar(fpvar* v) { destroy_floatvar(*v); }");
+quote(c, "void free_intslice(intslice* v) { destroy_intslice(*v); }");
 
 quote(c, "int cmp_intvar(intvar* x, intvar* y) { return compare_intvar(*x, *y); }");
 quote(c, "int hsh_intvar(intvar* x) { return hash_intvar(*x); }");
+
+quote(c, "int cmp_intslice(intslice* x, intslice* y) { return compare_intslice(*x, *y); }");
+quote(c, "int hsh_intslice(intslice* x) { return hash_intslice(*x); }");
 
 typedef enum { SAT, UNSAT, UNKNOWN } result;
 typedef enum { VAR_INORDER, VAR_FIRSTFAIL, VAR_LEAST, VAR_GREATEST } var_choice;
@@ -53,6 +57,7 @@ typedef struct {
 typedef [abstract,ptr,finalize(free_solver)] struct solver_s* solver;
 typedef [abstract,ptr,finalize(free_model)] struct model_s* model;
 typedef [abstract,ptr,finalize(free_intvar),compare(cmp_intvar),hash(hsh_intvar)] struct intvar_s* intvar;
+typedef [abstract,ptr,finalize(free_intslice),compare(cmp_intslice),hash(hsh_intslice)] struct intslice_s* intslice;
 typedef [abstract,ptr,finalize(free_floatvar)] struct fpvar_s* fpvar;
 typedef [abstract,ptr] struct brancher_s* brancher;
 
@@ -98,6 +103,11 @@ intvar intvar_plus([in] intvar x, [in] int k);
 boolean make_sparse([in] intvar x, [in,size_is(sz)] int vals[], int sz);
 atom new_boolvar([in] solver s);
 
+intslice slice_of_intvar(intvar x);
+intslice slice_from(intslice x, int lb);
+intslice slice_upto(intslice x, int ub);
+intslice slice_rezero(intslice x, int zero_val);
+
 fpvar new_floatvar([in] solver s, float lb, float ub);
 
 void set_bool_polarity([in] solver s, [in] atom at, [in] boolean pol);
@@ -111,11 +121,13 @@ int suggest_ivar_value(solver s, intvar v);
 
 model get_model([in] solver s);
 int int_value([in] model m, [in] intvar v);
+int intslice_value([in] model m, [in] intslice v);
 float float_value([in] model m, [in] fpvar v);
 boolean atom_value([in] model m, atom at);
 
 atom ivar_le([in] intvar v, [in] int k);
 atom ivar_eq([in] intvar v, [in] int k);
+atom islice_le([in] intslice v, [in] int k);
 atom fpvar_le([in] fpvar v, [in] float k);
 atom fpvar_lt([in] fpvar v, [in] float k);
 
@@ -130,6 +142,9 @@ quote(mli, "val ivar_lt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ge : intvar -> int -> Atom.t");
 quote(mli, "val ivar_gt : intvar -> int -> Atom.t");
 quote(mli, "val ivar_ne : intvar -> int -> Atom.t");
+quote(mli, "val islice_lt : intslice -> int -> Atom.t");
+quote(mli, "val islice_ge : intslice -> int -> Atom.t");
+quote(mli, "val islice_gt : intslice -> int -> Atom.t");
 quote(mli, "val fpvar_gt : fpvar -> float -> Atom.t");
 quote(mli, "val fpvar_ge : fpvar -> float -> Atom.t");
 
@@ -137,5 +152,8 @@ quote(ml, "let ivar_lt v k = ivar_le v (k-1)");
 quote(ml, "let ivar_ge v k = Atom.neg (ivar_lt v k)");
 quote(ml, "let ivar_gt v k = Atom.neg (ivar_le v k)");
 quote(ml, "let ivar_ne v k = Atom.neg (ivar_eq v k)");
+quote(ml, "let islice_lt v k = islice_le v (k-1)");
+quote(ml, "let islice_ge v k = Atom.neg (islice_lt v k)");
+quote(ml, "let islice_gt v k = Atom.neg (islice_le v k)");
 quote(ml, "let fpvar_ge v k = Atom.neg (fpvar_lt v k)");
 quote(ml, "let fpvar_gt v k = Atom.neg (fpvar_le v k)");
