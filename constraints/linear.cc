@@ -383,6 +383,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         xs_pending.push(xi);
       }
 
+      /*
       int* xp = xs_pending.begin();
       for(int xi : xs_pending) {
         elt e = xs[xi];
@@ -397,6 +398,7 @@ class lin_le_inc : public propagator, public prop_inst<lin_le_inc> {
         *xp = xi; ++xp;
       }
       xs_pending.shrink_(xs_pending.end() - xp);
+      */
 
       // Then, add things at the current level
       assert(slack >= 0);
@@ -637,6 +639,17 @@ public:
     }, s, -slack);
   }
 
+  bool check_sat(ctx_t& ctx) {
+    V l(0);
+    for(term t : xs)
+      l += t.c * t.x.lb(ctx);
+
+    return !r.lb(ctx) || l <= k;
+  }
+  bool check_unsat(ctx_t& ctx) {
+    return !check_sat(ctx);
+  }
+
   patom_t r;
   vec<term> xs;
   V k;
@@ -783,6 +796,7 @@ public:
     attach_trigger(trigs[1], 1);
   }
 
+#if 0
   bool check_sat(ctx_t& ctx) {
     int sum = 0; 
     for(auto t : vs) {
@@ -795,6 +809,7 @@ public:
   bool check_unsat(ctx_t& ctx) {
     return !check_sat(ctx);
   }
+#endif
 
   bool propagate(vec<clause_elt>& confl) {
 #ifdef LOG_PROP

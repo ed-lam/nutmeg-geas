@@ -689,8 +689,8 @@ public:
 
   bool check_sat(ctx_t& ctx) {
     for(int ii : irange(ys.size())) {
-#if 0
-      if(!x.in_domain(ctx, base + ii))
+#if 1
+      if(!x.in_domain_exhaustive(ctx, base + ii))
         continue;
 #else
       if(x.lb(ctx) > ii + base || x.ub(ctx) < ii+base)
