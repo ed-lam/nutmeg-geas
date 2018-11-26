@@ -35,6 +35,9 @@ public:
   // Inspecting
   int64_t lb(const ctx_t& ctx) const { return gamma(ctx[p]); }
   int64_t ub(const ctx_t& ctx) const { return gamma(pval_inv(ctx[p^1])); }
+  
+  int64_t lb_of_pval(pval_t k) const { return gamma(k); }
+  int64_t ub_of_pval(pval_t k) const { return gamma(pval_inv(k)); }
 
   int64_t model_val(const model& m) const { return gamma(m.get(p)); }
 
@@ -99,6 +102,15 @@ public:
       return int_slice(p, k, lb_pos - (lb_val - k), 0);
     // Otherwise, lower bounds are still in place; just need to shrink delta.
     return int_slice(p, lb_val, lb_pos, k - lb_val);
+  }
+
+  void attach(solver_data* s, intvar_event e, watch_callback c) {
+    if(e & E_LB)
+      s->pred_callbacks[p].push(c);
+    if(e & E_UB)
+      s->pred_callbacks[p^1].push(c);
+    if(e & E_FIX)
+      NOT_YET;
   }
 
   pid_t p;

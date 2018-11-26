@@ -42,6 +42,10 @@ void intvar::attach(intvar_event e, watch_callback c) {
     ext->fix_callbacks.push(c);
   }
 }
+void intvar::attach(solver_data* s, intvar_event e, watch_callback c) {
+  assert(s == ext->s);
+  attach(e, c);
+}
 
 void intvar::attach_rem(val_callback<int64_t> c) {
   // man->attach(idx, e, c);

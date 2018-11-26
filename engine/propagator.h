@@ -1,6 +1,7 @@
 #ifndef GEAS_PROPAGATOR__H
 #define GEAS_PROPAGATOR__H
 #include "engine/infer-types.h"
+#include "engine/state.h"
 #include "engine/persist.h"
 
 namespace geas {
@@ -46,17 +47,24 @@ public:
 
   // And for variables.
   template<class T> bool is_fixed(const T& v) const;
-  template<class T> typename T::val_t lb(const T& v) const;
+  template<class T> auto lb(const T& v) const -> decltype(v.lb(((pred_state*) nullptr)->p_vals));
+  template<class T> auto ub(const T& v) const -> decltype(v.ub(((pred_state*) nullptr)->p_vals));
+  template<class T> auto lb_0(const T& v) const -> decltype(v.lb(((pred_state*) nullptr)->p_root));
+  template<class T> auto ub_0(const T& v) const -> decltype(v.ub(((pred_state*) nullptr)->p_root));
+  template<class T> auto lb_prev(const T& v) const -> decltype(v.lb(((pred_state*) nullptr)->p_last));
+  template<class T> auto ub_prev(const T& v) const -> decltype(v.ub(((pred_state*) nullptr)->p_last));
+  /*
   template<class T> typename T::val_t ub(const T& v) const;
   template<class T> typename T::val_t lb_0(const T& v) const;
   template<class T> typename T::val_t ub_0(const T& v) const;
   template<class T> typename T::val_t lb_prev(const T& v) const;
   template<class T> typename T::val_t ub_prev(const T& v) const;
+  */
   template<class T> typename T::val_t lb_delta(const T& v) const;
   template<class T> typename T::val_t ub_delta(const T& v) const;
   template<class T> bool in_domain(const T& x, typename T::val_t v) const;
-  template<class T> bool set_lb(T& x, typename T::val_t v, reason r);
-  template<class T> bool set_ub(T& x, typename T::val_t v, reason r);
+  template<class T, class V> bool set_lb(T& x, V v, reason r);
+  template<class T, class V> bool set_ub(T& x, V v, reason r);
 
   template<class T> bool set_lb_with_eq(T& x, typename T::val_t v, reason r);
   template<class T> bool set_ub_with_eq(T& x, typename T::val_t v, reason r);

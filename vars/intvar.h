@@ -224,6 +224,7 @@ public:
   bool enforce_eqatoms_lb(val_t old_lb);
   bool enforce_eqatoms_ub(val_t old_ub);
 
+  void attach(solver_data* s, intvar_event e, watch_callback c);
   void attach(intvar_event e, watch_callback c);
   void attach_rem(val_callback<int64_t> c);
 
