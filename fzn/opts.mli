@@ -22,6 +22,7 @@ val restart_limit : int option ref
 val limits : Solver.limits ref
 val obj_probe_limit : int option ref
 val core_opt : bool ref
+val core_ratio : float ref
 
 val one_watch : bool ref
 val global_diff : bool ref

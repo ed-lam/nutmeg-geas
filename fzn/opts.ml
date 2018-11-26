@@ -21,6 +21,7 @@ let limits = ref (Solver.unlimited ())
 
 let obj_probe_limit = ref None
 let core_opt = ref false
+let core_ratio = ref 0.2
 
 let one_watch = ref true
 let global_diff = ref true
@@ -108,6 +109,11 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "--core-opt",
       Arg.Set core_opt,
       " : use an unsat-core driven optimization."
+     ) ;
+     (
+      "--core-ratio",
+      Arg.Float (fun r -> core_ratio := r),
+      " : how much of the resource budget to spend on core-driven optimization."
      ) ;
      (
       "-a",
