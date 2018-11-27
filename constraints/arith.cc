@@ -2262,6 +2262,13 @@ public:
     x_change = z_change = false;
   }
 
+  bool check_sat(ctx_t& ctx) {
+    int low(std::max(z.lb(ctx), x.lb(ctx) / k));
+    int high(std::min(z.ub(ctx), z.ub(ctx) / k));
+    return low <= high;
+  }
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+
   bool propagate(vec<clause_elt>& confl) {
     if(x_change) {
       UPDATE_LB(z, lb(x)/k, expl<&P::ex_z_lb>(0));

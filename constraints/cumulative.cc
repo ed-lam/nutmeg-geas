@@ -70,6 +70,23 @@ public:
       }
     } pevt_cmp;
 
+    int usage_at(int time, const ctx_t& ctx) const {
+      V total(0);
+      for(const task_info& t : tasks) {
+        if(t.s.ub(ctx) <= time && time < t.s.lb(ctx) + t.d)
+          total += t.r;
+      }
+      return total;
+    }
+    bool check_sat(ctx_t& ctx) {
+      for(const task_info& t : tasks) {
+        if(usage_at(t.s.ub(ctx), ctx) > cap)
+          return false;
+      }
+      return true;
+    }
+    bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+
     // Parameters
     vec<task_info> tasks; // We order tasks by decreasing r.
     V cap; // Maximum resource capacity
@@ -601,6 +618,25 @@ public:
 
     inline V mreq(int xi) const { return lb(tasks[xi].r); }
     inline int mdur(int xi) const { return lb(tasks[xi].d); }
+
+    // For checking.
+    int usage_at(int time, const ctx_t& ctx) const {
+      V total(0);
+      for(const task_info& t : tasks) {
+        if(t.s.ub(ctx) <= time && time < t.s.lb(ctx) + t.d.lb(ctx))
+          total += t.r.lb(ctx);
+      }
+      return total;
+    }
+    bool check_sat(ctx_t& ctx) {
+      V max(cap.ub(ctx));
+      for(const task_info& t : tasks) {
+        if(usage_at(t.s.ub(ctx), ctx) > max)
+          return false;
+      }
+      return true;
+    }
+    bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
     int make_ex(task_id t, int s, int e) {
       this->template save(exs._size(), exs_saved);
