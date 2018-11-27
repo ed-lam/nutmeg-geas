@@ -85,7 +85,9 @@ let get_var_branch ann =
   | Pr.Ann_id "first_fail" -> Sol.VAR_FIRSTFAIL
   | Pr.Ann_id "smallest" -> Sol.VAR_LEAST
   | Pr.Ann_id "largest" -> Sol.VAR_GREATEST
-  | _ -> failwith "Unknown var-branch annotation."
+  | _ -> (* failwith "Unknown var-branch annotation." *)
+    let _ = Format.fprintf Format.err_formatter "%% WARNING: Unknown var-branch annotation, ignoring.@." in
+    Sol.VAR_INORDER
 
 let get_val_branch ann =
   match ann with
@@ -680,6 +682,32 @@ let process_core solver pred_map thresholds core =
       delta
     end
 
+let trim_core solver pred_map thresholds core =
+  if Array.length core = 1 then
+    let _ = Format.fprintf Format.err_formatter "%% singleton@." in
+    let (x, b) = lb_of_atom pred_map core.(0) in
+    let st = H.find thresholds x in
+    assert(b > st.lb) ;
+    let cost = st.residual + st.coeff * (b - st.lb - 1) in
+    let _ = H.replace thresholds x { coeff = st.coeff ; lb = b ; residual = st.coeff } in
+    (* let okay = Sol.post_atom solver core.(0) in 
+    assert okay ; *)
+    cost, core
+  else
+    let bounds = Array.map (lb_of_atom pred_map) core in    
+    let delta, atoms = update_thresholds thresholds bounds in
+    (* let _ = Sol.post_clause solver core in *)
+    delta, atoms
+
+let apply_cores solver pred_map thresholds deferred_cores =
+  List.iter (fun (delta, c) ->
+    if Array.length c > 1 then
+      let p = Sol.new_intvar solver 0 (Array.length c - 1) in
+      let _ = post_bool_sum_geq solver p c (-1) in
+      H.add pred_map (Sol.ivar_pred p) p ;
+      H.add thresholds p { coeff = delta ; lb = 0; residual = delta; }
+    ) deferred_cores  
+
 let log_core_iter =
   let iters = ref 0 in
   (fun lb ->
@@ -757,50 +785,7 @@ type core_result =
   | Unsat
   | Unknown
 
-
-(*
-let rec solve_core_subset print_model print_nogood solver obj incumbent pred_map thresholds vars lb =
-  log_core_iter lb ;
-  (* We know there exists a minimum-weight model for [obj.(0), ..., obj.(idx-1)].
-   * Now expand to the rest of the variables. *)
-  match try_thresholds_subset solver thresholds vars with
-  | Sol.SAT ->
-    begin
-      (* Format.fprintf Format.err_formatter "%% [SAT].@." ; *)
-      let m = Sol.get_model solver in
-      let _ = print_model Format.std_formatter m in
-      (* )
-      let fmt = Format.err_formatter in
-      Format.fprintf fmt "{|@[<hov 2>" ;
-      Hashtbl.fold (fun x st tl -> (x, st) :: tl) thresholds [] |> List.sort compare
-        |> List.iter (fun (x, st) -> Format.fprintf fmt "@ [%d:%d|%d]"
-        (Sol.ivar_pred x |> Int32.to_int) st.lb (Sol.int_value m x)) ;
-      Format.fprintf fmt "@ |}@]@." ;
-      ( *)
-      Sol.retract_all solver ;
-      Opt m
-    end
-  | Sol.UNSAT -> 
-    let core = Sol.get_conflict solver in
-    begin
-      (* ) print_nogood Format.err_formatter core ; ( *)
-      Sol.retract_all solver ;
-      assert (Array.length core > 0) ;
-      if Array.length core = 0 then
-        Opt incumbent
-      else
-        let delta = process_core solver pred_map thresholds core in
-        solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff (lb + delta)
-    end
-  | Sol.UNKNOWN ->
-    begin
-      Sol.retract_all solver ;
-      Sat incumbent
-    end
-    *)
-
-
-let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff lb limits =
+let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff deferred_cores lb limits =
   log_core_iter lb ;
   Format.fprintf Format.err_formatter "%% Min coeff: %d, incumbent value %d@." min_coeff (Solver.int_value incumbent obj) ;
   (* We know there exists a minimum-weight model for [obj.(0), ..., obj.(idx-1)].
@@ -820,16 +805,23 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
       Format.fprintf fmt "@ |}@]@." ;
       ( *)
       Sol.retract_all solver ;
-      let coeff' = next_coeff thresholds min_coeff in
-      if coeff' = 0 then
-        Opt m
+      let m' = if (Sol.int_value m obj) < (Sol.int_value incumbent obj) then m else incumbent in
+      if deferred_cores <> [] then
+        (* Post the new relaxation variables and continue *)
+        begin
+          apply_cores solver pred_map thresholds deferred_cores ;
+          solve_core_strat print_model print_nogood solver obj m' pred_map thresholds min_coeff [] lb limits 
+        end
       else
-        (*
-        let obj_val = Sol.int_value m obj in
-        let _ = Sol.post_atom solver (Sol.ivar_lt obj obj_val) in
-        *)
-        let m' = if (Sol.int_value m obj) < (Sol.int_value incumbent obj) then m else incumbent in
-        solve_core_strat print_model print_nogood solver obj m' pred_map thresholds coeff' lb limits
+        let coeff' = next_coeff thresholds min_coeff in
+        if coeff' = 0 then
+          Opt m
+        else
+          (*
+          let obj_val = Sol.int_value m obj in
+          let _ = Sol.post_atom solver (Sol.ivar_lt obj obj_val) in
+          *)
+          solve_core_strat print_model print_nogood solver obj m' pred_map thresholds coeff' [] lb limits
     end
   | Sol.UNSAT -> 
     let core = Sol.get_conflict solver in
@@ -843,85 +835,17 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
         if not (Sol.post_clause solver core) then
           Opt incumbent
         else
-          let delta = process_core solver pred_map thresholds core in
-          solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff (lb + delta) limits
+          let delta, core = trim_core solver pred_map thresholds core in
+          (* let _ = print_nogood Format.err_formatter core in *)
+          solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff ((delta, core) :: deferred_cores) (lb + delta) limits
     end
   | Sol.UNKNOWN ->
     begin
       Sol.retract_all solver ;
+      apply_cores solver pred_map thresholds deferred_cores ;
       Sat (incumbent, lb, thresholds)
     end
 
-(*
-let split_thresholds pred_map thresholds core =
-  let bounds = List.map (lb_of_atom pred_map) core in
-  let rec aux thresholds bounds acc_in acc_out with
-    match bounds, thresholds with
-    | [], _ -> (List.rev acc_in, List.rev_append acc_out thresholds) 
-    | (x, k) :: bs, 
-  if List.length core = 1 then
-    let _ = Format.fprintf Format.err_formatter "%% singleton@." in
-    let (x, b) = lb_of_atom pred_map core.(0) in
-    let st = H.find thresholds x in
-    assert(b > st.lb) ;
-    let cost = st.residual + st.coeff * (b - st.lb - 1) in
-    let _ = H.replace thresholds x { coeff = st.coeff ; lb = b ; residual = st.coeff } in
-    let okay = Sol.post_atom solver core.(0) in
-    assert okay ;
-    cost
-  else
-    begin
-      (* Create penalty var *)
-      let p = Sol.new_intvar solver 0 (Array.length core - 1) in
-      (* Relate penalty to core *)
-      (* Now update thresholds *)
-      let bounds = Array.map (lb_of_atom pred_map) core in    
-      (*
-      let _ = Util.print_array ~pre:"%% @[[" ~post:"]@]@." ~sep:",@ " 
-        (fun fmt (x, b) -> Format.fprintf fmt "x%d >= %d" (Sol.ivar_pred x |> Int32.to_int) b) Format.err_formatter bounds in
-        *)
-      let delta, atoms = update_thresholds thresholds bounds in
-      let _ = post_bool_sum_geq solver p atoms (-1) in
-      let _ = Sol.post_clause solver core in
-      (* Format.fprintf Format.err_formatter "%% Adding penalty var: x%d with coefficient %d.@."
-        (Sol.ivar_pred p |> Int32.to_int) delta ; *)
-      H.add pred_map (Sol.ivar_pred p) p ;
-      H.add thresholds p { coeff = delta ; lb = 0 ; residual = delta ; } ;
-      (* ) log_thresholds thresholds ; ( *)
-      delta
-    end
-
-(* Slightly different representation: list of terms.
- * If we find a core, split into the two subproblems,
- * and solve each independently. *)
-let rec solve_core_disjoint print_model print_nogood solver incumbent thresholds =
-  match try_thresholds_list solver thresholds min_coeff with
-  | Sol.SAT ->
-    (* Format.fprintf Format.err_formatter "%% [SAT].@." ; *)
-    let m = Sol.get_model solver in
-    let _ = print_model Format.std_formatter m in
-    Sol.retract_all solver ;
-    (* Update the incumbent, if we've got a better model. *)
-    let _ =
-      if (Sol.int_value m obj) < (Sol.int_value !incumbent obj) then
-        !incumbent := m
-      else
-        () in
-    (0, thresholds)
-  | Sol.UNSAT ->
-    let core = Sol.get_conflict solver in
-    begin
-      Sol.retract_all solver ;
-      assert (Array.length core > 0) ;
-      let (delta, core_thresh, out_thresh) = split_thresholds thresholds core in
-      (* Do we want to recurse on the core first, or the other variables? *)
-      let (cdelta, cthresh) = solve_core_disjoint print_model print_nogood solver incumbent core_thresh in
-      let (odelta, othresh) = solve_core_disjoint print_model print_nogood solver incumbent out_thresh in
-      (* At this point, we've finished our two subproblems. Do we want to fully finish this
-       * subproblem, or just return? *)
-      (cdelta + odelta, List.append (odelta, othresh))
-      *)
-      
 let solve_core print_model print_nogood solver obj_var obj k =
   (* Post penalty thresholds *)
   let limits () = relative_limits solver !Opts.limits in
@@ -947,104 +871,10 @@ let solve_core print_model print_nogood solver obj_var obj k =
       let obj_val = Sol.int_value m obj_var in
       let _ = Sol.post_atom solver (Sol.ivar_lt obj_var obj_val) in
       *)
-      solve_core_strat print_model print_nogood solver obj_var m pred_map thresholds (next_coeff thresholds max_int) (k + obj_lb) !Opts.limits
+      solve_core_strat print_model print_nogood solver obj_var m pred_map thresholds (next_coeff thresholds max_int) [] (k + obj_lb) !Opts.limits
     end
   | Sol.UNSAT -> Unsat
   | Sol.UNKNOWN -> Unknown
-
-(* Spend a given fraction of the budget on unsat-cores, then switch to
- * branch-and-bound. *)
-(*
-let solve_core_switch core_fraction print_model print_nogood solver obj_var obj k =
-  (* Post penalty thresholds *)
-  let overall_limits = !Opts.limits in
-  let limits () = relative_limits solver overall_limits in
-  match Sol.solve solver (limits ()) with
-  | Sol.SAT ->
-    (* Found a first model. *)
-    let m = Sol.get_model solver in
-    begin
-      (* Thresholds records how much of each 
-       * variable is 'free'. *)
-      let maxt = overall_limits.Sol.max_time in
-      let maxc = float_of_int overall_limits.Sol.max_conflicts in
-      let core_limits = {
-        Sol.max_time = if maxt > 0.0 then core_fraction *. maxt else 0.0 ;
-        Sol.max_conflicts = if maxc > 0.0 then int_of_float (core_fraction *. maxc) else 0
-      } in
-      let pred_map = build_pred_map solver obj in
-      let obj_lb, thresholds = init_thresholds solver obj in
-      (* match solve_core' print_nogood solver pred_map thresholds (k + obj_lb) with 
-      | Some m' -> Opt m'
-      | None -> Sat m
-      *)
-      (*
-      match solve_core_strat print_model print_nogood solver obj_var m pred_map thresholds (next_coeff thresholds max_int) (k + obj_lb) with
-      | Some m' -> Opt m'
-      | None -> Sat m
-      *)
-      (*
-      let obj_val = Sol.int_value m obj_var in
-      let _ = Sol.post_atom solver (Sol.ivar_lt obj_var obj_val) in
-      *)
-      match solve_core_strat print_model print_nogood solver obj_var m pred_map thresholds (next_coeff thresholds max_int) (k + obj_lb) core_limits with
-      | Sat (model, lb, thresholds) ->
-        (* Sat (model, lb, thresholds) *)
-        let new_obj = rebuild_objective solver thresholds lb in
-      | r -> r
-    end
-  | Sol.UNSAT -> Unsat
-  | Sol.UNKNOWN -> Unknown
-  *)
-
-(* Use unsat cores to decompose the objective. *)
-(*
-let rec core_split print_model print_nogood solver obj incumbent pred_map thresholds lb =
-  log_core_iter lb ;
-  Format.fprintf Format.err_formatter "%% Min coeff: %d, incumbent value %d@." min_coeff (Solver.int_value incumbent obj) ;
-  (* We know there exists a minimum-weight model for [obj.(0), ..., obj.(idx-1)].
-   * Now expand to the rest of the variables. *)
-  match try_thresholds solver thresholds with
-  | Sol.SAT ->
-    begin
-      (* Format.fprintf Format.err_formatter "%% [SAT].@." ; *)
-      let m = Sol.get_model solver in
-      let _ = print_model Format.std_formatter m in
-      Sol.retract_all solver ;
-      let coeff' = next_coeff thresholds min_coeff in
-      if coeff' = 0 then
-        Opt m
-      else
-        let _ = if (Sol.int_value m obj) < (Sol.int_value !incumbent obj) then
-          incumbent := m
-        in
-        (* Lower bounds for this component. *)
-        (m_lb, _)
-    end
-  | Sol.UNSAT -> 
-    let core = Sol.get_conflict solver in
-    begin
-      (* ) print_nogood Format.err_formatter core ; ( *)
-      Sol.retract_all solver ;
-      assert (Array.length core > 0) ;
-      if Array.length core = 0 then
-        Opt incumbent
-      else
-        let delta = process_core solver pred_map thresholds core in
-        solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff (lb + delta)
-    end
-  | Sol.UNKNOWN ->
-    begin
-      (* Exceeded our budget for this subproblem *)
-      Sol.retract_all solver ;
-      Sat incumbent
-    end
-
-let solve_core_split print_model print_nogood solver obj_var obj k =
-  let limits () = relative_limits solver !Opts.limits in
-  match Sol.solve solver (limits ()) with
-  | 
-    *)
 
 let print_stats fmt stats obj_val =
   match !Opts.print_stats with
@@ -1140,7 +970,7 @@ let minimize_uc print_model print_nogood solver obj xs k : Solver.model option =
         let pred_map = build_pred_map solver ts in
         let obj_lb, thresholds = init_thresholds solver ts in
         (* Run stratified core-driven optimization until we use up our budget *)
-        match solve_core_strat print_model print_nogood solver obj m pred_map thresholds (next_coeff thresholds max_int) (k + obj_lb) core_limits with
+        match solve_core_strat print_model print_nogood solver obj m pred_map thresholds (next_coeff thresholds max_int) [] (k + obj_lb) core_limits with
         | Sat (model, lb, thresholds) ->
           (* If we haven't proven optimality yet, reformulate the objective, and switch
            * to conventional branch-and-bound. *)
@@ -1149,9 +979,13 @@ let minimize_uc print_model print_nogood solver obj xs k : Solver.model option =
           let revised_obj = rebuild_objective solver thresholds lb ub in
           (* let _ = Format.fprintf Format.err_formatter "%% Switching: [%d, %d|%d]@." lb ub (eval_obj model (revised_obj, Some (xs, k))) in *)
           begin
-            match solve_minimize overall_limits print_model print_nogood solver (revised_obj, Some (xs, k)) [] with
+            let o = revised_obj in
+            (* let o = obj in *)
+            match solve_minimize overall_limits print_model print_nogood solver (o, Some (xs, k)) [] with
             | None -> Some model
-            | Some m -> Some m
+            | Some m ->
+              (* let _ = Format.fprintf Format.err_formatter "%% {{%d | %d}}" (eval_obj m (revised_obj, Some (xs, k))) (Sol.int_value m revised_obj) in *)
+              Some m
           end
         | Opt m ->
           (* Core-driven optimisation proved optimality. *)
