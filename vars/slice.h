@@ -63,7 +63,7 @@ public:
   // Unary negation. 
   int_slice operator-(void) const {
     pid_t np(p^1);     
-    int64_t nlb_val(-(lb_val + delta) + IVAR_INV_OFFSET);
+    int64_t nlb_val(-(lb_val + delta));
     pval_t nlb_pos(pval_inv(lb_pos+delta));
     return int_slice {np, nlb_val, nlb_pos, delta};
   }
