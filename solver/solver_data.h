@@ -64,6 +64,7 @@ public:
   proof_log log;
 
   const ctx_t& ctx(void) const { return state.p_vals; }
+  const ctx_t& ctx0(void) const { return state.p_root; }
 
   vec< vec<watch_callback> > pred_callbacks;
   // Used for dynamic idempotence
