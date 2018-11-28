@@ -80,8 +80,13 @@ public:
     }
     bool check_sat(ctx_t& ctx) {
       for(const task_info& t : tasks) {
-        if(usage_at(t.s.ub(ctx), ctx) > cap)
-          return false;
+        for(int ti = t.s.lb(ctx) + t.d - 1; ti <= t.s.ub(ctx); ++ti) {
+          if(usage_at(t.s.ub(ctx), ctx) <= cap - t.r)
+            goto task_placed;
+        }
+        return false;
+      task_placed:
+        continue;
       }
       return true;
     }
@@ -631,11 +636,18 @@ public:
     bool check_sat(ctx_t& ctx) {
       V max(cap.ub(ctx));
       for(const task_info& t : tasks) {
-        if(usage_at(t.s.ub(ctx), ctx) > max)
-          return false;
+        V req(t.r.lb(ctx));
+        for(int ti = t.s.lb(ctx) + t.d.lb(ctx) - 1; ti <= t.s.ub(ctx); ++ti) {
+          if(usage_at(t.s.ub(ctx), ctx) <= max - req)
+            goto task_placed;
+        }
+        return false;
+      task_placed:
+        continue;
       }
       return true;
     }
+
     bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
     int make_ex(task_id t, int s, int e) {
@@ -802,6 +814,8 @@ public:
     bool sweep_fwd(task_id ti) {
       // Find the starting interval
       const task_info& t(tasks[ti]);
+      if(!(lb(t.d) > 0 && lb(t.r) > 0))
+        return true;
 
       evt_info* s = std::upper_bound(profile.begin(), profile.end(),
         est(ti), [](const int& t, const evt_info& e) { return t <= e.t - (e.kind == ET) ; });
@@ -834,12 +848,45 @@ public:
       return true;
     }
 
+    bool sweep_req(task_id ti) {
+      // Find the starting interval
+      const task_info& t(tasks[ti]);
+      if(!(lb(t.d) > 0 && lb(t.r) > 0))
+        return true;
+
+      evt_info* s = std::upper_bound(profile.begin(), profile.end(),
+        lst(ti), [](const int& t, const evt_info& e) { return t <= e.t - (e.kind == ET) ; });
+      assert(s != profile.end());
+      // Task stats in the previous interval   
+      int end_time = eet(ti);
+
+      int high_time(s->t);
+      V high_level(s->level);
+
+      for(++s; s->t < end_time; ++s) {
+        if(high_level < s->level) {
+          high_time = s->t;
+          high_level = s->level;
+        }
+      }
+      
+      V delta(ub(cap) - high_level);
+      if(lb(t.r) + delta < ub(t.r)) {
+        if(!set_ub(t.r, lb(t.r) + delta,
+          this->template expl<&P::ex_req>(make_ex(ti, high_time, 0), expl_thunk::Ex_BTPRED)))
+          return false;
+      }
+      return true;
+    }
+
     bool sweep_bwd(task_id ti) {
 #if 0
       return true;
 #endif
       // Find the starting interval
       const task_info& t(tasks[ti]);
+      if(!(lb(t.d) > 0 && lb(t.r) > 0))
+        return true;
 
       evt_info* s = profile.begin();
       while(s->t - (s->kind == ET) < let(ti)) ++s;
@@ -855,6 +902,13 @@ public:
       int ex_time = s->t;
       if(s->task == ti)
         return true;
+      if(ex_time <= start_time) {
+        fprintf(stderr, "%% Profile task: %d [%d], %d -> %d.\n",
+          s->task, (int) (s - profile.begin()), s->t, s[1].t);
+        fprintf(stderr, "%% For task: %d, lst %d duration %d.\n",
+          ti, lst(ti), mdur(ti));
+      }
+      assert(ex_time > start_time);
 
       --s;
       do {
@@ -921,6 +975,7 @@ public:
             EX_PUSH(expl, t.s <= e.s - mdur(ti));
             EX_PUSH(expl, t.r < mreq(ti));
             EX_PUSH(expl, t.d < mdur(ti));
+            EX_PUSH(expl, cap >= ub(cap) + slack);
             // ...or some member of etasks doesn't cover.
             for(task_id p : etasks) {
               EX_PUSH(expl, tasks[p].s > e.s);
@@ -980,6 +1035,8 @@ public:
 #if 1
             // Either t is pushed after e.ex_time...
             EX_PUSH(expl, t.s >= e.e);
+            EX_PUSH(expl, t.r < mreq(ti));
+            EX_PUSH(expl, t.d < mdur(ti));
             // ...or some member of etasks doesn't cover.
             for(task_id p : etasks) {
               // EX_PUSH(expl, tasks[p].s >= e.ex_time);
@@ -989,7 +1046,7 @@ public:
               EX_PUSH(expl, tasks[p].d < mdur(p));
               EX_PUSH(expl, tasks[p].r < mreq(p));
             }
-            EX_PUSH(expl, cap > ub(cap) + slack);
+            EX_PUSH(expl, cap >= ub(cap) + slack);
 #else
             // Semi-naive explanation
             expl.push(t.s > ub(t.s));
@@ -1005,6 +1062,57 @@ public:
       }
       // Should be unreachable
       ERROR;
+    }
+
+    template<bool Strict>
+    bool cmp(V x, V y) const {
+      return Strict ? (x < y) : !(y < x);
+    }
+
+    template<bool Strict>
+    V explain_usage(int t_ex, int s, int e, V req_use, vec<clause_elt>& expl) {
+      V remaining(req_use);
+      vec<task_id> e_tasks;
+      for(task_id p : profile_tasks) {
+        if(p == t_ex)
+          continue;  
+        if(lst(p) <= s && e <= eet(p)) {
+          e_tasks.push(p);
+          if(cmp<Strict>(remaining, mreq(p))) {
+            // Collected sufficient.
+            V slack(mreq(p) - remaining);
+            
+            // Collect only tasks which are needed
+            for(task_id t : e_tasks) {
+              if(cmp<Strict>(mreq(t), slack)) {
+                slack -= mreq(t);
+                continue;
+              }
+              EX_PUSH(expl, tasks[t].s <= s - mdur(t));
+              EX_PUSH(expl, tasks[t].s >= e);
+              EX_PUSH(expl, tasks[t].d < mdur(t));
+              EX_PUSH(expl, tasks[t].r < mreq(t));
+            }
+            return req_use + slack;
+          }
+          remaining -= mreq(p);
+        }
+      }
+      // Not enough usage over the profile region.
+      ERROR;
+      return 0;
+    }
+
+    void ex_req(int ex_id, pval_t p, vec<clause_elt>& expl) {
+      ex_info e(exs[ex_id]);
+      task_id ti(e.t);
+      const task_info& t(tasks[ti]);
+      
+      V r_max(tasks[ti].r.ub_of_pval(p)); 
+      V r_ex(explain_usage<false>(ti, e.s, e.s+1, ub(cap) - r_max, expl));
+      EX_PUSH(expl, t.s <= e.s - mdur(ti)); 
+      EX_PUSH(expl, t.s > e.s);
+      EX_PUSH(expl, cap > r_ex + r_max);
     }
 
     void ex_cap(int t, pval_t p, vec<clause_elt>& expl) {
@@ -1078,6 +1186,10 @@ public:
             return false;
           if(!sweep_bwd(t))
             return false;   
+        }
+        for(task_id t : profile_tasks) {
+          if(lb(tasks[t].r) < ub(tasks[t].r) && !sweep_req(t))
+            return false;
         }
 #endif
       } else {
