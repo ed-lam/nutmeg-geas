@@ -708,6 +708,27 @@ let apply_cores solver pred_map thresholds deferred_cores =
       H.add thresholds p { coeff = delta ; lb = 0; residual = delta; }
     ) deferred_cores  
 
+let core_violations m core =
+  let (delta, c) = core in
+  Array.fold_left (fun s at -> s + if Sol.atom_value m at then 1 else 0) 0 c
+
+(* Collect only the set of cores with maximum violation. *)
+let split_cores m cores =
+  let rec aux cost vio_cores def_cores pending =
+    match pending with
+    | [] -> (cost, vio_cores, def_cores)
+    | (core :: rest) ->
+      let c = core_violations m core in
+      if c < cost then
+        aux cost vio_cores (core :: def_cores) rest
+      else if c > cost then
+        aux c [core] (List.rev_append vio_cores def_cores) rest
+      else
+        aux c (core :: vio_cores) def_cores rest
+  in
+  let _, vio, rest = aux 2 [] [] cores in
+  vio, rest
+    
 let log_core_iter =
   let iters = ref 0 in
   (fun lb ->
@@ -806,22 +827,23 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
       ( *)
       Sol.retract_all solver ;
       let m' = if (Sol.int_value m obj) < (Sol.int_value incumbent obj) then m else incumbent in
-      if deferred_cores <> [] then
-        (* Post the new relaxation variables and continue *)
+      match split_cores m deferred_cores with
+      (* match deferred_cores, [] with *)
+      | [], rest ->
+        (* No cores have more than one violation. Continue with lower objectives *)
         begin
-          apply_cores solver pred_map thresholds deferred_cores ;
-          solve_core_strat print_model print_nogood solver obj m' pred_map thresholds min_coeff [] lb limits 
+          let coeff' = next_coeff thresholds min_coeff in
+          if coeff' = 0 then
+            let _ = Format.fprintf Format.err_formatter "%% Un-reformulated cores: %d@." (List.length rest) in
+            Opt m
+          else
+            solve_core_strat print_model print_nogood solver obj m' pred_map thresholds coeff' [] lb limits
         end
-      else
-        let coeff' = next_coeff thresholds min_coeff in
-        if coeff' = 0 then
-          Opt m
-        else
-          (*
-          let obj_val = Sol.int_value m obj in
-          let _ = Sol.post_atom solver (Sol.ivar_lt obj obj_val) in
-          *)
-          solve_core_strat print_model print_nogood solver obj m' pred_map thresholds coeff' [] lb limits
+      | vio_cores, other_cores ->
+        begin
+          apply_cores solver pred_map thresholds vio_cores ;
+          solve_core_strat print_model print_nogood solver obj m' pred_map thresholds min_coeff other_cores lb limits 
+        end
     end
   | Sol.UNSAT -> 
     let core = Sol.get_conflict solver in
