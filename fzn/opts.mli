@@ -3,6 +3,17 @@ type stats_mode =
   | Compact
   | Verbose
 
+type core_select =
+  | Uniform
+  | Violation
+  | Weight
+  | WeightViolation
+
+type reform_mode =
+  | ReformOne
+  | ReformEach
+  | ReformEager
+
 val infile : string option ref
 val outfile : string option ref
 
@@ -23,6 +34,10 @@ val limits : Solver.limits ref
 val obj_probe_limit : int option ref
 val core_opt : bool ref
 val core_ratio : float ref
+
+val core_harden : bool ref
+val core_selection : core_select ref
+val core_reformulation : reform_mode ref
 
 val one_watch : bool ref
 val global_diff : bool ref
