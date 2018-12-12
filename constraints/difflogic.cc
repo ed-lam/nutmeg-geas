@@ -196,6 +196,59 @@ public:
     ub_check.clear();
   }
   
+  bool check_sat(ctx_t& ctx) {
+    // The nothing-fancy approach: build the graph, and run Bellman-Ford to check for negative cycles.
+    // Put the zero-vertex at the end.
+    vec< std::tuple<dim_id, int, dim_id> > edges;
+    vec<int> dists(vars.size()+1, 0);
+    dim_id v0(vars.size());
+
+    boolset seen(vars.size());
+    for(diff_info& c : csts) {
+      // Is the constraint active?
+      for(patom_t at : c.rs) {
+        if(at.lb(ctx)) {
+          // If so, add it to the graph.
+          if(!seen.elem(c.x)) {
+            seen.add(c.x);
+            edges.push(std::make_tuple(v0, -vars[c.x].lb(ctx), c.x));
+            edges.push(std::make_tuple(c.x, vars[c.x].ub(ctx), v0));
+          }
+          if(!seen.elem(c.y)) {
+            seen.add(c.y);
+            edges.push(std::make_tuple(v0, -vars[c.y].lb(ctx), c.y));
+            edges.push(std::make_tuple(c.y, vars[c.y].ub(ctx), v0));
+          }
+          edges.push(std::make_tuple(c.x, c.wt, c.y));
+          break;
+        }
+      }
+    }
+
+    // Run Bellman-Ford.
+    // fprintf(stderr, "%% %d edges.\n", edges.size() - 2 * vars.size());
+    for(int it = 0; it <= seen.size() + 1; ++it) {
+      for(auto e : edges) {
+        dim_id x(std::get<0>(e));
+        int wt(std::get<1>(e));
+        dim_id y(std::get<2>(e));
+
+        dists[y] = std::max(dists[y], dists[x] - wt);
+      }
+    }
+    // If no non-negative cycles, should have stabilised by now.
+    for(auto e : edges) {
+      dim_id x(std::get<0>(e));
+      int wt(std::get<1>(e));
+      dim_id y(std::get<2>(e));
+      if(dists[y] < dists[x] - wt)
+        return false;
+    }
+    return true;
+  }
+
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+
   bool propagate(vec<clause_elt>& confl) {
     // If we've backtracked since the last execution,
     // restore the state.

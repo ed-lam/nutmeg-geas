@@ -444,51 +444,35 @@ class iabs : public propagator, public prop_inst<iabs> {
     return Wt_Keep;
   }
 
-  // Explanation functions  
-  // Annoyingly, for upper bounds, we need invert the
-  // value manually.
-  static void ex_z_lb(void* ptr, int sign,
-                        pval_t val, vec<clause_elt>& expl) {
-    iabs* p(static_cast<iabs*>(ptr));
-    if(sign) {
-      expl.push(p->x < to_int(val));
-    } else {
-      expl.push(p->x > -to_int(val));
-    }
+  void ex_z_lb(int sign, pval_t p, vec<clause_elt>& expl) {
+    EX_PUSH(expl, sign ? x < z.lb_of_pval(p) : x > -z.lb_of_pval(p));
   }
-  static void ex_z_ub(void* ptr, int _xi, pval_t val,
-                        vec<clause_elt>& expl) {
-    iabs* p(static_cast<iabs*>(ptr));
-    intvar::val_t ival(to_int(pval_max - val));
+  void ex_z_ub(int _xi, pval_t p, vec<clause_elt>& expl) {
+    intvar::val_t k(z.ub_of_pval(p));
 
-    expl.push(p->x > ival);
-    expl.push(p->x < -ival);
+    EX_PUSH(expl, x > k);
+    EX_PUSH(expl, x < -k);
   }
 
-  // FIXME
-  static void ex_lb(void* ptr, int sign,
-                        pval_t val, vec<clause_elt>& expl) {
-    iabs* p(static_cast<iabs*>(ptr));
-    intvar::val_t ival(p->x.lb_of_pval(val));
+  void ex_lb(int sign, pval_t p, vec<clause_elt>& expl) {
+    intvar::val_t ival(x.lb_of_pval(p));
     if(sign) {
       intvar::val_t v = ival < 1 ? -1 : -ival;
-      expl.push(p->x <= v);
-      expl.push(p->z < ival);
+      EX_PUSH(expl, x <= v);
+      EX_PUSH(expl, z < ival);
     } else {
-      expl.push(p->z > -ival);
+      EX_PUSH(expl, z > -ival);
     }
   }
-  static void ex_ub(void* ptr, int sign,
-                        pval_t val, vec<clause_elt>& expl) {
-    iabs* p(static_cast<iabs*>(ptr));
-    intvar::val_t ival(p->x.ub_of_pval(val));
+  void ex_ub(int sign, pval_t p, vec<clause_elt>& expl) {
+    intvar::val_t k(x.ub_of_pval(p));
 
     if(sign) {
-      expl.push(p->z > ival);
+      EX_PUSH(expl, z > k);
     } else {
-      intvar::val_t v = ival > -1 ? 1 : -ival;
-      expl.push(p->x >= v);
-      expl.push(p->z < ival);
+      intvar::val_t v = k > -1 ? 1 : -k;
+      EX_PUSH(expl, x >= v);
+      EX_PUSH(expl, z < k);
     }
   }
 
@@ -532,19 +516,19 @@ public:
     }
 
     if(z_itv.ub < ub(z)) {
-      if(!set_ub(z, z_itv.ub, expl_thunk { ex_z_ub, this, 0 }))
+      if(!set_ub(z, z_itv.ub, expl<&P::ex_z_ub>(0)))
         return false;
     }
     if(z_itv.lb > lb(z)) {
-      if(!set_lb(z, z_itv.lb, expl_thunk { ex_z_lb, this, x_itv.lb >= 0 }))
+      if(!set_lb(z, z_itv.lb, expl<&P::ex_z_lb>(x_itv.lb >= 0)))
         return false;
     }
     if(x_itv.ub < ub(x)) {
-      if(!set_ub(x, x_itv.ub, expl_thunk { ex_ub, this, x_itv.ub >= 0 }))
+      if(!set_ub(x, x_itv.ub, expl<&P::ex_ub>(x_itv.ub >= 0)))
         return false;
     }
     if(x_itv.lb > lb(x)) {
-      if(!set_lb(x, x_itv.lb, expl_thunk { ex_lb, this, x_itv.lb >= 0}))
+      if(!set_lb(x, x_itv.lb, expl<&P::ex_lb>(x_itv.lb >= 0)))
         return false;
     }
     return true;
@@ -567,7 +551,7 @@ public:
     return true;
   }
 
-#if 1
+#if 0
   bool check_sat(ctx_t& ctx) {
     int_itv z_itv { z.lb(ctx), z.ub(ctx) };
     if(x.lb(ctx) <= 0) {
@@ -584,19 +568,16 @@ public:
   }
 #else
   bool check_sat(ctx_t& ctx) {
-    if(x.lb(ctx) <= 0) {
-      int low = std::max((int) lb(z), std::max(0, (int) -x.ub(ctx)));
-      int high = std::min(z.ub(ctx), -x.lb(ctx));
-      if(low <= high)
-        return true;
+    if(x.ub(ctx) < z.lb(ctx)) {
+      // Any overlap is non-positive.
+      return std::max(-x.ub(ctx), z.lb(ctx)) <= std::min(-x.lb(ctx), z.ub(ctx));
+    } else if(-z.lb(ctx) < x.lb(ctx)) {
+      // Any overlap is non-negative
+      return std::max(x.lb(ctx), z.lb(ctx)) <= std::min(x.ub(ctx), z.ub(ctx));
+    } else {
+      // Definitely some overlap
+      return true;
     }
-    if(x.ub(ctx) >= 0) {
-      int low = std::max((int) z.lb(ctx), std::max(0, (int) x.lb(ctx)));
-      int high = std::min(z.ub(ctx), x.ub(ctx));
-      if(low <= high)
-        return true;
-    }
-    return false;
   }
 #endif
   bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
@@ -2050,6 +2031,7 @@ bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
   return true;
 }
 
+// r -> (z = abs(x))
 bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   // iabs_decomp(s, z, x);
   if(!s->state.is_entailed_l0(r))
@@ -2063,8 +2045,8 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
     if(!enqueue(*s, x <= z.ub(s), reason ()))
       return false;
   }
+  return iabs::post(s, z, x);
 /*
-  new iabs(s, z, x);
   */
   // x <= z
   /*
@@ -2097,8 +2079,10 @@ bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   pred_le(s, z.p, x.p^1, IVAR_INV_OFFSET - x.off - z.off, x <= 0);
   return true;
 #else
+  /*
   if(!enqueue(*s, x <= z.ub(s), reason ()))
     return false;
+    */
   return int_le(s, x, z, 0, r)
     && int_le(s, -x, z, 0, r)
     && int_le(s, z, x, 0, x >= 0)
