@@ -86,7 +86,7 @@ let get_var_branch ann =
   | Pr.Ann_id "smallest" -> Sol.VAR_LEAST
   | Pr.Ann_id "largest" -> Sol.VAR_GREATEST
   | _ -> (* failwith "Unknown var-branch annotation." *)
-    let _ = Format.fprintf Format.err_formatter "%% WARNING: Unknown var-branch annotation, ignoring.@." in
+    (* let _ = Format.fprintf Format.err_formatter "%% WARNING: Unknown var-branch annotation, ignoring.@." in *)
     Sol.VAR_INORDER
 
 let get_val_branch ann =
@@ -423,6 +423,7 @@ let relative_limits solver limits =
       if limits.Sol.max_conflicts > 0 then
         max 1 (limits.Sol.max_conflicts - s.Sol.conflicts)
       else 0 }
+
 
 let probe_objective print_model solver model obj =
   (* Compute bounds *)
@@ -775,8 +776,14 @@ let try_thresholds_list solver thresholds =
   else
     Sol.UNSAT
 
+let time_is_exceeded solver limits =
+  let s = Sol.get_statistics solver in
+  limits.Sol.max_time > 0. && s.Sol.time > limits.Sol.max_time
+
 let try_thresholds_upto solver thresholds min_coeff limits =
-  if post_thresholds_upto solver thresholds min_coeff then
+  if time_is_exceeded solver limits then
+    Sol.UNKNOWN
+  else if post_thresholds_upto solver thresholds min_coeff then
     (* let limits = relative_limits solver !Opts.limits in *)
     Sol.solve solver (relative_limits solver limits)
   else
@@ -842,22 +849,21 @@ let tighten_objective_bounds solver thresholds gap =
       killed := x :: !killed ;
       Sol.post_atom solver (Sol.ivar_le x st.lb)
     else
-      (*
       if gap < st.residual + st.coeff * ((Sol.ivar_ub x) - st.lb - 1) then
         let ub' = st.lb + 1 + (gap - st.residual) / st.coeff in
         let _ = Format.fprintf Format.err_formatter "%% Tightened var x%d from %d to %d.@."
           (Sol.ivar_pred x |> Int32.to_int) (Sol.ivar_ub x) ub' in
         Sol.post_atom solver (Sol.ivar_le x (st.lb + 1 + ((gap - st.residual) / st.coeff)))
       else
-        *)
         true) thresholds true in
     List.iter (H.remove thresholds) !killed ;
     okay
 
 let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map thresholds min_coeff deferred_cores lb limits =
-  (* log_core_iter lb ;
-  Format.fprintf Format.err_formatter "%% Min coeff: %d, incumbent value %d@." min_coeff (Solver.int_value incumbent obj) ;
-  *)
+  let _ = if !Opts.verbosity > 0 then
+    (log_core_iter lb ;
+    Format.fprintf Format.err_formatter "%% Min coeff: %d, incumbent value %d@." min_coeff (Solver.int_value incumbent obj))
+  in
   begin
     if !Opts.core_harden then
       let gap = (Solver.int_value incumbent obj) - lb in

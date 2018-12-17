@@ -10,6 +10,12 @@
 #include "solver/options.h"
 #include "engine/conflict.h"
 
+// Suppress inlining, for profiling
+// #define INLINE_ATTR __attribute__((noinline))
+// #define INLINE_SATTR INLINE_ATTR
+
+#define INLINE_ATTR forceinline
+#define INLINE_SATTR static INLINE_ATTR
 
 #define KEEP_GLUE
 // #define RESTART_LUBY
@@ -217,10 +223,9 @@ struct stat_reporter {
   solver_data* s;
 };
 
-
 // Record that the value of p has changed at the
 // current decision level.
-forceinline void touch_pred(solver_data& s, pid_t p) {
+INLINE_SATTR void touch_pred(solver_data& s, pid_t p) {
   if(!s.persist.pred_touched[p]) {
     s.persist.pred_touched[p] = true;
     s.persist.touched_preds.push(p);
@@ -478,11 +483,38 @@ void clear_reset_flags(solver_data& s) {
 
 inline void simplify_at_root(solver_data& s);
 
-static forceinline bool propagate_assumps(solver_data& s) {
+// TODO: Implement timing properly.
+#include <ctime>
+#include <sys/time.h>
+#include <unistd.h>
+static double getTime(void) {
+  struct timeval t;
+  gettimeofday(&t, NULL);
+  return t.tv_sec + ((double) t.tv_usec)/1e6;
+}
+
+struct stat_recorder {
+  stat_recorder(solver_data* _s)
+    : s(_s), start_time(getTime()), confl_num(0)  { }
+
+  ~stat_recorder(void) {
+    s->stats.conflicts += confl_num;
+    s->stats.time += getTime() - start_time;
+  }
+
+  void conflict(void) { ++confl_num; }
+
+  solver_data* s;
+  double start_time;
+  unsigned int confl_num;
+};
+
+INLINE_SATTR bool propagate_assumps(solver_data& s) {
   s.infer.confl.clear();
 #ifdef REPORT_INTERNAL_STATS
   stat_reporter rp(&s);
 #endif
+  stat_recorder rec(&s);
 
   int idx = s.assump_end;
 
@@ -501,6 +533,7 @@ static forceinline bool propagate_assumps(solver_data& s) {
 
     if(is_inconsistent(s, at)) {
       s.last_confl = { C_Assump, idx };
+      rec.conflict();
       return false;
     }
     
@@ -511,12 +544,14 @@ static forceinline bool propagate_assumps(solver_data& s) {
     if(!enqueue(s, at, reason())) {
       // Should be unreachable
       ERROR;
+      rec.conflict();
       return false;
     }
 
     s.infer.confl.clear();
     if(!propagate(s)) {
       s.last_confl = { C_Infer, idx+1 };
+      rec.conflict();
       return false;
     }
   }
@@ -658,8 +693,7 @@ bool _enqueue(sdata& s, patom_t p, reason r) {
 }
 
 // Modifies elt.watch;
-// forceinline
-static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
+INLINE_SATTR vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
 #ifdef CACHE_WATCH
   if(elt.watch) {
@@ -681,7 +715,8 @@ static vec<clause_head>& find_watchlist(solver_data& s, clause_elt& elt) {
   return watch->ws;
 }
 
-static vec<clause_head>& lookup_watchlist(solver_data& s, clause_elt& elt) {
+/* static */
+__attribute__((noinline)) vec<clause_head>& lookup_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
 #ifdef CACHE_WATCH
   if(elt.watch) {
@@ -704,7 +739,8 @@ static vec<clause_head>& lookup_watchlist(solver_data& s, clause_elt& elt) {
 }
 
 
-static vec<patom_t>& find_bin_watchlist(solver_data& s, clause_elt& elt) {
+/* static */
+__attribute__((noinline)) vec<patom_t>& find_bin_watchlist(solver_data& s, clause_elt& elt) {
   // Find the appropriate watch_node.
 #ifdef CACHE_WATCH
   if(elt.watch) {
@@ -726,7 +762,7 @@ static vec<patom_t>& find_bin_watchlist(solver_data& s, clause_elt& elt) {
   return watch->bin_ws;
 }
 
-forceinline static 
+INLINE_SATTR
 bool update_watchlist(solver_data& s,
     clause_elt elt, vec<clause_head>& ws) {
 #ifdef CHECK_STATE
@@ -783,22 +819,28 @@ bool update_watchlist(solver_data& s,
     }
     */
 
+    /*
     for(int li = 2; li < c.size(); li++) {
       if(!s.state.is_inconsistent(c[li].atom)) {
         // Literal is not yet false. New watch is found.
-        /*
-        if(s.state.is_entailed(c[li].atom)) {
-          c[1] = elt;
-          ch.e0 = c[li].atom;
-
-          ws[jj++] = ch;
-          goto next_clause;
-        }
-        */
-           
         clause_elt new_watch = c[li];
         c[1] = new_watch;
         c[li] = elt;
+        // Modifies c[1].watch in place
+        ch.e0 = elt.atom;
+        // ch.e0 = c[0].atom;
+        find_watchlist(s, c[1]).push(ch);
+        goto next_clause;
+      }
+    }
+    */
+    clause_elt* b(&(c[2]));
+    clause_elt* e(c.end());
+    for(; b != e; ++b) {
+      if(!s.state.is_inconsistent((*b).atom)) {
+        clause_elt new_watch = (*b);
+        c[1] = new_watch;
+        (*b) = elt;
         // Modifies c[1].watch in place
         ch.e0 = elt.atom;
         // ch.e0 = c[0].atom;
@@ -827,7 +869,7 @@ next_clause:
   return true;
 }
 
-forceinline static
+INLINE_SATTR
 bool propagate_ineqs(solver_data& s, pid_t p) {
   pval_t val_p = s.state.p_vals[p];
 
@@ -841,7 +883,7 @@ bool propagate_ineqs(solver_data& s, pid_t p) {
   return true;
 }
 
-forceinline static
+INLINE_SATTR
 bool propagate_pred(solver_data& s, pid_t p) {
   // Process watches
   watch_node* curr = s.infer.pred_watches[p];
@@ -881,7 +923,8 @@ bool propagate_pred(solver_data& s, pid_t p) {
 }
 
 
-forceinline void wakeup_pred(solver_data& s, pid_t p) {
+INLINE_SATTR
+void wakeup_pred(solver_data& s, pid_t p) {
   s.active_prop = s.pred_origin[p];
   for(watch_callback call : s.pred_callbacks[p]) {
     call();
@@ -1340,16 +1383,6 @@ void solver::abort(void) {
   data->abort_solve = 1;
 }
 
-// TODO: Implement timing properly.
-#include <ctime>
-#include <sys/time.h>
-#include <unistd.h>
-static double getTime(void) {
-  struct timeval t;
-  gettimeofday(&t, NULL);
-  return t.tv_sec + ((double) t.tv_usec)/1e6;
-}
-
 bool solver::is_aborted(void) const { return global_abort || data->abort_solve; }
 
 // Solving
@@ -1410,10 +1443,12 @@ solver::result solver::solve(limits l) {
   while(true) {
     // Signal handler
     if(global_abort || s.abort_solve) {
+      // fprintf(stderr, "%% Aborting solve.\n");
       global_abort = 0;
       s.abort_solve = 0;
 
       clear_handlers();
+      prop_cleanup(s);
       s.stats.conflicts += confl_num;
       s.stats.time += getTime() - start_time;
       return UNKNOWN;
@@ -1705,7 +1740,6 @@ bool add_clause(solver_data& s, vec<clause_elt>& elts) {
     elts[jj++] = e;
   }
   elts.shrink(elts.size()-jj);
-
   
   // False at root level
   if(elts.size() == 0)
