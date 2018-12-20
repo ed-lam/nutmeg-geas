@@ -10,7 +10,7 @@
 #include "utils/interval.h"
 
 #include "constraints/difflogic.h"
-#define USE_DIFFLOGIC
+// #define USE_DIFFLOGIC
 
 // using max = std::max;
 // using min = std::min;
@@ -455,13 +455,19 @@ class iabs : public propagator, public prop_inst<iabs> {
   }
 
   void ex_lb(int sign, pval_t p, vec<clause_elt>& expl) {
-    intvar::val_t ival(x.lb_of_pval(p));
+    intvar::val_t k(x.lb_of_pval(p));
     if(sign) {
-      intvar::val_t v = ival < 1 ? -1 : -ival;
-      EX_PUSH(expl, x <= v);
-      EX_PUSH(expl, z < ival);
+      // x > -k && z >= k -> x >= k, for some positive k.
+      intvar::val_t v = std::max(k, -x.lb(s)+1);
+      EX_PUSH(expl, x <= -v);
+      EX_PUSH(expl, z < v);
+      /*
+      intvar::val_t v = std::max(1, k);
+      EX_PUSH(expl, x < lb(x));
+      EX_PUSH(expl, z < lb(z));
+      */
     } else {
-      EX_PUSH(expl, z > -ival);
+      EX_PUSH(expl, z > -k);
     }
   }
   void ex_ub(int sign, pval_t p, vec<clause_elt>& expl) {
@@ -528,7 +534,7 @@ public:
         return false;
     }
     if(x_itv.lb > lb(x)) {
-      if(!set_lb(x, x_itv.lb, expl<&P::ex_lb>(x_itv.lb >= 0)))
+      if(!set_lb(x, x_itv.lb, expl<&P::ex_lb>(x_itv.lb > 0 , expl_thunk::Ex_BTPRED)))
         return false;
     }
     return true;
@@ -1519,7 +1525,6 @@ public:
   intvar y;
 
   char change;
-  int lb_var; int ub_var;
   int cut;
   Tchar status;
 };
@@ -2219,11 +2224,11 @@ class idiv_xk : public propagator, public prop_inst<idiv_xk> {
   }
   void ex_x_lb(int _xi, pval_t p, vec<clause_elt>& expl) {
     int xlb = x.lb_of_pval(p);
-    expl.push(z < xlb/k);
+    EX_PUSH(expl, z <= (xlb - 1)/k);
   }
   void ex_x_ub(int _xi, pval_t p, vec<clause_elt>& expl) {
     int xub = x.ub_of_pval(p);
-    expl.push(z > xub/k);
+    EX_PUSH(expl, z >= (xub + 1)/k);
   }
 
   watch_result wake(int xi) {
@@ -2248,7 +2253,7 @@ public:
 
   bool check_sat(ctx_t& ctx) {
     int low(std::max(z.lb(ctx), x.lb(ctx) / k));
-    int high(std::min(z.ub(ctx), z.ub(ctx) / k));
+    int high(std::min(z.ub(ctx), x.ub(ctx) / k));
     return low <= high;
   }
   bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
