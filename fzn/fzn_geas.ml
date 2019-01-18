@@ -900,7 +900,7 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
           let coeff' = next_coeff thresholds min_coeff in
           if coeff' = 0 then
             (* let _ = Format.fprintf Format.err_formatter "%% Un-reformulated cores: %d@." (List.length rest) in *)
-            Opt m
+            Opt m'
           else
             solve_core_strat print_model print_nogood solver obj m' pred_map thresholds coeff' [] lb limits
         end
@@ -932,6 +932,7 @@ let rec solve_core_strat print_model print_nogood solver obj incumbent pred_map 
       apply_cores solver pred_map thresholds deferred_cores ;
       Sat (incumbent, lb, thresholds)
     end
+
 let solve_core print_model print_nogood solver obj_var obj k =
   (* Post penalty thresholds *)
   let limits () = relative_limits solver !Opts.limits in
