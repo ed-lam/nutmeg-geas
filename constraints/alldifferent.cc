@@ -17,7 +17,7 @@ class alldiff_v : public propagator, public prop_inst<alldiff_v> {
     return Wt_Keep; 
   }
 public:
-  alldiff_v(solver_data* s, vec<intvar>& _xs)
+  alldiff_v(solver_data* s, const vec<intvar>& _xs)
     : propagator(s), xs(_xs) {
     for(int ii : irange(xs.size())) {
       if(is_fixed(xs[ii])) {
@@ -76,6 +76,7 @@ struct tl_entry {
   int link;
   int cap;
 };
+/*
 struct timeline {
   int find(int k) {
     if(tl[k].link > k)
@@ -95,9 +96,58 @@ struct timeline {
 
   vec<tl_entry> tl;
 };
+*/
 
 class alldiff_b : public propagator, public prop_inst<alldiff_b> {
   typedef typename intvar::val_t val_t;
+  struct ex_info {
+    int hall_lb;
+    int hall_ub; // Open
+    int var;
+  };
+
+  int mk_ex(int hall_lb, int hall_ub, int var) {
+    int ei = exs.size();
+    trail_save(s->persist, exs._size(), exs_saved);
+    exs.push(ex_info { hall_lb, hall_ub, var }); 
+    return ei;
+  }
+  // Explanations currently don't do any weakening;
+  // picks the largest hall interval.
+  void ex_lb(int ei, pval_t _p, vec<clause_elt>& expl) {
+    ex_info& e(exs[ei]); 
+    expl.push(xs[e.var] < e.hall_lb);
+    int count = e.hall_ub - e.hall_lb;
+    for(int ii : irange(xs.size())) {
+      if(ii == e.var)
+        continue;
+      if(e.hall_lb <= lb(xs[ii]) && ub(xs[ii]) < e.hall_ub) {
+        expl.push(xs[ii] < e.hall_lb);
+        expl.push(xs[ii] >= e.hall_ub);
+        --count;
+        if(!count)
+          return;
+      }
+    }
+    ERROR;
+  }
+  void ex_ub(int ei, pval_t _p, vec<clause_elt>& expl) {
+    ex_info& e(exs[ei]); 
+    expl.push(xs[e.var] >= e.hall_lb);
+    int count = e.hall_ub - e.hall_lb;
+    for(int ii : irange(xs.size())) {
+      if(ii == e.var)
+        continue;
+      if(e.hall_lb <= lb(xs[ii]) && ub(xs[ii]) < e.hall_ub) {
+        expl.push(xs[ii] < e.hall_lb);
+        expl.push(xs[ii] >= e.hall_ub);
+        --count;
+        if(!count)
+          return;
+      }
+    }
+    ERROR;
+  }
 
   watch_result wake_lb(int xi) {
     queue_prop();
@@ -111,6 +161,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
   }
   
   // Totally naive explanation: everything
+  /*
   void ex_lb(int xi, pval_t p, vec<clause_elt>& expl) {
     for(int yi = 0; yi < xs.size(); ++yi) {
       expl.push(xs[yi] < lb(xs[yi]));
@@ -124,10 +175,11 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
       expl.push(xs[yi] > ub(xs[yi]));
     }
   }
+  */
 
 
   public: 
-    alldiff_b(solver_data* s, vec<intvar>& _vs)
+    alldiff_b(solver_data* s, const vec<intvar>& _vs)
       : propagator(s), xs(_vs)
       , by_lb(s, xs.begin(), xs.end()), by_ub(s, xs.begin(), xs.end())
       , bounds(new int[2 * xs.size() + 2])
@@ -136,6 +188,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
       , h(new int[2 * xs.size() + 2])
       , minrank(new int[xs.size()])
       , maxrank(new int[xs.size()])
+      , exs_saved(false)
       // , lb_low(INT_MIN), ub_high(INT_MAX)
     {
       for(int ii : irange(xs.size())) {
@@ -359,7 +412,8 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
         if(h[x] > x) {
           int w = pathmax(h, h[x]);
           // maxsorted[i]->min = bounds[w];
-          if(!set_lb(xs[i], bounds[w], expl<&P::ex_lb>(i, expl_thunk::Ex_BTPRED)))
+          // if(!set_lb(xs[i], bounds[w], expl<&P::ex_lb>(i, expl_thunk::Ex_BTPRED)))
+          if(!set_lb(xs[i], bounds[w], expl<&P::ex_lb>(mk_ex(bounds[t[z]], bounds[y], i), expl_thunk::Ex_BTPRED)))
             return false;
           pathset(h, x, w, w);
           h[y] = j-1;
@@ -435,7 +489,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
         if(h[y] < y) {
           int w = pathmin(h, h[y]);
           // maxsorted[i]->min = bounds[w];
-          if(!set_ub(xs[i], bounds[w]-1, expl<&P::ex_ub>(i, expl_thunk::Ex_BTPRED)))
+          if(!set_ub(xs[i], bounds[w]-1, expl<&P::ex_ub>(mk_ex(bounds[x], bounds[t[z]], i), expl_thunk::Ex_BTPRED)))
             return false;
           pathset(h, x, w, w);
           h[x] = j+1;
@@ -459,23 +513,17 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
     // Capacity |Vars|
     int* minrank;
     int* maxrank;
-    /*
-    vec<int> bounds;
-    vec<int> t;
-    vec<int> d;
-
-    vec<val_t> lbs;
-    vec<val_t> ubs;
-    */
     // We're only interested in landmarks 
     /*
     int lb_low;
     int ub_high;
     */
     // Cached explanation information
+    vec<ex_info> exs;
+    char exs_saved;
 };
 
-bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True) {
+bool all_different_int(solver_data* s, const vec<intvar>& xs, patom_t r = at_True) {
   assert(r == at_True);
 
   return alldiff_b::post(s, xs);
