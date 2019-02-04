@@ -54,6 +54,7 @@ int int_element(solver s, atom r, intvar z, intvar i, int* elts, int sz);
 int var_int_element(solver s, atom r, intvar z, intvar i, intvar* elts, int sz);
 
 int all_different_int(solver s, intvar* xs, int sz);
+int all_different_except_0(solver s, intvar* xs, int sz);
 
 typedef struct { intvar start; int dur; int res; } task;
 int cumulative(solver s, task* ts, int sz, int cap);

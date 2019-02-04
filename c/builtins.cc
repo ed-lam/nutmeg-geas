@@ -187,7 +187,7 @@ int all_different_int(solver s, intvar* xs, int sz) {
   for(intvar* v = xs; v != xs+sz; ++v) {
     p_xs.push(*get_intvar(*v));
   }
-#if 0
+#if 1
   return geas::all_different_int(get_solver(s)->data, p_xs);
 #else
   /*
@@ -219,6 +219,17 @@ int all_different_int(solver s, intvar* xs, int sz) {
     return geas::all_different_int(sd, p_xs);
   }
 #endif
+}
+
+int all_different_except_0(solver s, intvar* xs, int sz) {
+  if(sz == 0)
+    return true;
+
+  vec<geas::intvar> p_xs;
+  for(intvar* v = xs; v != xs+sz; ++v) {
+    p_xs.push(*get_intvar(*v));
+  }
+  return geas::all_different_except_0(get_solver(s)->data, p_xs);
 }
 
 int bipartite_flow(solver s, int* srcs, int srcs_sz, int* sinks, int sinks_sz, bp_flow* flows, int flows_sz) {

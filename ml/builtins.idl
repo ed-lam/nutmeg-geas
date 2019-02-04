@@ -65,6 +65,7 @@ boolean var_int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] intvar elts[], int sz);
 
 boolean all_different_int([in] solver s, [in,size_is(sz)] intvar elts[], int sz);
+boolean all_different_except_0([in] solver s, [in,size_is(sz)] intvar elts[], int sz);
 
 /* boolean cumulative([in] solver s, [in,size_is(sz)] task ts[], int sz, int cap); */
 quote(mli, "val cumulative : \

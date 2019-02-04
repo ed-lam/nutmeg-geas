@@ -150,7 +150,19 @@ let all_different args =
       xs.(k-1) <> xs.(k) && aux (k+1)
   in
   aux 1
-  
+
+ let all_different_except_0 args =
+  let xs = Pr.get_array Pr.get_int args.(0) in
+  Array.sort compare xs ;
+  let sz = Array.length xs in
+  let rec aux k =
+    if k >= sz then
+      true
+    else
+      (xs.(k) = 0 || xs.(k-1) <> xs.(k)) && aux (k+1)
+  in
+  aux 1
+ 
 let table args =
   let xs = Pr.get_array Pr.get_int args.(0) in
   let arity = Array.length xs in
@@ -238,6 +250,7 @@ let check_funs =
        "array_bool_or", array_bool_or ; 
        "all_different_int", all_different ;
        "fzn_all_different_int", all_different ;
+       "fzn_all_different_except_0", all_different_except_0 ;
        "fzn_cumulative", cumulative ;
        "fzn_cumulative_var", cumulative ;
        "fzn_table_int", table ;

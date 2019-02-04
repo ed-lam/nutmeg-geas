@@ -53,7 +53,8 @@ bool int_ne(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 bool int_eq(solver_data* s, intvar x, intvar y, patom_t r = at_True);
 
 // alldifferent.cc
-bool all_different_int(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
+bool all_different_int(solver_data* s, const vec<intvar>& xs, patom_t r = at_True);
+bool all_different_except_0(solver_data* s, const vec<intvar>& xs, patom_t r = at_True);
 
 // values-precede.cc
 bool int_precede_chain(solver_data* s, vec<intvar>& xs, patom_t r = at_True);
