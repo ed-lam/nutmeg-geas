@@ -98,11 +98,11 @@ public:
       o.cap = 0;
       return *this;
     }
-    vec<T>&  operator=(vec<T>& other) {
+    vec<T>&  operator=(const vec<T>& other) {
       other.copyTo(*this);
       return *this;
     }
-    vec(vec<T>& other)
+    vec(const vec<T>& other)
       : data(NULL), sz(0), cap(0) {
       other.copyTo(*this);
     }
