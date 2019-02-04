@@ -95,6 +95,9 @@ protected:
   if((VAL) < ub(X)) { if(!set_ub(X, VAL, R)) return false; } \
 } while(0)
 
+#define UPDATE_LB_EX(X, VAL, R) (!(lb(X) < (VAL)) || set_lb(X, VAL, R))
+#define UPDATE_UB_EX(X, VAL, R) (!(lb(X) < (VAL)) || set_lb(X, VAL, R))
+
 typedef void (*expl_fun)(void*, int , pval_t, vec<clause_elt>&);
 
 // Each propagator class should be an instance of this.
@@ -209,7 +212,7 @@ public:
   }
 
   template<class ...Args>
-  static bool post(Args ...args) {
+  static bool post(Args&&... args) {
     try {
       new T(args...);
       return true;

@@ -94,7 +94,7 @@ public:
       elts.push(crossref(ii, *b));
     }
   }
-  void add(const var_t& x) {
+  void add(var_t& x) {
     unsigned int pi = perm.size();
     perm.push(pi);
     elts.push(crossref(pi, x));
