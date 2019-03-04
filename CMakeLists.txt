@@ -80,7 +80,6 @@ add_library(geas_constraints OBJECT
     lib/constraints/table.cc
     lib/constraints/values-precede.cc
 )
-target_link_libraries(geas_constraints geas_core)
 
 # --- Distributables ---
 
