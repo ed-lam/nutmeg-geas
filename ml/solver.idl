@@ -1,6 +1,6 @@
-quote(c, "#include \"../solver/stats.h\"");
-quote(c, "#include \"../solver/options.h\"");
-quote(c, "#include \"../c/geas.h\"");
+quote(c, "#include <geas/solver/stats.h>");
+quote(c, "#include <geas/solver/options.h>");
+quote(c, "#include <geas/c/geas.h>");
 
 import "atom.idl";
 

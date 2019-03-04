@@ -41,7 +41,7 @@ CSRCS     = $(wildcard $(ENGINE)/*.cc) $(wildcard $(VARS)/*.cc) $(wildcard $(SOL
 COBJS     = $(addsuffix .o, $(basename $(CSRCS)))
 CDEPS     = $(addsuffix .d, $(basename $(CSRCS)))
 
-LIBSRCS = $(wildcard c/*.cc)
+LIBSRCS = $(wildcard lib/c/*.cc)
 LIBOBJS = $(addsuffix .o, $(basename $(LIBSRCS)))
 LIBDEPS = $(addsuffix .d, $(basename $(LIBSRCS)))
 

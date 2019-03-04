@@ -83,7 +83,7 @@ void test3(void) {
   add_clause(sd, b, x < -5);
 
   if(!enqueue(*sd, ~b, reason()))
-    ERROR;
+    GEAS_ERROR;
   solver::result r = s.solve();
   std::cout << "Result: " << r << std::endl;
 
