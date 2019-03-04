@@ -1,4 +1,4 @@
-quote(c, "#include \"../c/atom.h\"")
+quote(c, "#include <geas/c/atom.h>")
 
 typedef [int32] unsigned long pred_t;
 typedef [int64] unsigned long pval_t;

@@ -9,12 +9,12 @@ PROF =
 MLPROF = 
 CXX = g++
 #CXX = g++-4.9
-CXXFLAGS = -g -O3 -I .
+CXXFLAGS = -g -O3 -I ../include
 CXXFLAGS += -Wall -Wno-non-virtual-dtor -Wno-unused-function -Wno-deprecated -ffast-math # -funroll-loops
 #CXXFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
 CXXFLAGS += -I $(CAML_PREFIX)/lib/ocaml -I $(CAMLIDL_PREFIX)/lib/camlidl
 CXXFLAGS += $(PROF)
-CFLAGS = -g -O3 -I .
+CFLAGS = -g -O3 -I ../include
 CFLAGS += -Wall -Wno-unused-function -Wno-deprecated -ffast-math
 #CFLAGS += -I /usr/local/lib/ocaml -I /opt/local/lib/ocaml
 CFLAGS += -I $(CAML_PREFIX)/lib/ocaml -I $(CAMLIDL_PREFIX)/lib/camlidl
@@ -62,12 +62,12 @@ $(STUBS) : $(MLIS)
 geas.cma: $(CMIS) $(CMOS) libgeas_ml.a ../libgeas.a
 	$(OCAMLC) $(OCAMLFLAGS) $(OCAMLINC) -custom -a -o $@ \
 	$(CMOS) libgeas_ml.a ../libgeas.a \
-	-ccopt "-L ." -cclib "-lcamlidl -lstdc++"
+	-ccopt "-L . -L ../lib" -cclib "-lcamlidl -lstdc++"
 
 geas.cmxa geas.a: $(CMIS) $(CMXS) libgeas_ml.a ../libgeas.a
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) $(OCAMLINC) -a -o $@ \
 	$(CMXS) libgeas_ml.a ../libgeas.a \
-	-ccopt "-L ."  -cclib "-lcamlidl -lstdc++"
+	-ccopt "-L . -L ../lib"  -cclib "-lcamlidl -lstdc++"
 	$(RANLIB) geas.a
 
 libgeas_ml.a: $(OBJS)
@@ -82,7 +82,7 @@ geas_top : $(LIBTARGETS)
 	geas.a geas.cma \
   -ccopt "-ggdb" \
   -ccopt "-L $(CAML_PREFIX)/lib/ocaml -L $(CAMLIDL_PREFIX)/lib/camlidl" \
-	-ccopt "-L . " -cclib "-lcamlidl -lstdc++"
+	-ccopt "-L . -L ../lib " -cclib "-lcamlidl -lstdc++"
 
 clean :
 	rm -f $(TARGETS) $(TARGETOBJS) $(TESTOBJS) $(OBJS)

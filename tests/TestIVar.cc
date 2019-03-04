@@ -1,16 +1,16 @@
 #include <iostream>
 #include <cstdio>
 
-#include "utils/cast.h"
-#include "solver/solver.h"
+#include <geas/utils/cast.h>
+#include <geas/solver/solver.h>
 
 #if 0
-#include "engine/env.h"
-#include "engine/trail.h"
-#include "engine/solver.h"
+#include <geas/engine/env.h>
+#include <geas/engine/trail.h>
+#include <geas/engine/solver.h>
 
-#include "vars/boolvar.h"
-#include "vars/intvar.h"
+#include <geas/vars/boolvar.h>
+#include <geas/vars/intvar.h>
 
 int main(int argc, char** argv)
 {
@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
   add_clause(&sd, y <= -5, y >= 8);
   
   if(!propagate(sd))
-     ERROR;
+     GEAS_ERROR;
       
   print_touched(sd);
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
   enqueue(sd, x >= 0, reason());
    
   if(!propagate(sd))
-    ERROR;  
+    GEAS_ERROR;  
 
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
 
   enqueue(sd, y <= 7, reason());
   if(!propagate(sd))
-    ERROR;
+    GEAS_ERROR;
 
   print_touched(sd);
 
@@ -124,12 +124,12 @@ int main(int argc, char** argv) {
   push_level(&sd);
   enqueue(sd, y >= 0, reason());
   if(!propagate(sd))
-    ERROR;
+    GEAS_ERROR;
 
   push_level(&sd);
   enqueue(sd, x <= 3, reason());
   if(!propagate(sd))
-    ERROR;
+    GEAS_ERROR;
 
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
   push_level(&sd);
   enqueue(sd, z <= 3.0, reason());
   if(!propagate(sd))
-    ERROR;
+    GEAS_ERROR;
 
   fprintf(stdout, "x: [%lld, %lld]\n", x.lb(s.data), x.ub(s.data));
   fprintf(stdout, "y: [%lld, %lld]\n", y.lb(s.data), y.ub(s.data));

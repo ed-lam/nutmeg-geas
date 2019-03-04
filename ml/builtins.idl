@@ -1,4 +1,4 @@
-quote(c, "#include \"c/builtins.h\"");
+quote(c, "#include <geas/c/builtins.h>");
 
 import "atom.idl";
 import "solver.idl";

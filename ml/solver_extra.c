@@ -11,9 +11,9 @@
 #endif
 #include <caml/camlidlruntime.h>
 
-#include "../solver/stats.h"
-#include "../solver/options.h"
-#include "../c/geas.h"
+#include <geas/solver/stats.h>
+#include <geas/solver/options.h>
+#include <geas/c/geas.h>
 
 extern value camlidl_c2ml_atom_atom(atom *, camlidl_ctx _ctx);
 
