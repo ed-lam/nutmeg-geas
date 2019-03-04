@@ -1,9 +1,9 @@
 #include <iostream>
 #include <cstdio>
-#include "solver/solver.h"
-#include "solver/solver_data.h"
+#include <geas/solver/solver.h>
+#include <geas/solver/solver_data.h>
 
-#include "constraints/builtins.h"
+#include <geas/constraints/builtins.h>
 
 using namespace geas;
 

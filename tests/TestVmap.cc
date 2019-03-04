@@ -1,9 +1,9 @@
 #include <iostream>
 
-#include "solver/solver.h"
-#include "solver/solver_data.h"
-#include "engine/persist.h"
-#include "engine/valmap.h"
+#include <geas/solver/solver.h>
+#include <geas/solver/solver_data.h>
+#include <geas/engine/persist.h>
+#include <geas/engine/valmap.h>
 
 using namespace geas;
 

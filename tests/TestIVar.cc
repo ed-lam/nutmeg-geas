@@ -1,16 +1,16 @@
 #include <iostream>
 #include <cstdio>
 
-#include "utils/cast.h"
-#include "solver/solver.h"
+#include <geas/utils/cast.h>
+#include <geas/solver/solver.h>
 
 #if 0
-#include "engine/env.h"
-#include "engine/trail.h"
-#include "engine/solver.h"
+#include <geas/engine/env.h>
+#include <geas/engine/trail.h>
+#include <geas/engine/solver.h>
 
-#include "vars/boolvar.h"
-#include "vars/intvar.h"
+#include <geas/vars/boolvar.h>
+#include <geas/vars/intvar.h>
 
 int main(int argc, char** argv)
 {

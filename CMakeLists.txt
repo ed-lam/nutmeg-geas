@@ -47,48 +47,49 @@ endif(APPLE)
 # -------------------------------------------------------------------------------------------------------------------
 #  -- Geas compilation targets.
 
-include_directories(${PROJECT_SOURCE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/include)
 # --- Libraries ---
 
 add_library(geas_core
-    engine/conflict.cc
-    engine/persist.cc
-    engine/propagator.cc
-    engine/state.cc
-    solver/branch.cc
-    solver/solver.cc
-    solver/solver_debug.cc
-    utils/MurmurHash3.cc
-    utils/Options.cc
-    utils/System.cc
-    vars/fpvar.cc
-    vars/intvar.cc
+    lib/engine/conflict.cc
+    lib/engine/persist.cc
+    lib/engine/propagator.cc
+    lib/engine/state.cc
+    lib/solver/branch.cc
+    lib/solver/solver.cc
+    lib/solver/solver_debug.cc
+    lib/utils/MurmurHash3.cc
+    lib/utils/Options.cc
+    lib/utils/System.cc
+    lib/vars/fpvar.cc
+    lib/vars/intvar.cc
 )
 add_library(geas_constraints
-    constraints/flow/bipart.cc
-    constraints/alldifferent.cc
-    constraints/arith.cc
-    constraints/bool-linear.cc
-    constraints/cumulative.cc
-    constraints/difflogic.cc
-    constraints/disjunctive.cc
-    constraints/element.cc
-    constraints/linear.cc
-    constraints/linear-ps.cc
-    constraints/maximum.cc
-    constraints/mdd.cc
-    constraints/table.cc
-    constraints/values-precede.cc
+    lib/constraints/flow/bipart.cc
+    lib/constraints/alldifferent.cc
+    lib/constraints/arith.cc
+    lib/constraints/bool-linear.cc
+    lib/constraints/cumulative.cc
+    lib/constraints/difflogic.cc
+    lib/constraints/disjunctive.cc
+    lib/constraints/element.cc
+    lib/constraints/linear.cc
+    lib/constraints/linear-ps.cc
+    lib/constraints/maximum.cc
+    lib/constraints/mdd.cc
+    lib/constraints/table.cc
+    lib/constraints/values-precede.cc
 )
+target_link_libraries(geas_constraints geas_core)
 
 # --- Distributables ---
 
 # Geas C Library
 add_library(geas
-    c/builtins.cc
-    c/geas.cc
+    lib/c/builtins.cc
+    lib/c/geas.cc
 )
-target_link_libraries(geas geas_core geas_constraints)
+target_link_libraries(geas geas_constraints)
 
 install(
     TARGETS geas
@@ -97,7 +98,6 @@ install(
     ARCHIVE DESTINATION lib
 )
 install(
-    DIRECTORY c constraints engine utils vars
-    DESTINATION include/geas
-    FILES_MATCHING PATTERN "*.h"
+    DIRECTORY include/geas
+    DESTINATION include
 )
