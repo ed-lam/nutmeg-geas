@@ -166,7 +166,7 @@ class int_linear_le : public propagator, public prop_inst<int_linear_le> {
           confl.push(e.x > e.x.ub(s));
         / */
 
-        // NOT_YET;
+        // GEAS_NOT_YET;
 #ifdef CHECK_STATE
         assert(confl_is_current(s, confl));
 #endif
@@ -575,7 +575,7 @@ class lin_le_mtree : public propagator, public prop_inst<lin_le_mtree<V, R> > {
     }
     // If we reach here, we've processed all variables
     // without overload.
-    ERROR;
+    GEAS_ERROR;
   }
 
   void ex_r(int _r, pval_t _p, vec<clause_elt>& expl) {
@@ -677,7 +677,7 @@ class int_linear_ne : public propagator, public prop_inst<int_linear_ne> {
       case T_Var:
         return vs[t.idx].x.is_fixed(s);
       default:
-        ERROR;
+        GEAS_ERROR;
         return false;
     }
   }
@@ -982,7 +982,7 @@ bool linear_le(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r) {
   /*
   if(!s->state.is_entailed_l0(r)) {
-    WARN("Half-reification not yet implemented for linear_le.");
+    GEAS_WARN("Half-reification not yet implemented for linear_le.");
   }
   */
 //   new int_linear_le(s, r, ks, vs, k);
@@ -1000,8 +1000,8 @@ bool linear_ne(solver_data* s, vec<int>& ks, vec<intvar>& vs, int k,
   patom_t r) {
   /*
   if(!s->state.is_entailed_l0(r)) {
-    // WARN("Half-reification not yet implemented for linear_ne.");
-    WARN("Half-reified linear_ne is a bit of a hack.");
+    // GEAS_WARN("Half-reification not yet implemented for linear_ne.");
+    GEAS_WARN("Half-reified linear_ne is a bit of a hack.");
     patom_t a = new_bool(*s);
     patom_t b = new_bool(*s);
     add_clause(s, ~r, a, b);

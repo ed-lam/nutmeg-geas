@@ -353,7 +353,7 @@ public:
         }
         break;
       default:
-        NEVER;
+        GEAS_NEVER;
     }
   }
   watch_map(vec<pval_t>& xs)

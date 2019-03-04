@@ -109,7 +109,7 @@ man_id_t register_manager(void* (*create)(solver_data* s), void (*destroy)(void*
   /*
   if(man_sz() >= MANAGERS_MAX) {
     fprintf(stderr, "ERROR: Registering too many managers. Increase MANAGERS_MAX and recompile.\n");
-    ERROR;
+    GEAS_ERROR;
   }
   man_registry[man_sz()++] = man_template_t { create, destroy };
   */
@@ -441,7 +441,7 @@ void set_confl(sdata& s, patom_t p, reason r, vec<clause_elt>& confl) {
       assert(decision_level(s) == 0);
       return;
      default:
-       NOT_YET;
+       GEAS_NOT_YET;
   }
 
   // Check that there's something at the current level.
@@ -456,7 +456,7 @@ retry_level:
       return;
   }
   // Nothing at the current level: find the appropriate level.
-//  ERROR;
+//  GEAS_ERROR;
   int level = s.persist.level();
   assert(level > 0);
   bt_to_level(&s, level-1);
@@ -543,7 +543,7 @@ INLINE_SATTR bool propagate_assumps(solver_data& s) {
     trail_change(s.persist, s.assump_end, idx+1);
     if(!enqueue(s, at, reason())) {
       // Should be unreachable
-      ERROR;
+      GEAS_ERROR;
       rec.conflict();
       return false;
     }
@@ -1052,7 +1052,7 @@ prop_restart:
 //inline
 void add_learnt(solver_data* s, vec<clause_elt>& learnt, bool one_watch) {
   // Allocate the clause
-  // WARN("Collection of learnt clauses not yet implemented.");
+  // GEAS_WARN("Collection of learnt clauses not yet implemented.");
 #ifdef CHECK_STATE
   for(int ei = 1; ei < learnt.size(); ei++)
     assert(s->state.is_inconsistent(learnt[ei].atom));
@@ -1133,7 +1133,7 @@ inline void detach_watch(vec<clause_head>& ws, clause* c) {
       return;
     }
   }
-  ERROR;
+  GEAS_ERROR;
 }
 
 inline void replace_watch(vec<clause_head>& ws, clause* c, clause_head h) {
@@ -1697,7 +1697,7 @@ solver::result solver::solve(limits l) {
   }
 
   // Unreachable
-  ERROR;
+  GEAS_ERROR;
   clear_handlers();
   return SAT;
 }
@@ -1707,13 +1707,13 @@ solver::result solver::solve(limits l) {
 // added after a push are paired with an activation
 // literal.
 void solver::level_push(void) {
-  NOT_YET;   
+  GEAS_NOT_YET;   
 }
 
 // Drop any constraints added at the current
 // context. 
 void solver::level_pop(void) {
-  NOT_YET; 
+  GEAS_NOT_YET; 
 }
 
 void solver::get_conflict(vec<patom_t>& confl) {

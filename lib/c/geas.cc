@@ -153,7 +153,7 @@ forceinline geas::VarChoice get_varc(var_choice c) {
     case VAR_LEAST: return geas::Var_Smallest;
     case VAR_GREATEST: return geas::Var_Largest;
   }
-  ERROR;
+  GEAS_ERROR;
   return geas::Var_Smallest;
 }
 
@@ -163,7 +163,7 @@ forceinline geas::ValChoice get_valc(val_choice c) {
     case VAL_MAX: return geas::Val_Max;
     case VAL_SPLIT: return geas::Val_Split;
   }
-  ERROR;
+  GEAS_ERROR;
   return geas::Val_Min;
 }
 

@@ -557,7 +557,7 @@ intvar permute_intvar_ext(solver_data* s, intvar x, vec<int>& perm) {
     // Check the permutation has no duplicates.
     if(vals[ii-1] == vals[ii]) {
       fprintf(stderr, "ERROR: Called permute_intvar_ext with duplicate value %d.\n", vals[ii]);
-      ERROR;
+      GEAS_ERROR;
     }
   }
 
@@ -597,7 +597,7 @@ intvar permute_intvar_sparse(solver_data* s, intvar x, vec<int>& perm) {
     // Check the permutation has no duplicates.
     if(vals[ii-1] == vals[ii]) {
       fprintf(stderr, "ERROR: Called permute_intvar_ext with duplicate value %d.\n", vals[ii]);
-      ERROR;
+      GEAS_ERROR;
     }
     if(vals[ii-1]+1 < vals[ii]) {
       // Add a new gap.

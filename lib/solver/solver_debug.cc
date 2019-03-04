@@ -14,12 +14,12 @@ void check_pvals(solver_data* s) {
         fprintf(stderr, "Predicate [%d] (p%d%s) should be marked.\n",
           pi, pi>>1, pi&1 ? "-" : "+");
 //        std::cerr << "Predicate [" << pi << "] should be marked." << std::endl;
-        ERROR;
+        GEAS_ERROR;
       }
     } else {
       if(p.pred_touched[pi]) {
         std::cerr << "Predicate [" << pi << "] should not be marked." << std::endl;
-        ERROR;
+        GEAS_ERROR;
       }
     }
   }

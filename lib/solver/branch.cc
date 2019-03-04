@@ -81,7 +81,7 @@ struct branch_val {
 #endif
         }
       default:
-        NOT_YET; 
+        GEAS_NOT_YET; 
         return at_Error;
     }
   }
@@ -140,7 +140,7 @@ public:
         return ge_atom(p, ub(s, p)-diff);
       }
       default:
-        NOT_YET; 
+        GEAS_NOT_YET; 
         return at_Error;
     }
     */
@@ -466,7 +466,7 @@ brancher* select_inorder_brancher(ValChoice val_choice, vec<pid_t>& preds) {
     case Val_Saved:
       return new inorder_branch<Val_Saved>(preds);
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
       return nullptr;
   }
 }
@@ -483,7 +483,7 @@ brancher* select_basic_brancher(ValChoice val_choice, vec<pid_t>& preds) {
     case Val_Saved:
       return new basic_branch<VarC, Val_Saved>(preds);
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
       return nullptr;
   }
 }
@@ -499,7 +499,7 @@ brancher* basic_brancher(VarChoice var_choice, ValChoice val_choice, vec<pid_t>&
     case Var_Largest:
       return select_basic_brancher<Var_Largest>(val_choice, preds);
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
       return nullptr;
   }
 }
@@ -589,7 +589,7 @@ public:
   }
 
   patom_t branch(solver_data* s) {
-    NOT_YET;
+    GEAS_NOT_YET;
     return at_Undef;
   }
 

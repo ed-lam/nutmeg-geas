@@ -325,10 +325,10 @@ public:
         /*
         while(!sinks[di]) ++di;
         if(!init_flow<true>(si, di))
-          ERROR;
+          GEAS_ERROR;
           */
         if(!find_sink<true>(si, sinks))
-          ERROR;
+          GEAS_ERROR;
         srcs[si]--;
         // sinks[di]--;
         src_seen.clear();

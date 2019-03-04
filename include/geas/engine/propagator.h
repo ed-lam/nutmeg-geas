@@ -30,7 +30,7 @@ public:
   virtual bool propagate(vec<clause_elt>& confl) = 0;
   // virtual bool check_sat(void) { return true; }
   virtual bool check_sat(ctx_t& ctx) { return true; }
-  virtual bool check_unsat(ctx_t& ctx) { WARN_ONCE("Unimplemented inconsistency checker."); return true; }
+  virtual bool check_unsat(ctx_t& ctx) { GEAS_WARN_ONCE("Unimplemented inconsistency checker."); return true; }
   bool check_sat(void);
   virtual void root_simplify(void) { }
   virtual void cleanup(void) { is_queued = false; }

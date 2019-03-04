@@ -399,7 +399,7 @@ restart_expl:
             goto next_row;
           }
         }
-        ERROR;
+        GEAS_ERROR;
      next_row:
         continue;
       }
@@ -1144,7 +1144,7 @@ namespace table {
         return compact_table::post(s, t, xs);
     //   return compact_table_rvar::post(s, t, xs);
     }
-    ERROR;
+    GEAS_ERROR;
     return false;
   }
 }

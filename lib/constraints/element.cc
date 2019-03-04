@@ -592,7 +592,7 @@ class elem_var_bnd : public propagator, public prop_inst<elem_var_bnd> {
 
   /*
   static void ex_z(void* ptr, int pos, pval_t pval, vec<clause_elt>& expl) {
-    NOT_YET;
+    GEAS_NOT_YET;
   }
   */
   void ex_z_lb(int _vi, pval_t p, vec<clause_elt>& expl) {
@@ -1031,7 +1031,7 @@ public:
             }
             break;
           default:
-            ERROR;
+            GEAS_ERROR;
         }
       }
       tasks.clear();
@@ -1121,11 +1121,11 @@ class elem_var_simple : public propagator, public prop_inst<elem_var_simple> {
   }
 
   static void ex_z_lb(P* p, int pos, intvar::val_t lb, vec<clause_elt>& expl) {
-    NOT_YET;
+    GEAS_NOT_YET;
   }
 
   static void ex_z_ub(P* p, int pos, intvar::val_t lb, vec<clause_elt>& expl) {
-    NOT_YET;
+    GEAS_NOT_YET;
   }
 
 public:
@@ -1133,7 +1133,7 @@ public:
     : propagator(_s), base(_base), x(_x), z(_z), ys(_ys), r(_r) {
     // We assume the propagator is not half reified
     if(r != at_True) {
-      NOT_YET;
+      GEAS_NOT_YET;
     }
      
     // Set initial explanation hints
@@ -1185,7 +1185,7 @@ public:
 
       // No support, definitely false.
       // But should have failed earlier
-      ERROR;
+      GEAS_ERROR;
       return false;
 
 support_found:

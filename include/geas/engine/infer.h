@@ -126,7 +126,7 @@ public:
     uint64_t key = (uint64_t) val;
     watch_map::iterator it = watch_maps[p].find(key);
     if(it == watch_maps[p].end())
-      ERROR;
+      GEAS_ERROR;
     return (*it).value;
   }
 

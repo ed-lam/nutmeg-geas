@@ -252,7 +252,7 @@ class vals_precede_seq : public propagator,
   }
 
   void ex_r(int xi, pval_t _p, vec<clause_elt>& expl) {
-    NOT_YET;
+    GEAS_NOT_YET;
   }
 
 public:

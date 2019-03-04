@@ -81,7 +81,7 @@ protected:
           cap -= xs[ii].c;
       }
     }
-    ERROR;
+    GEAS_ERROR;
 cover_found:
     V slack = xs[ii].c - cap;
     for(int ti : ex_terms) {
@@ -103,7 +103,7 @@ cover_found:
         cap -= t.c;
       }
     }
-    ERROR;
+    GEAS_ERROR;
     /* /
     for(term t : xs) {
       if(lb(t.x))
@@ -126,7 +126,7 @@ cover_found:
         cap -= t.c;
       }
     }
-    ERROR;
+    GEAS_ERROR;
   }
 
   void ex_x(int xi, pval_t _p, vec<clause_elt>& expl) {
@@ -149,7 +149,7 @@ cover_found:
           cap -= xs[ii].c;
       }
     }
-    ERROR;
+    GEAS_ERROR;
 cover_found:
     V slack = xs[ii].c - cap;
     std::cout << "%% Slack: " << slack << std::endl;
@@ -174,7 +174,7 @@ cover_found:
           return;
       }
     }
-    ERROR;
+    GEAS_ERROR;
     /* /
     for(term t : xs) {
       if(lb(t.x))

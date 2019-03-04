@@ -91,7 +91,7 @@ brancher* priority_brancher(VarChoice sel, vec<V>& xs, vec<brancher*>& br) {
     case Val_Saved:
       return new branching::priority<Val_Saved, V>(xs, br);
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
       return nullptr;
   }
 }

@@ -129,7 +129,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
           return;
       }
     }
-    ERROR;
+    GEAS_ERROR;
   }
   void ex_ub(int ei, pval_t _p, vec<clause_elt>& expl) {
     ex_info& e(exs[ei]); 
@@ -146,7 +146,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
           return;
       }
     }
-    ERROR;
+    GEAS_ERROR;
   }
 
   watch_result wake_lb(int xi) {
@@ -382,7 +382,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
                 return false;
             }
           }
-          ERROR;
+          GEAS_ERROR;
 #else
           // Process by _decreasing_ lower bound, to collect
           // the smallest suitable hall set.
@@ -406,7 +406,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
               return false;
             }
           }
-          ERROR;
+          GEAS_ERROR;
 #endif
         }
         if(h[x] > x) {
@@ -484,7 +484,7 @@ class alldiff_b : public propagator, public prop_inst<alldiff_b> {
             }
           }
 #endif
-          ERROR;
+          GEAS_ERROR;
         }
         if(h[y] < y) {
           int w = pathmin(h, h[y]);
@@ -556,7 +556,7 @@ class alldiff_ex0_b : public propagator, public prop_inst<alldiff_ex0_b> {
           return;
       }
     }
-    ERROR;
+    GEAS_ERROR;
   }
   void ex_ub(int ei, pval_t _p, vec<clause_elt>& expl) {
     ex_info& e(exs[ei]); 
@@ -573,7 +573,7 @@ class alldiff_ex0_b : public propagator, public prop_inst<alldiff_ex0_b> {
           return;
       }
     }
-    ERROR;
+    GEAS_ERROR;
   }
 
   watch_result wake_lb(int xi) {
@@ -808,7 +808,7 @@ class alldiff_ex0_b : public propagator, public prop_inst<alldiff_ex0_b> {
                 return false;
             }
           }
-          ERROR;
+          GEAS_ERROR;
 #else
           // Process by _decreasing_ lower bound, to collect
           // the smallest suitable hall set.
@@ -832,7 +832,7 @@ class alldiff_ex0_b : public propagator, public prop_inst<alldiff_ex0_b> {
               return false;
             }
           }
-          ERROR;
+          GEAS_ERROR;
 #endif
         }
         if(h[x] > x) {
@@ -913,7 +913,7 @@ class alldiff_ex0_b : public propagator, public prop_inst<alldiff_ex0_b> {
             }
           }
 #endif
-          ERROR;
+          GEAS_ERROR;
         }
         if(h[y] < y) {
           int w = pathmin(h, h[y]);

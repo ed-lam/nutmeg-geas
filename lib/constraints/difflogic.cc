@@ -570,7 +570,7 @@ void diff_manager::ex_r_diff(int c, pval_t _p, vec<clause_elt>& expl) {
   const diff_info& ci(csts[c]);
   // Find some path such that adding c would introduce a negative cycle
   if(!exists_path(ci.y, ci.x, - ci.wt - 1, finished.pos(c)))
-    ERROR;
+    GEAS_ERROR;
   // Now collect the explanation
   dim_id p(ci.x);
   while(p != ci.y) {
@@ -784,7 +784,7 @@ bool diff_manager::propagate_if_killed(cst_id c, cst_id e, vec<clause_elt>& conf
         }
         // Since we've just checked lb(r), shouldn't fail.
         if(!enqueue(*s, ~r, expl<&P::ex_r_diff>(e)))
-          ERROR;
+          GEAS_ERROR;
       }
     }
   }
@@ -1229,7 +1229,7 @@ bool check_sat(solver_data* s, patom_t r, intvar x, intvar y, int k) {
 }
 
 bool check_sat(solver_data* s, ctx_t& ctx, intvar x, intvar y, int k) {
-  NOT_YET;
+  GEAS_NOT_YET;
   return true;
 }
 

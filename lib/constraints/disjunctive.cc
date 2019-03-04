@@ -545,7 +545,7 @@ bool disjunctive_int(solver_data* s, vec<intvar>& st, vec<int>& du) {
 
 bool disjunctive_var(solver_data* s, vec<intvar>& st, vec<intvar>& du) {
   // new disj_var(s, st, du);
-  NOT_YET;
+  GEAS_NOT_YET;
   return false;
 }
 

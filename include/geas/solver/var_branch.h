@@ -79,7 +79,7 @@ public:
         }
         */
       default:
-        NOT_YET; 
+        GEAS_NOT_YET; 
         return at_Error;
     }
   }

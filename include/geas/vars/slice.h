@@ -110,7 +110,7 @@ public:
     if(e & E_UB)
       s->pred_callbacks[p^1].push(c);
     if(e & E_FIX)
-      NOT_YET;
+      GEAS_NOT_YET;
   }
 
   pid_t p;

@@ -2040,7 +2040,7 @@ bool pred_le(solver_data* s, pid_t x, pid_t y, int k, patom_t r) {
 bool int_abs(solver_data* s, intvar z, intvar x, patom_t r) {
   // iabs_decomp(s, z, x);
   if(!s->state.is_entailed_l0(r))
-    WARN("Half-reified int_abs not yet implemented.");
+    GEAS_WARN("Half-reified int_abs not yet implemented.");
 
   if(z.lb(s) < 0) {
     if(!enqueue(*s, z >= 0, reason ()))
@@ -2167,7 +2167,7 @@ bool square_decomp(solver_data* s, intvar z, intvar x) {
 
 bool int_mul(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
   if(!s->state.is_entailed_l0(r))
-    WARN("Half-reified int_mul not yet implemented.");
+    GEAS_WARN("Half-reified int_mul not yet implemented.");
 
   if(is_binary(s, x)) {
     return mul_bool(s, z, y, x >= 1);
@@ -2491,7 +2491,7 @@ bool int_div(solver_data* s, intvar z, intvar x, intvar y, patom_t r) {
     }
   }
   // TODO: Implement non-sign-fixed case.
-  NOT_YET;
+  GEAS_NOT_YET;
   return false;
 }
 

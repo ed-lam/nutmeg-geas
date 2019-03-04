@@ -50,7 +50,7 @@ inline void remove_watch(watch_node* watch, clause* cl) {
       return;
     }
   }
-  ERROR;
+  GEAS_ERROR;
 }
 
 inline watch_node* find_watchlist(solver_data* s, clause_elt& elt) {
@@ -221,7 +221,7 @@ std::ostream& operator<<(std::ostream& o, reason r) {
         break;
       }
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
   }
   return o;
 }
@@ -306,7 +306,7 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
 #endif
           }
           if(r.eth.flags&expl_thunk::Ex_BTGEN) {
-            NOT_YET;
+            GEAS_NOT_YET;
           }
         }
         vec<clause_elt> es;
@@ -335,7 +335,7 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
     case reason::R_NIL:
       break;
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
   }
 }
 
@@ -399,7 +399,7 @@ static forceinline bool is_redundant(solver_data* s, reason r) {
       return true;
       break;
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
   }
 }
 #endif
@@ -703,7 +703,7 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
             bt_infer_to_pos(s, pos);
           }
           if(r.eth.flags&expl_thunk::Ex_BTGEN) {
-            NOT_YET;
+            GEAS_NOT_YET;
           }
         }
         vec<clause_elt> es;
@@ -722,10 +722,10 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
       }
       break;
     case reason::R_NIL:
-      ERROR;
+      GEAS_ERROR;
       break;
     default:
-      NOT_YET;
+      GEAS_NOT_YET;
   }
 }
 
@@ -760,7 +760,7 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
       }
       break;
     default:
-      ERROR;
+      GEAS_ERROR;
   }
 
 

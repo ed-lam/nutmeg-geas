@@ -119,7 +119,7 @@ class lin_leq : public propagator, public prop_inst< lin_leq<Wt, Var> > {
       }
     }
     // Fallthrough, should never be reached.
-    ERROR;
+    GEAS_ERROR;
 relax_expl:
     // ex_sum must remain strictly positive.
     for(int xi : ex_idxs) {

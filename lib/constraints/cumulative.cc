@@ -390,7 +390,7 @@ public:
         }
       }
       // Should be unreachable
-      ERROR;
+      GEAS_ERROR;
     }
 
     void ex_let(int ex_id, pval_t p, vec<clause_elt>& expl) {
@@ -450,7 +450,7 @@ public:
         }
       }
       // Should be unreachable
-      ERROR;
+      GEAS_ERROR;
     }
 
     void explain_overload(int t, vec<clause_elt>& confl) {
@@ -479,7 +479,7 @@ public:
           to_cover -= mreq(p);
         }
       }
-      ERROR;
+      GEAS_ERROR;
     }
 
   public:
@@ -998,7 +998,7 @@ public:
         }
       }
       // Should be unreachable
-      ERROR;
+      GEAS_ERROR;
     }
     
     void ex_let(int ex_id, pval_t p, vec<clause_elt>& expl) {
@@ -1061,7 +1061,7 @@ public:
         }
       }
       // Should be unreachable
-      ERROR;
+      GEAS_ERROR;
     }
 
     template<bool Strict>
@@ -1099,7 +1099,7 @@ public:
         }
       }
       // Not enough usage over the profile region.
-      ERROR;
+      GEAS_ERROR;
       return 0;
     }
 
@@ -1143,7 +1143,7 @@ public:
           to_cover -= mreq(p);
         }
       }
-      ERROR;
+      GEAS_ERROR;
     }
 
   public:

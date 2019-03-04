@@ -321,7 +321,7 @@ int values_precede_chain_int(solver s, int* ks, int ks_sz,
     xs.push(*get_intvar(*vs));
   }
   //return geas::int_precede_chain::post(get_solver(s)->data, xs);
-  NOT_YET;
+  GEAS_NOT_YET;
   return false;
 }
 

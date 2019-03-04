@@ -17,7 +17,7 @@ struct pred_var {
       s->pred_callbacks[p^1].push(c);  
     }
     if(e&E_FIX) {
-      ERROR;
+      GEAS_ERROR;
     }
   }
 
