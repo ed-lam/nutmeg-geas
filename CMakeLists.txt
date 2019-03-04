@@ -50,7 +50,7 @@ endif(APPLE)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 # --- Libraries ---
 
-add_library(geas_core
+add_library(geas_core OBJECT
     lib/engine/conflict.cc
     lib/engine/persist.cc
     lib/engine/propagator.cc
@@ -64,7 +64,7 @@ add_library(geas_core
     lib/vars/fpvar.cc
     lib/vars/intvar.cc
 )
-add_library(geas_constraints
+add_library(geas_constraints OBJECT
     lib/constraints/flow/bipart.cc
     lib/constraints/alldifferent.cc
     lib/constraints/arith.cc
@@ -88,8 +88,9 @@ target_link_libraries(geas_constraints geas_core)
 add_library(geas
     lib/c/builtins.cc
     lib/c/geas.cc
+    $<TARGET_OBJECTS:geas_core>
+    $<TARGET_OBJECTS:geas_constraints>
 )
-target_link_libraries(geas geas_constraints)
 
 install(
     TARGETS geas
