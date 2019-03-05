@@ -494,6 +494,9 @@ public:
       , ub_change(starts.size())
       , profile_state(P_Invalid) {
       for(int xi : irange(starts.size())) {
+        // If a task has zero duration or resource consumption, skip it.
+        if(!dur[xi] || !res[xi])
+          continue;
         task_info t(task_info { starts[xi], dur[xi], res[xi] });
         tasks.push(t);
       }
