@@ -11,11 +11,11 @@
 #include <geas/engine/conflict.h>
 
 // Suppress inlining, for profiling
-// #define INLINE_ATTR __attribute__((noinline))
-// #define INLINE_SATTR INLINE_ATTR
+#define INLINE_ATTR __attribute__((noinline))
+#define INLINE_SATTR INLINE_ATTR
 
-#define INLINE_ATTR forceinline
-#define INLINE_SATTR static INLINE_ATTR
+//#define INLINE_ATTR forceinline
+//#define INLINE_SATTR static INLINE_ATTR
 
 #define KEEP_GLUE
 // #define RESTART_LUBY
@@ -458,10 +458,11 @@ retry_level:
   // Nothing at the current level: find the appropriate level.
 //  GEAS_ERROR;
   int level = s.persist.level();
-  assert(level > 0);
-  bt_to_level(&s, level-1);
-  process_initializers(s);
-  goto retry_level;
+  if(level > 0) {
+    bt_to_level(&s, level-1);
+    process_initializers(s);
+    goto retry_level;
+  }
 }
 
 inline bool is_entailed(sdata& s, patom_t p) { return s.state.is_entailed(p); }
@@ -586,6 +587,28 @@ bool solver::assume(patom_t p) {
   return true;
 }
 
+bool solver::assume(patom_t* b, patom_t* e) {
+  push_assump_ctx();
+  /*
+  for(; b != e; ++b) {
+    if(!assume(*b))
+      return false;
+  }
+  */
+  if(data->assump_end == data->assumptions.size()) {
+    if(data->assump_end == data->assumptions.size()) {
+      int lev = data->assumptions.size() > 0 ? data->assump_level.last() + 1 : 0;
+      if(decision_level(*data) > lev)
+        bt_to_level(data, lev);
+    }
+  }
+  for(; b != e; ++b) {
+    data->assumptions.push(*b);
+    data->assump_level.push(0); 
+  }
+  return propagate_assumps(*data);
+}
+
 void solver::retract(void) {
   // Make sure the current assumption is un-queued.
   assert(data->assumptions.size() > 0);
@@ -606,15 +629,22 @@ void solver::push_assump_ctx(void) {
 }
 
 void solver::pop_assump_ctx(void) {
-  int lim = data->assump_ctx_lim.last(); 
-  data->assump_ctx_lim.pop();
+  if(data->assump_ctx_lim.size() > 0) {
+    int lim = data->assump_ctx_lim.last(); 
+    data->assump_ctx_lim.pop();
 
-  if(data->assump_end > lim) {
-    bt_to_level(data, data->assump_level[lim]);
+    if(data->assump_end > lim) {
+      bt_to_level(data, data->assump_level[lim]);
+    }
+    assert(data->assump_end <= lim);
+    data->assumptions.shrink_(data->assumptions.size()-lim);
+    data->assump_level.shrink_(data->assump_level.size()-lim);
+  } else {
+    if(data->assump_end > 0)
+      bt_to_level(data, 0);
+    data->assumptions.clear();
+    data->assump_level.clear();
   }
-  assert(data->assump_end <= lim);
-  data->assumptions.shrink_(data->assumptions.size()-lim);
-  data->assump_level.shrink_(data->assump_level.size()-lim);
 }
 
 void solver::clear_assumptions(void) {

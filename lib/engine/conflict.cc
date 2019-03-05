@@ -3,8 +3,10 @@
 #include <geas/solver/solver_debug.h>
 #include <geas/engine/conflict.h>
 
-//#define CHECK_PRED_EVALS
-//#define CHECK_CLEVEL
+#include <geas/mtl/bool-set.h>
+
+// #define CHECK_PRED_EVALS
+// #define CHECK_CLEVEL
 namespace geas {
 
 // ex_val is the bound which must be entailed
@@ -127,6 +129,7 @@ static void remove(solver_data* s, pid_t p) {
   assert(!s->confl.pred_seen.elem(p));
 }
 
+#ifdef CHECK_CLEVEL
 static bool is_at_current_level(solver_data* s, pid_t p, pval_t v) {
   for(int pos = s->infer.trail_lim.last(); pos < s->infer.trail.size(); ++pos) {
     if(s->infer.trail[pos].pid == p && s->infer.trail[pos].old_val < v)
@@ -134,6 +137,41 @@ static bool is_at_current_level(solver_data* s, pid_t p, pval_t v) {
   }
   return false;
 }
+#endif
+
+#ifdef CHECK_PRED_EVALS
+static void check_level_preds(solver_data* s, unsigned int pos_b, unsigned int pos_e) {
+  static boolset supported;
+  supported.growTo(s->state.p_vals.size());
+
+  for(int pos = pos_b; pos < pos_e; ++pos) {
+    pid_t p(s->infer.trail[pos].pid);
+    if(s->confl.pred_seen.elem(p) && !supported.elem(p)) {
+      if(s->infer.trail[pos].old_val < s->confl.pred_eval[p]) {
+        supported.add(p);
+      }
+    }
+  }
+  for(pid_t p : s->confl.pred_seen) {
+    if(s->state.p_last[p] < s->confl.pred_eval[p])
+      assert(supported.elem(p));
+  }
+  supported.clear();
+}
+#endif
+
+/*
+static int clevel_count(solver_data* s) {
+  int c = 0;
+  for(pid_t p : s->confl.pred_seen) {
+    if(is_at_current_level(s, p, s->confl.pred_eval[p]))
+      ++c;
+  }
+  return c;
+}
+*/
+
+
 static void add(solver_data* s, clause_elt elt) {
   assert(s->state.is_inconsistent(elt.atom));
   pid_t pid = elt.atom.pid^1;
@@ -258,6 +296,20 @@ bool check_confl(solver_data* s, propagator* p, vec<clause_elt>& expl) {
   return p->check_unsat(ctx);
 }
 
+#ifdef CHECK_EXPLNS
+static bool still_entailed(solver_data* s, unsigned int pos, patom_t at) {
+  pid_t p(at.pid);
+  pval_t ent(at.val);
+  if(s->state.p_vals[p] < ent)
+    return false;
+  for(; pos < s->infer.trail.size(); ++pos) {
+    if(s->infer.trail[pos].pid == p)
+      return s->infer.trail[pos].old_val >= ent; 
+  }
+  return true;
+}
+#endif
+
 static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_val, reason r) {
   switch(r.kind) {
     case reason::R_Atom:
@@ -317,6 +369,9 @@ static forceinline void add_reason(solver_data* s, unsigned int pos, pval_t ex_v
 #endif
 #ifdef CHECK_EXPLNS
         if(r.eth.origin) {
+          for(auto at : es) {
+            assert(still_entailed(s, pos, ~at.atom));
+          }
           assert(check_inference(s, static_cast<propagator*>(r.eth.origin), patom_t(s->infer.trail[pos].pid, ex_val), es));
         }
 #endif
@@ -449,7 +504,8 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   // We'll re-use confl to hold the output
   assert(s->confl.clevel > 0);
   confl.clear();
- 
+
+//  assert(s->confl.clevel == clevel_count(s));
 
   // Allocate conflict for everything
   // NOTE: This should be safe, since if we're conflicting
@@ -467,6 +523,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 
   infer_info::entry e(s->infer.trail[pos]);
   while(s->confl.clevel > 1) {
+//    assert(s->confl.clevel == clevel_count(s));
     pval_t ex_val(s->confl.pred_eval[e.pid]);
 #ifdef CHECK_PRED_EVALS
     assert(s->state.is_entailed(patom_t(e.pid, ex_val)));
@@ -493,6 +550,7 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 #ifdef CHECK_PRED_EVALS
     for(pid_t p : s->confl.pred_seen)
       assert(s->state.p_vals[p] >= s->confl.pred_eval[p]);
+    check_level_preds(s, s->infer.trail_lim.last(), pos);
 #endif
     
 #ifdef PROOF_LOG
@@ -500,9 +558,11 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
 #endif
 
     assert(pos >= 1);
+    assert(pos > s->infer.trail_lim.last());
     pos--;
     while(!needed(s, s->infer.trail[pos])) {
       assert(pos >= 1);
+      assert(pos > s->infer.trail_lim.last());
       pos--;
     }
     e = s->infer.trail[pos];
@@ -710,6 +770,9 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
         r.eth(ex_val, es);
 #ifdef CHECK_EXPLNS
         if(r.eth.origin) {
+          for(auto at : es) {
+            assert(still_entailed(s, pos, ~at.atom));
+          }
           assert(check_inference(s, static_cast<propagator*>(r.eth.origin), patom_t(s->infer.trail[pos].pid, ex_val), es));
         }
 #endif
@@ -801,6 +864,9 @@ void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
         aconfl_add_reason(s, pos, ex_val, e.expl);
         if(!s->confl.clevel)
           goto assumption_finished;
+      }
+      if(pos == top) {
+        assert(!aconfl_needed(s, s->infer.trail[pos]));
       }
 
       --l;
