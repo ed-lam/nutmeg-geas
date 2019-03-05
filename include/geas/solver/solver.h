@@ -45,6 +45,7 @@ public:
   // Incremental interface:
   // push/retract assumptions
   bool assume(patom_t p);
+  bool assume(patom_t* b, patom_t* e);
   void retract(void);
   void push_assump_ctx(void);
   void pop_assump_ctx(void);
