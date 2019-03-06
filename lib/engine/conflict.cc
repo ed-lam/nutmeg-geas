@@ -479,6 +479,30 @@ inline clause_elt get_clause_elt(solver_data* s, pid_t p) {
   );
 }
 
+// Backtrack to the first level at which some conflict literal occurred.
+// Precondition: requires conflict-analysis structures are initialised,
+// but nothing at the current level.
+void bt_to_clevel(solver_data* s) {
+  // Dumb, but hopefully bulletproof approach: keep backtracking until we reach
+  // the right level.
+  int l = s->persist.pred_ltrail_lim.size()-1;
+  for(pid_t pi : s->confl.pred_seen) {
+    assert(s->state.p_vals[pi] >= s->confl.pred_eval[pi]);
+  }
+  while(l) {
+    bt_to_level(s, l);
+    process_initializers(*s);
+    for(pid_t pi : s->confl.pred_seen) {
+      if(s->state.p_last[pi] < s->confl.pred_eval[pi])
+        s->confl.clevel++;
+    }
+    if(s->confl.clevel)
+      return;
+    --l;
+  }
+  GEAS_ERROR;
+}
+
 int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   s->confl.clevel = 0;
   s->confl.confl_num++;
@@ -501,8 +525,13 @@ int compute_learnt(solver_data* s, vec<clause_elt>& confl) {
   log::finish_infer(*s);
 #endif
 
-  // We'll re-use confl to hold the output
+  if(!s->confl.clevel) {
+    // Somehow, we ended up with a conflict entirely
+    // at a previous level. O__O
+    bt_to_clevel(s);
+  }
   assert(s->confl.clevel > 0);
+  // We'll re-use confl to hold the output
   confl.clear();
 
 //  assert(s->confl.clevel == clevel_count(s));
@@ -632,6 +661,8 @@ level_found:
 }
 
 bool confl_is_current(solver_data* s, vec<clause_elt>& confl) {
+  if(s->persist.level() == 0)
+    return true;
   for(clause_elt& e : confl) {
     if(!s->state.is_inconsistent_prev(e.atom))
       return true;
