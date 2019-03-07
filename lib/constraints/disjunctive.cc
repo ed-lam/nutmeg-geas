@@ -207,6 +207,35 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
     }
   }
 
+  bool check_sat(ctx_t& ctx) {
+    // Identify the envelope starts.
+    vec<int> ss;
+    vec<int> e_perm;
+    for(int xi : irange(xs.size())) {
+      ss.push(xs[xi].lb(ctx));
+      e_perm.push(xi);
+    }
+    uniq(ss);
+    std::sort(e_perm.begin(), e_perm.end(),
+      [this, &ctx](int i, int j) { return xs[i].ub(ctx) + du[i] < xs[j].ub(ctx) + du[j]; });
+
+    // For each possible start, check if there is any over-full envelope
+    // it defines.
+    for(int s : ss) {
+      int ect = s;
+      for(int t : e_perm) {
+        if(s <= xs[t].lb(ctx)) {
+          // Contained in the envelope
+          ect += du[t]; 
+          if(xs[t].ub(ctx) < ect)
+            return false;
+        }
+      }
+    }
+    return false;
+  }
+  bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+
   // TODO: Explanation lifting
   void ex_lb_ef_eager(int eid, pval_t p, vec<clause_elt>& expl) {
     ex_data e(edata[eid]);
@@ -220,10 +249,10 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
     for(int ti : irange(xs.size())) {
       if(ti == e.xi)
         continue;
-      if(est(ti) < e.lb || lct(ti) >= e.ub)
+      if(est(ti) < e.lb || lct(ti) > e.ub)
         continue;
-      expl.push(xs[ti] < e.lb);
-      expl.push(xs[ti] >= e.ub - du[ti]);
+      EX_PUSH(expl, xs[ti] < e.lb);
+      EX_PUSH(expl, xs[ti] > e.ub - du[ti]);
       energy -= du[ti];
       if(energy <= 0)
         break; 
@@ -239,10 +268,10 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
     for(int ti : irange(xs.size())) {
       if(ti == e.xi)
         continue;
-      if(est(ti) < e.lb || lct(ti) >= e.ub)
+      if(est(ti) < e.lb || lct(ti) > e.ub)
         continue;
-      expl.push(xs[ti] < e.lb);
-      expl.push(xs[ti] >= e.ub - du[ti]);
+      EX_PUSH(expl, xs[ti] < e.lb);
+      EX_PUSH(expl, xs[ti] > e.ub - du[ti]);
       energy -= du[ti];
       if(energy <= 0)
         break; 
@@ -370,6 +399,16 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       return prop_ef(confl);      
     }
 
+    void check_envelope(int t, int lb, int ub) {
+      int energy = ub - lb - du[t];
+      for(int xi : irange(xs.size())) {
+        if(xi == t)
+          continue;
+        if(lb <= est(xi) && lct(xi) <= ub)
+          energy -= du[xi];
+      }
+      assert(energy < 0);
+    }
     // Explain why ECT >= end. 
     // Returns 
     int ex_ect(int end, vec<clause_elt>& confl) {
@@ -419,8 +458,8 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       }
       int r_begin = begin + slack;
       for(int t : e_tasks) {
-        EX_PUSH(confl, xs[t] < r_begin);
-        EX_PUSH(confl, xs[t] >= ub - du[t]);
+        EX_PUSH(confl, xs[t] <= r_begin);
+        EX_PUSH(confl, xs[t] > ub - du[t]);
       }
       return r_begin;
     }
@@ -453,17 +492,22 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         }
         while(ect_tree[0].o_ect > lct(xi)) {
           // Identify the failing task.
-          unsigned int pi = ect_tree.blocked_task(lct(xi)+1);
-#if 1
+          // int tP(lct(xi)+1);
+          // int tP(ect_tree[0].ect);
+          int tP(ect_tree[0].o_ect); 
+          unsigned int pi = ect_tree.blocked_task(tP);
           unsigned int ti = p_est[pi];
-          unsigned int tj = p_est[ect_tree.blocking_task(lct(xi)+1)];
+          unsigned int tj = p_est[ect_tree.blocking_task(tP)];
           // fprintf(stdout, "(%d, %d)\n", ti, tj);
-          if(!set_lb(xs[ti], ect_tree[0].ect,
-            // ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
-            ex_thunk(ex<&P::ex_lb_ef_eager>, make_edata(ti, est(tj), ect_tree[0].o_ect), expl_thunk::Ex_BTPRED)))
-            // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
-            return false;
-#endif
+          if(lb(xs[ti]) < ect_tree[0].ect) {
+            check_envelope(ti, est(tj), tP-1);
+            if(!set_lb(xs[ti], ect_tree[0].ect,
+              // ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+              // ex_thunk(ex<&P::ex_lb_ef_eager>, make_edata(ti, est(tj), ect_tree[0].o_ect), expl_thunk::Ex_BTPRED)))
+              ex_thunk(ex<&P::ex_lb_ef_eager>, make_edata(ti, est(tj), tP-1), expl_thunk::Ex_BTPRED)))
+              // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+              return false;
+          }
           ect_tree.remove(pi);
         }
         ect_tree.smudge(task_idx[xi]);
@@ -483,32 +527,35 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
       std::sort(p_est.begin(), p_est.end(),
         [&](int x, int y) { return est(x) < est(y); });
 
-      if(-lst_tree[0].ect > lst(p_est[0])) {
+      if(-lst_tree[0].ect < est(p_est[0])) {
         int xi = p_est[0];
         // int lim = ex_lst(lst(xi)+1, confl);
         // confl.push(xs[xi] < lim);
-        ex_lst(lst(xi)+1, confl);
+        ex_lst(est(xi)-1, confl);
         return false;
       }
       lst_tree.smudge(task_idx[p_est[0]]);
       for(int xi : p_est.slice(1, p_est.size())) {
-        if(-lst_tree[0].ect > lst(xi)) {
-          int lim = ex_lst(lst(xi)+1, confl);
+        if(-lst_tree[0].ect < est(xi)) {
+          int lim = ex_lst(est(xi)-1, confl);
           EX_PUSH(confl, xs[xi] < lim);
-          return false;  
+          return false;
         }
-        while(-lst_tree[0].o_ect > lst(xi)) {
+        while(-lst_tree[0].o_ect < est(xi)) {
           // Identify the failing task.
-          unsigned int pi = lst_tree.blocked_task(-lst(xi)+1);
-#if 1
+          // int tP(-est(xi)+1);
+          int tP(lst_tree[0].o_ect);
+          unsigned int pi = lst_tree.blocked_task(tP);
           unsigned int ti = p_lct[pi];
-          unsigned int tj = p_est[lst_tree.blocking_task(-lst(xi)+1)];
-          if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
-            // ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
-            ex_thunk(ex<&P::ex_ub_ef_eager>, make_edata(ti, -lst_tree[0].ect - du[ti], ect(tj)), expl_thunk::Ex_BTPRED)))
-            // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
-            return false;
-#endif
+          unsigned int tj = p_lct[lst_tree.blocking_task(tP)];
+          if(-lst_tree[0].ect < ub(xs[ti]) + du[ti]) {
+            check_envelope(ti, -tP+1, lct(tj));
+            if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
+              // ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+              ex_thunk(ex<&P::ex_ub_ef_eager>, make_edata(ti, -tP+1, lct(tj)), expl_thunk::Ex_BTPRED)))
+              // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
+              return false;
+          }
           lst_tree.remove(pi);
         }
         lst_tree.smudge(task_idx[xi]);
