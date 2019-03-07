@@ -497,6 +497,8 @@ public:
         // If a task has zero duration or resource consumption, skip it.
         if(!dur[xi] || !res[xi])
           continue;
+        if(res[xi] > cap)
+          throw RootFail();
         task_info t(task_info { starts[xi], dur[xi], res[xi] });
         tasks.push(t);
       }
@@ -1077,7 +1079,7 @@ public:
       V remaining(req_use);
       vec<task_id> e_tasks;
       for(task_id p : profile_tasks) {
-        if(p == t_ex)
+        if(p == (task_id) t_ex)
           continue;  
         if(lst(p) <= s && e <= eet(p)) {
           e_tasks.push(p);
@@ -1159,8 +1161,18 @@ public:
       , lb_change(starts.size())
       , ub_change(starts.size())
       , profile_state(P_Invalid) {
-      for(int xi: irange(starts.size())) {
+      int rMax(ub(cap));
+      for(int xi : irange(starts.size())) {
+        // Skip any tasks which are definitely irrelevant.
+        if(!ub(dur[xi]) || !ub(res[xi]))
+          continue;
+        if(lb(res[xi]) > rMax)
+          throw RootFail();
         task_info t(task_info { starts[xi], dur[xi], res[xi] });
+        tasks.push(t);
+      }
+      for(int xi: irange(tasks.size())) {
+        task_info& t(tasks[xi]);
         t.s.attach(E_LB, this->template watch<&P::wake_lb>(xi));
         t.s.attach(E_UB, this->template watch<&P::wake_ub>(xi));
 
