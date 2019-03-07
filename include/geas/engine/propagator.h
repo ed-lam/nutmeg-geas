@@ -211,8 +211,8 @@ public:
     return prop_t { propagate, check_sat, root_simplify, cleanup, this }; 
   }
 
-  template<class ...Args>
-  static bool post(solver_data* s, Args&&... args) {
+  template<class Solver, class ...Args>
+  static bool post(Solver* s, Args&&... args) {
     try {
       new T(s, args...);
       return true;
