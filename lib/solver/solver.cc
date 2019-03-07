@@ -161,7 +161,8 @@ solver_data::solver_data(const options& _opts)
       learnt_act_inc(opts.learnt_act_inc),
       pred_act_inc(opts.pred_act_inc),
       learnt_dbmax(opts.learnt_dbmax),
-      abort_solve(0) {
+      abort_solve(0),
+      solver_is_consistent(1) {
   new_pred(*this, 0, 0);
   man_registry& r(get_reg());
   managers.growTo(r.sz, manager_t { nullptr, nullptr });
@@ -471,8 +472,10 @@ inline bool is_inconsistent(sdata& s, patom_t p) { return s.state.is_inconsisten
 bool solver::post(patom_t p) {
   if(decision_level(*data) > 0)
     bt_to_level(data, 0); 
-  if(is_inconsistent(*data, p))
+  if(is_inconsistent(*data, p)) {
+    data->solver_is_consistent = false;
     return false;
+  }
   return enqueue(*data, p, reason());
 }
 
@@ -516,6 +519,9 @@ INLINE_SATTR bool propagate_assumps(solver_data& s) {
   stat_reporter rp(&s);
 #endif
   stat_recorder rec(&s);
+  
+  if(!s.solver_is_consistent)
+    return false;
 
   int idx = s.assump_end;
 
@@ -1423,6 +1429,9 @@ solver::result solver::solve(limits l) {
   int confl_num = 0;
   s.infer.confl.clear();
 
+  if(!s.solver_is_consistent)
+    return UNSAT;
+
   /* Establish a handler for SIGINT and SIGTERM signals. */
   set_handlers();
 
@@ -1508,6 +1517,7 @@ solver::result solver::solve(limits l) {
         s.infer.confl.clear();
         s.last_confl = { C_Infer, 0 };
         clear_handlers();
+        s.solver_is_consistent = false;
         return UNSAT;
       }
         

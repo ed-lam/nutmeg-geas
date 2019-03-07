@@ -115,6 +115,7 @@ public:
   int restart_limit;
 
   volatile sig_atomic_t abort_solve; 
+  bool solver_is_consistent;
 
   vec<manager_t> managers;
 };

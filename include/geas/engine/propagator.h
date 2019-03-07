@@ -212,12 +212,13 @@ public:
   }
 
   template<class ...Args>
-  static bool post(Args&&... args) {
+  static bool post(solver_data* s, Args&&... args) {
     try {
-      new T(args...);
+      new T(s, args...);
       return true;
     } catch(RootFail& e) {
       (void) e;
+      s->solver_is_consistent = false;
       return false;
     }
   }
