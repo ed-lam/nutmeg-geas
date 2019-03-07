@@ -491,19 +491,19 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
           return false;
         }
         while(ect_tree[0].o_ect > lct(xi)) {
+          // TODO: This currently takes the largest envelope (up to ect_tree[0].o_ect)
+          // But for better explanations, we maybe want the smallest (covering lct(xi)).
+
           // Identify the failing task.
-          // int tP(lct(xi)+1);
-          // int tP(ect_tree[0].ect);
           int tP(ect_tree[0].o_ect); 
           unsigned int pi = ect_tree.blocked_task(tP);
           unsigned int ti = p_est[pi];
           unsigned int tj = p_est[ect_tree.blocking_task(tP)];
           // fprintf(stdout, "(%d, %d)\n", ti, tj);
           if(lb(xs[ti]) < ect_tree[0].ect) {
-            check_envelope(ti, est(tj), tP-1);
+            // check_envelope(ti, est(tj), tP-1);
             if(!set_lb(xs[ti], ect_tree[0].ect,
               // ex_thunk(ex<&P::ex_lb_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
-              // ex_thunk(ex<&P::ex_lb_ef_eager>, make_edata(ti, est(tj), ect_tree[0].o_ect), expl_thunk::Ex_BTPRED)))
               ex_thunk(ex<&P::ex_lb_ef_eager>, make_edata(ti, est(tj), tP-1), expl_thunk::Ex_BTPRED)))
               // ex_thunk(ex<&P::ex_naive>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
               return false;
@@ -543,13 +543,12 @@ class disjunctive : public propagator, public prop_inst<disjunctive> {
         }
         while(-lst_tree[0].o_ect < est(xi)) {
           // Identify the failing task.
-          // int tP(-est(xi)+1);
           int tP(lst_tree[0].o_ect);
           unsigned int pi = lst_tree.blocked_task(tP);
           unsigned int ti = p_lct[pi];
           unsigned int tj = p_lct[lst_tree.blocking_task(tP)];
           if(-lst_tree[0].ect < ub(xs[ti]) + du[ti]) {
-            check_envelope(ti, -tP+1, lct(tj));
+            // check_envelope(ti, -tP+1, lct(tj));
             if(!set_ub(xs[ti], -lst_tree[0].ect - du[ti],
               // ex_thunk(ex<&P::ex_ub_ef>, TAG(ti, tj), expl_thunk::Ex_BTPRED)))
               ex_thunk(ex<&P::ex_ub_ef_eager>, make_edata(ti, -tP+1, lct(tj)), expl_thunk::Ex_BTPRED)))
