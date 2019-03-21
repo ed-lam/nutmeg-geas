@@ -25,8 +25,8 @@ public:
 
    p_sparseset(unsigned int size) : dom(size),
       sz( 0 ),
-      sparse((unsigned int*) malloc(size*sizeof(unsigned int))),
-      dense((unsigned int*) malloc(size*sizeof(unsigned int)))
+      sparse((unsigned int*) malloc(std::max(1u, size)*sizeof(unsigned int))),
+      dense((unsigned int*) malloc(std::max(1u, size)*sizeof(unsigned int)))
    {
       for(unsigned int ii = 0; ii < dom; ii++) {
         sparse[ii] = ii;

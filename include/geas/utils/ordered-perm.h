@@ -39,6 +39,36 @@ class OrderedPerm {
     }
   }
   
+  void percolate_up(int xi) INLINE_ATTR {
+    val_t v(elts[xi].val);
+    unsigned int p(elts[xi].pos);
+    unsigned int e(elts.size()-1);
+    for(; p < e; ++p) {
+      unsigned int yi(perm[p+1]);
+      if(!(Traits::compare(elts[yi].val, v)))
+        break;
+      perm[p] = yi;
+      elts[yi].pos = p;
+    }
+    perm[p] = xi;
+    elts[xi].pos = p;
+  }
+
+  void percolate_down(int xi) INLINE_ATTR {
+    val_t v(elts[xi].val);
+    unsigned int p(elts[xi].pos);
+    for(; p > 0; --p) {
+      unsigned int yi(perm[p-1]);
+      if(!(Traits::compare(v, elts[yi].val)))
+        break;
+      perm[p] = yi;
+      elts[yi].pos = p;
+    }
+    perm[p] = xi;
+    elts[xi].pos = p;
+  }
+
+  /*
   void percolate(int xi) {
     unsigned int p(elts[xi].pos);
     val_t v(elts[xi].val);
@@ -65,6 +95,7 @@ class OrderedPerm {
       elts[xi].pos = p;
     }
   }
+  */
 
   static watch_result s_wake(void* p, int xi) {
     return static_cast<T*>(p)->wake(xi);
@@ -75,8 +106,13 @@ class OrderedPerm {
     if(!is_consistent)
       return Wt_Keep;
     // Otherwise, shift xi back to its appropriate location.
-    elts[xi].val = Traits::eval(s, elts[xi].x); 
-    percolate(xi);
+    val_t old(elts[xi].val);
+    elts[xi].val = Traits::eval(s, elts[xi].x);
+    if(Traits::compare(elts[xi].val, old)) {
+      percolate_down(xi);
+    } else if(Traits::compare(old, elts[xi].val)) {
+      percolate_up(xi);
+    }
     return Wt_Keep;
   }
 

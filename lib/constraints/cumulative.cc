@@ -7,6 +7,7 @@
 
 #include <geas/mtl/bool-set.h>
 #include <geas/mtl/p-sparse-set.h>
+#include <geas/utils/ordered-perm.h>
 // #define LOG_PROFILE
 #define LOG_START_AT 0
 
@@ -487,7 +488,7 @@ public:
       : propagator(s), cap(_cap)
       , active_end(0)
       , profile_tasks(starts.size())
-      , active_tasks(starts.size())
+      , active_tasks(0)
       , exs_saved(false)
       , profile()
       , lb_change(starts.size())
@@ -502,6 +503,7 @@ public:
         task_info t(task_info { starts[xi], dur[xi], res[xi] });
         tasks.push(t);
       }
+      active_tasks.growTo_strict(tasks.size());
       std::sort(tasks.begin(), tasks.end(), [](const task_info& x, const task_info& y) { return x.r > y.r; });
       for(int xi: irange(tasks.size())) {
         task_info& t(tasks[xi]);
@@ -1156,7 +1158,7 @@ public:
       : propagator(s), cap(_cap)
       // , active_end(0)
       , profile_tasks(starts.size())
-      , active_tasks(starts.size())
+      , active_tasks(0)
       , exs_saved(false)
       , lb_change(starts.size())
       , ub_change(starts.size())
@@ -1171,6 +1173,7 @@ public:
         task_info t(task_info { starts[xi], dur[xi], res[xi] });
         tasks.push(t);
       }
+      active_tasks.growTo_strict(tasks.size());
       for(int xi: irange(tasks.size())) {
         task_info& t(tasks[xi]);
         t.s.attach(E_LB, this->template watch<&P::wake_lb>(xi));
@@ -1178,7 +1181,6 @@ public:
 
         t.d.attach(E_LB, this->template watch<&P::wake_lb>(xi));
         t.r.attach(E_LB, this->template watch<&P::wake_r>(xi));
-        tasks.push(t);
         if(lst(xi) < eet(xi)) {
           profile_tasks.insert(xi);
         }
@@ -1236,6 +1238,8 @@ public:
   };
 
   // Time-line based propagator for cumulative.
+  typedef V resource_t;
+
   template<class R>
   class cumul_TL : public propagator, public prop_inst<cumul_TL<R> > {
     typedef prop_inst<cumul_TL<R> > I;
@@ -1252,13 +1256,27 @@ public:
       R r;
     };
 
+    struct By_LCT {
+      typedef task_info Var;
+      typedef resource_t Val;
+      static void attach(solver_data* s, task_info& t, watch_callback c) {
+        t.s.attach(s, E_UB, c);
+        t.d.attach(s, E_LB, c);
+      }
+      static Val eval(solver_data* s, const Var& t) { return t.s.ub(s) + t.d.lb(s); }
+      static bool compare(Val p, Val q) { return p < q; }
+    };
+
+
     // Parameters
     vec<task_info> tasks; // We order tasks by decreasing r.
     R cap; // Maximum resource capacity
 
     // Transient state
-    vec<unsigned int> est_ord;
-    vec<unsigned int> lct_ord;
+    // vec<unsigned int> est_ord;
+    OrderedPerm< By_LB<intvar> > by_est;
+    OrderedPerm<By_LCT> by_lct;
+    // vec<unsigned int> lct_ord;
     int nb;
     int* bounds; // Has capacity 2 * |Vars| + 2
     int* d; // Critical capacity deltas
@@ -1372,6 +1390,8 @@ public:
       V env(0);
       
       // Assumes est_ord is up to date.
+      const vec<unsigned int>& est_ord(by_est.get());
+
       vec<unsigned int> ex_tasks;
       for(int ti = est_ord.size()-1; ti >= 0; --ti) {
         int t(est_ord[ti]);
@@ -1417,12 +1437,12 @@ public:
     }
 
     void setup_timeline(void) {
-      // const vec<unsigned int>& est_ord(by_est.get());
-      // const vec<unsigned int>& lct_ord(by_lct.get());
-      std::sort(est_ord.begin(), est_ord.end(),
-        [&](int u, int v) { return est(u) < est(v); });
-      std::sort(lct_ord.begin(), lct_ord.end(),
-        [&](int u, int v) { return ldct(u) < ldct(v); });
+      const vec<unsigned int>& est_ord(by_est.get());
+      const vec<unsigned int>& lct_ord(by_lct.get());
+      // std::sort(est_ord.begin(), est_ord.end(),
+      //   [&](int u, int v) { return est(u) < est(v); });
+      // std::sort(lct_ord.begin(), lct_ord.end(),
+      //   [&](int u, int v) { return ldct(u) < ldct(v); });
       
       assert(ub(cap) > 0);
       int _slack = 1 + eMax/ub(cap);
@@ -1474,6 +1494,7 @@ public:
       }
 
       // Order tasks by ub(t.s) + lb(t.d).
+      const vec<unsigned int>& lct_ord(by_lct.get());
       for(int u : lct_ord) {
         // Try scheduling the task.  
         V e(mdur(u) * mreq(u));
@@ -1508,7 +1529,8 @@ public:
   public:
     cumul_TL(solver_data* s, vec<intvar>& starts, vec<intvar>& dur, vec<R>& res, R _cap)
       : propagator(s), cap(_cap)
-      // , by_lb(s, xs.begin(), xs.end()), by_ub(s, xs.begin(), xs.end())
+      , by_est(s)
+      , by_lct(s)
       , bounds(new int[2 * starts.size() + 2])
       , d(new int[2 * starts.size() + 2])
       , t(new int[2 * starts.size() + 2])
@@ -1537,8 +1559,10 @@ public:
 
         t.d.attach(E_LB, this->template watch<&P::wake>(xi));
         t.r.attach(E_LB, this->template watch<&P::wake>(xi));
-        est_ord.push(xi);
-        lct_ord.push(xi);
+        // est_ord.push(xi);
+        // lct_ord.push(xi);
+        by_est.add(t.s);
+        by_lct.add(t);
       }
       cap.attach(E_UB, this->template watch<&P::wake>(0));
     }
