@@ -1235,6 +1235,332 @@ public:
     }
   };
 
+  // Time-line based propagator for cumulative.
+  template<class R>
+  class cumul_TL : public propagator, public prop_inst<cumul_TL<R> > {
+    typedef prop_inst<cumul_TL<R> > I;
+    typedef cumul_TL<R> P;
+
+    enum ProfileState { P_Invalid = 0, P_Valid = 1, P_Saved = 2 };
+
+    // Typedefs
+    typedef unsigned int task_id;
+    typedef trailed<V> TrV;
+    struct task_info {
+      intvar s;
+      intvar d;
+      R r;
+    };
+
+    // Parameters
+    vec<task_info> tasks; // We order tasks by decreasing r.
+    R cap; // Maximum resource capacity
+
+    // Transient state
+    vec<unsigned int> est_ord;
+    vec<unsigned int> lct_ord;
+    int nb;
+    int* bounds; // Has capacity 2 * |Vars| + 2
+    int* d; // Critical capacity deltas
+    int* t; // Critical capacity pointers
+    int* h; // Hall interval pointers
+    // Capacity |Vars|
+    int* minrank;
+    int* maxrank;
+    V eMax; // Upper bound on energy over the schedule.
+
+    // Helper functions
+    inline int est(ctx_t& ctx, int xi) const { return tasks[xi].s.lb(ctx); }
+    inline int lst(ctx_t& ctx, int xi) const { return tasks[xi].s.uu(ctx); }
+    inline int ldct(ctx_t& ctx, int xi) const { return tasks[xi].s.ub(ctx) + tasks[xi].d.lb(ctx); }
+
+    inline int est(int xi) const { return lb(tasks[xi].s); }
+    inline int eet(int xi) const { return lb(tasks[xi].s) + lb(tasks[xi].d); }
+    inline int lst(int xi) const { return ub(tasks[xi].s); }
+    inline int let(int xi) const { return ub(tasks[xi].s) + ub(tasks[xi].d); }
+
+    // Latest completion time of the definite component.
+    inline int ldct(int xi) const { return ub(tasks[xi].s) + lb(tasks[xi].d); }
+
+    inline V mreq(int xi) const { return lb(tasks[xi].r); }
+    inline int mdur(int xi) const { return lb(tasks[xi].d); }
+
+    // For checking.
+    int usage_at(int time, const ctx_t& ctx) const {
+      V total(0);
+      for(const task_info& t : tasks) {
+        if(t.s.ub(ctx) <= time && time < t.s.lb(ctx) + t.d.lb(ctx))
+          total += t.r.lb(ctx);
+      }
+      return total;
+    }
+
+    V compute_env(ctx_t& ctx, int l, int u) {
+      V energy(0);
+      for(const task_info& t : tasks) {
+        if(l <= t.s.lb(ctx) && t.s.ub(ctx) + t.d.lb(ctx) <= u) {
+          energy += t.d.lb(ctx) * t.r.lb(ctx);
+        }
+      }
+      return energy;
+    }
+
+    bool check_sat(ctx_t& ctx) {
+      V max(cap.ub(ctx));
+      
+      vec<int> starts;
+      vec<int> ends;
+      for(int t : irange(tasks.size())) {
+        starts.push(est(ctx, t));
+        ends.push(ldct(ctx, t));
+      }
+      uniq(starts);
+      uniq(ends);
+            
+      for(int s : starts) {
+        for(int e : ends) {
+          if(e <= s)
+            continue;
+          if(max * (e - s) < compute_env(ctx, s, e))
+            return false;
+        }
+      }
+      return true;
+    }
+
+    bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
+
+
+    void report_internal(void) {
+
+    }
+
+    template<class E>
+    void ex_env(int s, int e, E& expl) {
+      V cMax(ub(cap));
+      V env(cMax * (e - s));
+
+      for(int t : irange(tasks.size())) {
+        int dT(lb(tasks[t].d));
+
+        if(est(t) < s)
+          continue;
+        if(e < lst(t) + dT)
+          continue;
+
+        V dR(lb(tasks[t].r));
+        EX_PUSH(expl, tasks[t].s < s);
+        EX_PUSH(expl, tasks[t].s > e - dT);
+        EX_PUSH(expl, tasks[t].d < dT);
+        EX_PUSH(expl, tasks[t].r < dR);
+        V eT(dR * dT);
+        if(env < eT) {
+          // We have a valid explanation. We could, potentially, relax cMax.
+          // But won't for now.
+          EX_PUSH(expl, cap > cMax);
+          return;
+        } else {
+          env -= eT;
+        }
+      }
+      GEAS_ERROR;
+    }
+
+    template<class E>
+    void ex_env_l(int e, E& expl) {
+      V cMax(ub(cap));
+      V env(0);
+      
+      // Assumes est_ord is up to date.
+      vec<unsigned int> ex_tasks;
+      for(int ti = est_ord.size()-1; ti >= 0; --ti) {
+        int t(est_ord[ti]);
+        if(ldct(t) > e)
+          continue;
+        ex_tasks.push(t);
+        env += mdur(t) * mreq(t);
+        if(cMax * (e - est(t)) < env) {
+          // Found our envelope.
+          int s = est(t); // FIXME: Relax.
+          EX_PUSH(expl, cap > cMax);
+          for(int u : ex_tasks) {
+            int dU(mdur(u));
+            V dR(mreq(u));
+            EX_PUSH(expl, tasks[u].s < s);
+            EX_PUSH(expl, tasks[u].s > e - dU);
+            EX_PUSH(expl, tasks[u].d < dU);
+            EX_PUSH(expl, tasks[u].r < dR);
+          }
+          return;
+        }
+      }
+      GEAS_ERROR;
+    }
+
+    static int pathmax(int* p, int k) {
+      while(k < p[k])
+        k = p[k];
+      return k;
+    }
+    static int pathmin(int* p, int k) {
+      while(k > p[k])
+        k = p[k];
+      return k;
+    }
+    static void pathset(int* a, int x, int y, int z) {
+      int o = a[x];
+      while(x != y) {
+        a[x] = z;
+        x = o;
+        o = a[x];
+      }
+    }
+
+    void setup_timeline(void) {
+      // const vec<unsigned int>& est_ord(by_est.get());
+      // const vec<unsigned int>& lct_ord(by_lct.get());
+      std::sort(est_ord.begin(), est_ord.end(),
+        [&](int u, int v) { return est(u) < est(v); });
+      std::sort(lct_ord.begin(), lct_ord.end(),
+        [&](int u, int v) { return ldct(u) < ldct(v); });
+      
+      assert(ub(cap) > 0);
+      int _slack = 1 + eMax/ub(cap);
+
+      int b(est(est_ord[0]));
+      bounds[0] = b-_slack; // FIXME
+      bounds[1] = b;
+      nb = 1;
+      unsigned int* u_it(lct_ord.begin());
+      int u_b(ldct(*u_it)+1);
+
+      for(unsigned int ii : est_ord) {
+        int l_i(est(ii));
+        // Process any upper bounds which are _strictly_ below the next lb.
+        while(u_b < l_i) {
+          if(b < u_b) {
+            ++nb;
+            bounds[nb] = b = u_b;
+          }
+          maxrank[*u_it] = nb;
+          ++u_it;
+          u_b = ldct(*u_it)+1;
+        }
+        // And now do the lb.
+        if(b < l_i) {
+          ++nb;
+          bounds[nb] = b = l_i;
+        }
+        minrank[ii] = nb;
+      }
+      // Now process the remaining upper bounds.
+      for(; u_it != lct_ord.end(); ++u_it) {
+        u_b = ldct(*u_it)+1;
+        if(b < u_b) {
+          ++nb;
+          bounds[nb] = b = u_b;
+        }
+        maxrank[*u_it] = nb;
+      }
+      bounds[nb+1] = u_b+_slack;
+    }
+
+    bool check_overload(vec<clause_elt>& confl) {
+      V cMax(ub(cap));
+      // Initialize the timeline
+      for(int i = 1; i <= nb+1; i++) {
+        t[i] = h[i] = i-1;  
+        d[i] = cMax * (bounds[i] - bounds[i-1]);
+      }
+
+      // Order tasks by ub(t.s) + lb(t.d).
+      for(int u : lct_ord) {
+        // Try scheduling the task.  
+        V e(mdur(u) * mreq(u));
+        int x = minrank[u];
+        int y = maxrank[u];
+        int z = pathmax(t, x+1);
+        int j = t[z];
+
+        while(d[z] <= e) {
+          e -= d[z];
+          d[z] = 0;
+          t[z] = z+1;
+          z = pathmax(t, t[z]);
+          t[z] = j;
+        }
+        d[z] -= e;        
+        pathset(t, x+1, z, z);
+        if(d[z] < cMax * (bounds[z] - bounds[y])) {
+          // ex_env(bounds[t[z]], bounds[y], confl);
+          ex_env_l(bounds[y], confl);
+          // fprintf(stderr, "%% Overload!\n");
+          return false;
+        }
+      }
+      return true;
+    }
+
+    watch_result wake(int t) {
+      queue_prop();
+      return Wt_Keep;
+    }
+  public:
+    cumul_TL(solver_data* s, vec<intvar>& starts, vec<intvar>& dur, vec<R>& res, R _cap)
+      : propagator(s), cap(_cap)
+      // , by_lb(s, xs.begin(), xs.end()), by_ub(s, xs.begin(), xs.end())
+      , bounds(new int[2 * starts.size() + 2])
+      , d(new int[2 * starts.size() + 2])
+      , t(new int[2 * starts.size() + 2])
+      , h(new int[2 * starts.size() + 2])
+      , minrank(new int[starts.size()])
+      , maxrank(new int[starts.size()])
+      , eMax(0)
+      {
+      int rMax(ub(cap));
+
+      for(int xi : irange(starts.size())) {
+        // Skip any tasks which are definitely irrelevant.
+        if(!ub(dur[xi]) || !ub(res[xi]))
+          continue;
+        if(lb(res[xi]) > rMax)
+          throw RootFail();
+        eMax += ub(dur[xi]) * ub(res[xi]);
+
+        task_info t(task_info { starts[xi], dur[xi], res[xi] });
+        tasks.push(t);
+      }
+      for(int xi: irange(tasks.size())) {
+        task_info& t(tasks[xi]);
+        t.s.attach(E_LB, this->template watch<&P::wake>(xi));
+        t.s.attach(E_UB, this->template watch<&P::wake>(xi));
+
+        t.d.attach(E_LB, this->template watch<&P::wake>(xi));
+        t.r.attach(E_LB, this->template watch<&P::wake>(xi));
+        est_ord.push(xi);
+        lct_ord.push(xi);
+      }
+      cap.attach(E_UB, this->template watch<&P::wake>(0));
+    }
+
+    bool propagate(vec<clause_elt>& confl) {
+      // fprintf(stderr, "Active: %d of %d\n", active_tasks.size(), tasks.size());
+      setup_timeline();
+      return check_overload(confl);
+    }
+
+    ~cumul_TL(void) {
+      delete[] bounds;
+      delete[] d;
+      delete[] h;
+      delete[] minrank;
+      delete[] maxrank;
+    }
+
+    void cleanup(void) {
+      is_queued = false;
+    }
+  };
 };
 
 bool cumulative(solver_data* s,
@@ -1248,7 +1574,9 @@ bool cumulative_var(solver_data* s,
   vec<intvar>& starts, vec<intvar>& duration, vec<intvar>& resource, intvar cap) {
   // new cumul_prop(s, starts, duration, resource, cap);
   // return true;
-  return cumul<int>::cumul_var<intvar>::post(s, starts, duration, resource, cap);
+  return cumul<int>::cumul_var<intvar>::post(s, starts, duration, resource, cap)
+    && cumul<int>::cumul_TL<intvar>::post(s, starts, duration, resource, cap)
+    ;
 }
 
 
