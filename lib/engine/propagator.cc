@@ -4,7 +4,11 @@
 namespace geas {
 
 propagator::propagator(solver_data* _s)
-    : is_queued(false), prop_id(_s->propagators.size()), s(_s) {
+    : is_queued(false), prop_id(_s->propagators.size()), s(_s)
+#ifdef TRACK_EXEC_COUNT
+    , exec_count(0)
+#endif
+    {
 //#ifdef PROOF_LOG
     cons_id = s->log.scope_constraint;
 //#endif

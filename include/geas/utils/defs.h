@@ -10,6 +10,10 @@
 
 #define forceinline __attribute__((always_inline))
 // #define forceinline 
+// #define INLINE_ATTR __attribute__((noinline))
+#define INLINE_ATTR forceinline
+#define INLINE_SATTR static INLINE_ATTR
+
 #ifdef LOG_ALL
 #ifndef LOG_PROP
 #define LOG_PROP

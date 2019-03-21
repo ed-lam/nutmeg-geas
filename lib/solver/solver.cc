@@ -11,8 +11,8 @@
 #include <geas/engine/conflict.h>
 
 // Suppress inlining, for profiling
-#define INLINE_ATTR __attribute__((noinline))
-#define INLINE_SATTR INLINE_ATTR
+// #define INLINE_ATTR __attribute__((noinline))
+// #define INLINE_SATTR INLINE_ATTR
 
 //#define INLINE_ATTR forceinline
 //#define INLINE_SATTR static INLINE_ATTR
@@ -1035,6 +1035,9 @@ prop_restart:
     s.log.active_constraint = p->cons_id;
 #endif
     s.active_prop = (void*) p;
+#ifdef TRACK_EXEC_COUNT
+    p->exec_count++;
+#endif
     if(!p->propagate(s.infer.confl)) {
 #ifdef LOG_PROP
       std::cerr << "[>Done-]" << std::endl;

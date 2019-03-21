@@ -4,6 +4,8 @@
 #include <geas/engine/state.h>
 #include <geas/engine/persist.h>
 
+#define TRACK_EXEC_COUNT
+
 namespace geas {
 class solver_data;
 
@@ -85,6 +87,9 @@ public:
   int cons_id;
 // #endif
   int prop_id;
+#ifdef TRACK_EXEC_COUNT
+  int exec_count;
+#endif
 protected:
   solver_data* s;
 };
