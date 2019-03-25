@@ -1240,6 +1240,7 @@ public:
   // Time-line based propagator for cumulative.
   typedef V resource_t;
 
+  // Currently only doing energy-based overload checking.
   template<class R>
   class cumul_TL : public propagator, public prop_inst<cumul_TL<R> > {
     typedef prop_inst<cumul_TL<R> > I;
@@ -1267,7 +1268,6 @@ public:
       static bool compare(Val p, Val q) { return p < q; }
     };
 
-
     // Parameters
     vec<task_info> tasks; // We order tasks by decreasing r.
     R cap; // Maximum resource capacity
@@ -1286,6 +1286,13 @@ public:
     int* minrank;
     int* maxrank;
     V eMax; // Upper bound on energy over the schedule.
+
+    // Residual tracking: track sufficient bounds for est/lst such that
+    // overload does not occur.
+    int* est_residue;
+    int* lst_residue;
+    int* est_candidate;
+    int* lst_candidate;
 
     // Helper functions
     inline int est(ctx_t& ctx, int xi) const { return tasks[xi].s.lb(ctx); }
@@ -1348,9 +1355,8 @@ public:
 
     bool check_unsat(ctx_t& ctx) { return !check_sat(ctx); }
 
-
     void report_internal(void) {
-
+      
     }
 
     template<class E>
@@ -1452,7 +1458,7 @@ public:
       bounds[1] = b;
       nb = 1;
       unsigned int* u_it(lct_ord.begin());
-      int u_b(ldct(*u_it)+1);
+      int u_b(ldct(*u_it));
 
       for(unsigned int ii : est_ord) {
         int l_i(est(ii));
@@ -1464,7 +1470,7 @@ public:
           }
           maxrank[*u_it] = nb;
           ++u_it;
-          u_b = ldct(*u_it)+1;
+          u_b = ldct(*u_it);
         }
         // And now do the lb.
         if(b < l_i) {
@@ -1475,7 +1481,7 @@ public:
       }
       // Now process the remaining upper bounds.
       for(; u_it != lct_ord.end(); ++u_it) {
-        u_b = ldct(*u_it)+1;
+        u_b = ldct(*u_it);
         if(b < u_b) {
           ++nb;
           bounds[nb] = b = u_b;
@@ -1497,11 +1503,14 @@ public:
       const vec<unsigned int>& lct_ord(by_lct.get());
       for(int u : lct_ord) {
         // Try scheduling the task.  
-        V e(mdur(u) * mreq(u));
+        int du_u(mdur(u));
+        V e(du_u * mreq(u));
         int x = minrank[u];
         int y = maxrank[u];
         int z = pathmax(t, x+1);
         int j = t[z];
+        // What is the starting time in the pre-emptive schedule?
+        est_candidate[u] = bounds[z] - (d[z] / cMax);
 
         while(d[z] <= e) {
           e -= d[z];
@@ -1518,14 +1527,30 @@ public:
           // fprintf(stderr, "%% Overload!\n");
           return false;
         }
+        // Effective lst is the end of the energy envelope,
+        // less the task duration.
+        lst_candidate[u] = bounds[z] - (d[z] / cMax) - du_u;
       }
+      memcpy(est_residue, est_candidate, sizeof(int) * tasks.size());
+      memcpy(lst_residue, lst_candidate, sizeof(int) * tasks.size());
       return true;
     }
 
+    watch_result wake_est(int t) {
+      if(est_residue[t] < lb(tasks[t].s))
+        queue_prop();
+      return Wt_Keep;
+    }
+    watch_result wake_lst(int t) {
+      if(ub(tasks[t].s) < lst_residue[t])
+        queue_prop();
+      return Wt_Keep;
+    }
     watch_result wake(int t) {
       queue_prop();
       return Wt_Keep;
     }
+
   public:
     cumul_TL(solver_data* s, vec<intvar>& starts, vec<intvar>& dur, vec<R>& res, R _cap)
       : propagator(s), cap(_cap)
@@ -1538,6 +1563,11 @@ public:
       , minrank(new int[starts.size()])
       , maxrank(new int[starts.size()])
       , eMax(0)
+
+      , est_residue(new int[starts.size()])
+      , lst_residue(new int[starts.size()])
+      , est_candidate(new int[starts.size()])
+      , lst_candidate(new int[starts.size()])
       {
       int rMax(ub(cap));
 
@@ -1554,8 +1584,8 @@ public:
       }
       for(int xi: irange(tasks.size())) {
         task_info& t(tasks[xi]);
-        t.s.attach(E_LB, this->template watch<&P::wake>(xi));
-        t.s.attach(E_UB, this->template watch<&P::wake>(xi));
+        t.s.attach(E_LB, this->template watch<&P::wake_est>(xi));
+        t.s.attach(E_UB, this->template watch<&P::wake_lst>(xi));
 
         t.d.attach(E_LB, this->template watch<&P::wake>(xi));
         t.r.attach(E_LB, this->template watch<&P::wake>(xi));
