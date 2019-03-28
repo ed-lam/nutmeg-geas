@@ -21,7 +21,7 @@ struct model {
     return v.model_val(*this);
   }
 
-  bool value(patom_t at) {
+  bool value(patom_t at) const {
     if(at.pid&1) {
       return vals[at.pid>>1] < pval_contra(at.val);
     } else {
