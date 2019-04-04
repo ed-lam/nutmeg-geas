@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "solver/solver.h"
-#include "solver/solver_data.h"
-#include "engine/persist.h"
+#include <geas/solver/solver.h>
+#include <geas/solver/solver_data.h>
+#include <geas/engine/persist.h>
 
 using namespace geas;
 
@@ -17,17 +17,17 @@ int main(int argc, char** argv) {
   add_clause(&sd, ~patom_t(x, 5), patom_t(x, 8));
 
   if(!enqueue(sd, patom_t(x, 6), reason()))
-    ERROR;
+    GEAS_ERROR;
   if(!enqueue(sd, ~patom_t(x, 10), reason()))
-    ERROR;
+    GEAS_ERROR;
 
   if(!propagate(sd))
-    ERROR;
+    GEAS_ERROR;
 
   if(!sd.state.is_entailed(patom_t(x, 8)))
-    ERROR;
+    GEAS_ERROR;
   if(sd.state.is_entailed(patom_t(x, 9)))
-    ERROR;
+    GEAS_ERROR;
 
   std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << "]" << std::endl;
   std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << "]" << std::endl;
@@ -35,17 +35,17 @@ int main(int argc, char** argv) {
   push_level(&sd);
 
   if(!enqueue(sd, patom_t(y, 8), reason()))
-    ERROR;
+    GEAS_ERROR;
 
   if(!sd.state.is_entailed(patom_t(y, 5)))
-    ERROR;
+    GEAS_ERROR;
   if(sd.state.is_entailed(patom_t(y, 10)))
-    ERROR;
+    GEAS_ERROR;
 
 //  if(enqueue(sd, ~patom_t(y, 5), reason()))
 //    ERROR; 
   if(!propagate(sd))
-    ERROR;
+    GEAS_ERROR;
 
   std::cout << "x : [" << sd.state.p_vals[x] << ", " << sd.state.p_vals[x^1] << "]" << std::endl;
   std::cout << "y : [" << sd.state.p_vals[y] << ", " << sd.state.p_vals[y^1] << "]" << std::endl;

@@ -1,4 +1,4 @@
-quote(c, "#include \"c/builtins.h\"");
+quote(c, "#include <geas/c/builtins.h>");
 
 import "atom.idl";
 import "solver.idl";
@@ -19,12 +19,16 @@ typedef struct {
 //boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
 //boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
 quote(ml, "let to_linterm cx = { I.ic = fst cx; I.ix = snd cx }");
+quote(ml, "let to_slice_linterm cx = { I.sc = fst cx; I.sx = snd cx }");
 quote(mli, "val linear_le : Solver.t -> Atom.t -> (int * Solver.intvar) array -> int -> bool");
 quote(mli, "val linear_ne : Solver.t -> Atom.t -> (int * Solver.intvar) array -> int -> bool");
+quote(mli, "val slice_linear_le : Solver.t -> Atom.t -> (int * Solver.intslice) array -> int -> bool");
 quote(ml, "let linear_le s r xs k = \
   I.linear_le s r (Array.map to_linterm xs) k");
 quote(ml, "let linear_ne s r xs k = \
   I.linear_ne s r (Array.map to_linterm xs) k");
+quote(ml, "let slice_linear_le s r xs k = \
+  I.slice_linear_le s r (Array.map to_slice_linterm xs) k");
 
 boolean atmost_1([in] solver s, atom r, [in,size_is(sz)] atom xs[], int sz);
 boolean atmost_k([in] solver s, atom r, [in,size_is(sz)] atom xs[], int sz, int k);
@@ -61,6 +65,7 @@ boolean var_int_element([in] solver s, atom r,
   intvar z, intvar x, [in,size_is(sz)] intvar elts[], int sz);
 
 boolean all_different_int([in] solver s, [in,size_is(sz)] intvar elts[], int sz);
+boolean all_different_except_0([in] solver s, [in,size_is(sz)] intvar elts[], int sz);
 
 /* boolean cumulative([in] solver s, [in,size_is(sz)] task ts[], int sz, int cap); */
 quote(mli, "val cumulative : \

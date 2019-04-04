@@ -381,6 +381,10 @@ let all_different_int solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   B.all_different_int solver xs
 
+let all_different_except_0 solver args anns =
+  let xs = Pr.get_array (force_ivar solver) args.(0) in
+  B.all_different_except_0 solver xs
+
 let global_card solver args anns =
   let xs = Pr.get_array (force_ivar solver) args.(0) in
   let vals = Pr.get_array Pr.get_int args.(1) in
@@ -812,6 +816,7 @@ let initialize () =
      "array_var_bool_element", array_var_bool_element ;
      (* "bool_lin_le", bool_lin_le ; *)
      "fzn_all_different_int", all_different_int ;
+     "fzn_all_different_except_0", all_different_except_0 ;
      "fzn_cumulative", cumulative ;
      "fzn_cumulative_var", cumulative_var ;
      "fzn_disjunctive", disjunctive ;

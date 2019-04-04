@@ -1,4 +1,4 @@
-quote(c, "#include \"c/builtins.h\"");
+quote(c, "#include <geas/c/builtins.h>");
 
 import "atom.idl";
 import "solver.idl";
@@ -9,6 +9,12 @@ typedef struct {
 } int_linterm;
 boolean linear_le([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
 boolean linear_ne([in] solver s, atom r, [in,size_is(sz)] int_linterm ts[], int sz, int k);
+
+typedef struct {
+  [mlname(sc)] int c;
+  [mlname(sx)] intslice x;
+} slice_linterm;
+boolean slice_linear_le([in] solver s, atom r, [in,size_is(sz)] slice_linterm ts[], int sz, int k);
 
 typedef struct {
   [mlname(ac)] int c;

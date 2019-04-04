@@ -3,6 +3,17 @@ type stats_mode =
   | Compact
   | Verbose
 
+type core_select =
+  | Uniform
+  | Violation
+  | Weight
+  | WeightViolation
+
+type reform_mode =
+  | ReformOne
+  | ReformEach
+  | ReformEager
+
 let infile = ref None
 let outfile = ref None
 let verbosity = ref 0
@@ -21,6 +32,12 @@ let limits = ref (Solver.unlimited ())
 
 let obj_probe_limit = ref None
 let core_opt = ref false
+let core_ratio = ref 0.2
+
+let core_harden = ref false
+
+let core_selection = ref Violation
+let core_reformulation = ref ReformEach
 
 let one_watch = ref true
 let global_diff = ref true
@@ -108,6 +125,35 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
       "--core-opt",
       Arg.Set core_opt,
       " : use an unsat-core driven optimization."
+     ) ;
+     (
+      "--core-ratio",
+      Arg.Float (fun r -> core_ratio := r),
+      " : how much of the resource budget to spend on core-driven optimization."
+     ) ;
+     (
+      "--core-harden",
+      Arg.Bool (fun b -> core_harden := b),
+      " : whether to attempt to harden bounds during unsat core iterations (default: false)."
+     ) ;
+     (
+      "--reformulate",
+      Arg.Tuple
+        [
+          Arg.Symbol (["uniform" ; "violation" ; "weight" ; "weight-violation"], fun s ->
+            core_selection := match s with
+            | "uniform" -> Uniform
+            | "violation" -> Violation
+            | "weight" -> Weight
+            | "weight-violation" -> WeightViolation
+            | s -> failwith (Format.sprintf "ERROR: Unexpected core selection policy \"%s\"" s)) ;
+          Arg.Symbol (["one" ; "each" ; "eager"], fun s ->
+            core_reformulation := match s with
+            | "one" -> ReformOne
+            | "each" -> ReformEach
+            | "eager" -> ReformEager
+            | s -> failwith (Format.sprintf "ERROR: Unknown reformulation policy \"%s\"" s)) ],
+      " : choose the core reformulation strategy."
      ) ;
      (
       "-a",

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdio>
 #if 0
-#include "engine/trail.h"
+#include <geas/engine/trail.h>
 
 int main(int argc, char** argv)
 {

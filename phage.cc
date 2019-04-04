@@ -1,5 +1,5 @@
 #include <iostream>
-#include "solver/solver.h"
+#include <geas/solver/solver.h>
 
 using namespace geas;
 
