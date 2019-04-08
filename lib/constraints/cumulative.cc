@@ -2049,20 +2049,20 @@ public:
     }
 
     template<class E>
-    void ex_env(int s, int e, E& expl) {
+    void ex_env(int st, int e, E& expl) {
       V cMax(ub(cap));
-      V env(cMax * (e - s));
+      V env(cMax * (e - st));
 
       for(int t : irange(tasks.size())) {
         int dT(lb(tasks[t].d));
 
-        if(est(t) < s)
+        if(est(t) < st)
           continue;
         if(e < lst(t) + dT)
           continue;
 
         V dR(lb(tasks[t].r));
-        EX_PUSH(expl, tasks[t].s < s);
+        EX_PUSH(expl, tasks[t].s < st);
         EX_PUSH(expl, tasks[t].s > e - dT);
         EX_PUSH(expl, tasks[t].d < dT);
         EX_PUSH(expl, tasks[t].r < dR);
@@ -2147,7 +2147,7 @@ public:
       bounds[1] = b;
       nb = 1;
       unsigned int* u_it(lct_ord.begin());
-      int u_b(ldct(*u_it)+1);
+      int u_b(ldct(*u_it));
 
       for(unsigned int ii : est_ord) {
         int l_i(est(ii));
@@ -2159,7 +2159,7 @@ public:
           }
           maxrank[*u_it] = nb;
           ++u_it;
-          u_b = ldct(*u_it)+1;
+          u_b = ldct(*u_it);
         }
         // And now do the lb.
         if(b < l_i) {
@@ -2170,7 +2170,7 @@ public:
       }
       // Now process the remaining upper bounds.
       for(; u_it != lct_ord.end(); ++u_it) {
-        u_b = ldct(*u_it)+1;
+        u_b = ldct(*u_it);
         if(b < u_b) {
           ++nb;
           bounds[nb] = b = u_b;
@@ -2358,7 +2358,23 @@ bool cumulative_sel(solver_data* s,
   for(int ii : irange(resource.size()))
     rsel.push(sel_resource(resource[ii], sel[ii]));
   return cumul<int>::cumul_var_lw<sel_resource>::post(s, starts, duration, rsel, sel_resource(cap, at_True))
-    && cumul<int>::cumul_TL<sel_resource>::post(s, starts, duration, rsel, sel_resource(cap, at_True));
+    && cumul<int>::cumul_TL<sel_resource>::post(s, starts, duration, rsel, sel_resource(cap, at_True))
+    ;
+    /*
+    vec<intvar> rvars;
+    for(int ii : irange(resource.size())) {
+      intvar r(new_intvar(s, 0, resource[ii]));
+      vec<int> vals;
+      vals.push(0);
+      vals.push(resource[ii]);
+      add_clause(s, ~sel[ii], r >= resource[ii]);
+      rvars.push(r);
+    }
+    intvar cvar(new_intvar(s, cap, cap));
+    return cumul<int>::cumul_var_lw<intvar>::post(s, starts, duration, rvars, cvar)
+      && cumul<int>::cumul_TL<intvar>::post(s, starts, duration, rvars, cvar)
+      ;
+      */
 }
 
 
