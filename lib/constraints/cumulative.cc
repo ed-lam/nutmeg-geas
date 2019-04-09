@@ -630,14 +630,23 @@ public:
     bool check_sat(ctx_t& ctx) {
       V max(cap.ub(ctx));
       for(const task_info& t : tasks) {
-        V req(t.r.lb(ctx));
-        for(int ti = t.s.lb(ctx) + t.d.lb(ctx) - 1; ti <= t.s.ub(ctx); ++ti) {
-          if(usage_at(t.s.ub(ctx), ctx) <= max - req)
-            goto task_placed;
+        if(t.s.lb(ctx) + t.d.lb(ctx) <= t.s.ub(ctx)) {
+          // No mandatory component. See if it's blocked by the profile everywhere.
+          V req(t.r.lb(ctx));
+          for(int ti = t.s.lb(ctx) + t.d.lb(ctx) - 1; ti <= t.s.ub(ctx); ++ti) {
+            if(usage_at(t.s.ub(ctx), ctx) <= max - req)
+              goto task_placed;
+          }
+          return false;
+        task_placed:
+          continue;
+        } else {
+          // Profile task. Just check for an overload.
+          if(t.s.ub(ctx) < t.s.lb(ctx) + t.d.lb(ctx)) {
+            if(usage_at(t.s.ub(ctx), ctx) > max)
+              return false;
+          }
         }
-        return false;
-      task_placed:
-        continue;
       }
       return true;
     }
@@ -1117,13 +1126,13 @@ public:
       for(task_id p : profile_tasks) {
         if(lst(p) <= t && t < eet(p)) {
           e_tasks.push(p);
-          if(to_cover <= mreq(p)) {
+          if(to_cover < mreq(p)) {
             // Found a sufficient cover.
             V slack(mreq(p) - to_cover);
             for(task_id q : e_tasks) {
               // Can be omitted; we have sufficient
               // slack later on.
-              if(mreq(q) <= slack) {
+              if(mreq(q) < slack) {
                 slack -= mreq(q);
                 continue;
               }
@@ -1315,14 +1324,23 @@ public:
     bool check_sat(ctx_t& ctx) {
       V max(cap.ub(ctx));
       for(const task_info& t : tasks) {
-        V req(t.r.lb(ctx));
-        for(int ti = t.s.lb(ctx) + t.d.lb(ctx) - 1; ti <= t.s.ub(ctx); ++ti) {
-          if(usage_at(t.s.ub(ctx), ctx) <= max - req)
-            goto task_placed;
+        if(t.s.lb(ctx) + t.d.lb(ctx) <= t.s.ub(ctx)) {
+          // No mandatory component. See if it's blocked by the profile everywhere.
+          V req(t.r.lb(ctx));
+          for(int ti = t.s.lb(ctx) + t.d.lb(ctx) - 1; ti <= t.s.ub(ctx); ++ti) {
+            if(usage_at(t.s.ub(ctx), ctx) <= max - req)
+              goto task_placed;
+          }
+          return false;
+        task_placed:
+          continue;
+        } else {
+          // Profile task. Just check for an overload.
+          if(t.s.ub(ctx) < t.s.lb(ctx) + t.d.lb(ctx)) {
+            if(usage_at(t.s.ub(ctx), ctx) > max)
+              return false;
+          }
         }
-        return false;
-      task_placed:
-        continue;
       }
       return true;
     }
@@ -1821,13 +1839,13 @@ public:
       for(task_id p : profile_tasks) {
         if(lst(p) <= t && t < ect(p)) {
           e_tasks.push(p);
-          if(to_cover <= mreq(p)) {
+          if(to_cover < mreq(p)) {
             // Found a sufficient cover.
             V slack(mreq(p) - to_cover);
             for(task_id q : e_tasks) {
               // Can be omitted; we have sufficient
               // slack later on.
-              if(mreq(q) <= slack) {
+              if(mreq(q) < slack) {
                 slack -= mreq(q);
                 continue;
               }
@@ -1890,7 +1908,7 @@ public:
     }
 
     bool propagate(vec<clause_elt>& confl) {
-      // fprintf(stderr, "Active: %d of %d\n", active_tasks.size(), tasks.size());
+      fprintf(stderr, "%% [%d] Active: %d of %d\n", prop_id, active_tasks.size(), tasks.size());
       if(!(profile_state & P_Valid)) {
         if(!(profile_state & P_Saved))
           s->persist.bt_flags.push(&profile_state);

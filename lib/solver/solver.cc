@@ -1513,7 +1513,7 @@ solver::result solver::solve(limits l) {
 
       ++confl_num;
 #ifdef LOG_ALL
-      cout << "Conflict: " << s.infer.confl << endl;
+      cout << "Conflict [" << confl_num << "|" << s.stats.conflicts << "]: " << s.infer.confl << endl;
 #endif
       if(decision_level(s) == 0) {
         s.stats.conflicts += confl_num;
@@ -1714,13 +1714,16 @@ solver::result solver::solve(limits l) {
       for(patom_t a : s.assumptions) {
         assert(a.lb(s.state.p_vals));
       }
+
+      for(propagator* p : s.propagators) {
+        assert(p->check_sat(s.state.p_vals));
+      }
 #endif
 #ifdef LOG_ALL
       for(patom_t a : s.assumptions) {
         cerr << "[" << a << "]" << endl;
       }
 #endif
-
       return SAT;
     }
 
