@@ -48,6 +48,7 @@ limits no_limit = {
 };
 
 using std::cout;
+using std::cerr;
 using std::endl;
 using std::min;
 using std::max;
@@ -568,7 +569,7 @@ INLINE_SATTR bool propagate_assumps(solver_data& s) {
 
 bool solver::assume(patom_t p) {
 #ifdef LOG_ALL
-  std::cerr << "+ [" << p << "]" << std::endl;
+  cerr << "+ [" << p << "]" << endl;
 #endif
   if(data->assump_end == data->assumptions.size()) {
     int lev = (data->assump_end > 0)
@@ -655,7 +656,7 @@ void solver::pop_assump_ctx(void) {
 
 void solver::clear_assumptions(void) {
 #ifdef LOG_ALL
-  std::cerr << "_|_" << std::endl;
+  cerr << "_|_" << endl;
 #endif
   if(decision_level(*data) > 0)
     bt_to_level(data, 0);
@@ -688,7 +689,7 @@ static int num_props = 0;
 // static 
 bool _enqueue(sdata& s, patom_t p, reason r) {
 #ifdef LOG_ALL
-  std::cout << "|- " << p << "{" << s.infer.trail.size() << "}" << std::endl;
+  cout << "|- " << p << "{" << s.infer.trail.size() << "}" << endl;
 #endif
 
   /*
@@ -1040,10 +1041,10 @@ prop_restart:
 #endif
     if(!p->propagate(s.infer.confl)) {
 #ifdef LOG_PROP
-      std::cerr << "[>Done-]" << std::endl;
+      cerr << "[>Done-]" << endl;
 #endif
 #ifdef CHECK_STATE
-      assert(confl_is_current(&s, s.infer.confl));
+      assert(decision_level(s) == 0 || confl_is_current(&s, s.infer.confl));
 #endif
 
       p->cleanup();
@@ -1058,7 +1059,7 @@ prop_restart:
       return false; 
     }
 #ifdef LOG_PROP
-      std::cerr << "[>Done+]" << std::endl;
+      cerr << "[>Done+]" << endl;
 #endif
     p->cleanup();
 
@@ -1512,7 +1513,7 @@ solver::result solver::solve(limits l) {
 
       ++confl_num;
 #ifdef LOG_ALL
-      std::cout << "Conflict: " << s.infer.confl << std::endl;
+      cout << "Conflict: " << s.infer.confl << endl;
 #endif
       if(decision_level(s) == 0) {
         s.stats.conflicts += confl_num;
@@ -1527,8 +1528,8 @@ solver::result solver::solve(limits l) {
       // Conflict
       int bt_level = compute_learnt(&s, s.infer.confl);
 #ifdef LOG_ALL
-      std::cout << "Learnt: " << s.infer.confl << std::endl;
-      std::cout << "*" << bt_level << ">" << std::endl;
+      cout << "Learnt: " << s.infer.confl << endl;
+      cout << "*" << bt_level << ">" << endl;
 #endif
 #ifdef CHECK_STATE
       for(int ei = 1; ei < s.infer.confl.size(); ei++)
@@ -1570,7 +1571,7 @@ solver::result solver::solve(limits l) {
         next_gc -= confl_num;
 
         if(budget) {
-          // std::cout << budget << ", " << confl_num << std::endl;
+          // cout << budget << ", " << confl_num << endl;
           budget -= confl_num;
           if(!budget) {
             clear_handlers();
@@ -1614,7 +1615,7 @@ solver::result solver::solve(limits l) {
         }
         if(next_gc == 0) {
 #ifdef LOG_GC
-          std::cout << "[| GC : " << s.infer.learnts.size() << "|]";
+          cout << "[| GC : " << s.infer.learnts.size() << "|]";
 #endif
           if(s.infer.learnts.size() >= gc_lim) {
             reduce_db(&s);
@@ -1622,8 +1623,8 @@ solver::result solver::solve(limits l) {
           }
           next_gc = gc_lim - s.infer.learnts.size();
 #ifdef LOG_GC
-          std::cout << " ~~> " << s.infer.learnts.size()
-            << " {" << s.infer.trail.size() << " trail}" << std::endl;
+          cout << " ~~> " << s.infer.learnts.size()
+            << " {" << s.infer.trail.size() << " trail}" << endl;
 #endif
         }
 
@@ -1716,7 +1717,7 @@ solver::result solver::solve(limits l) {
 #endif
 #ifdef LOG_ALL
       for(patom_t a : s.assumptions) {
-        std::cerr << "[" << a << "]" << std::endl;
+        cerr << "[" << a << "]" << endl;
       }
 #endif
 
@@ -1726,7 +1727,7 @@ solver::result solver::solve(limits l) {
     assert(!s.state.is_entailed(dec));
     assert(!s.state.is_inconsistent(dec));
 #ifdef LOG_ALL
-    std::cout << "?" << s.infer.trail_lim.size() << "> " << dec << std::endl;
+    cout << "?" << s.infer.trail_lim.size() << "> " << dec << endl;
 #endif
 
     push_level(&s);
