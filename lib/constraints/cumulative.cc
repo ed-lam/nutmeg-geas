@@ -1126,13 +1126,13 @@ public:
       for(task_id p : profile_tasks) {
         if(lst(p) <= t && t < eet(p)) {
           e_tasks.push(p);
-          if(to_cover < mreq(p)) {
+          if(to_cover <= mreq(p)) {
             // Found a sufficient cover.
             V slack(mreq(p) - to_cover);
             for(task_id q : e_tasks) {
               // Can be omitted; we have sufficient
               // slack later on.
-              if(mreq(q) < slack) {
+              if(mreq(q) <= slack) {
                 slack -= mreq(q);
                 continue;
               }
@@ -1839,13 +1839,13 @@ public:
       for(task_id p : profile_tasks) {
         if(lst(p) <= t && t < ect(p)) {
           e_tasks.push(p);
-          if(to_cover < mreq(p)) {
+          if(to_cover <= mreq(p)) {
             // Found a sufficient cover.
             V slack(mreq(p) - to_cover);
             for(task_id q : e_tasks) {
               // Can be omitted; we have sufficient
               // slack later on.
-              if(mreq(q) < slack) {
+              if(mreq(q) <= slack) {
                 slack -= mreq(q);
                 continue;
               }
@@ -1908,7 +1908,7 @@ public:
     }
 
     bool propagate(vec<clause_elt>& confl) {
-      fprintf(stderr, "%% [%d] Active: %d of %d\n", prop_id, active_tasks.size(), tasks.size());
+      // fprintf(stderr, "%% [%d] Active: %d of %d\n", prop_id, active_tasks.size(), tasks.size());
       if(!(profile_state & P_Valid)) {
         if(!(profile_state & P_Saved))
           s->persist.bt_flags.push(&profile_state);
@@ -2363,7 +2363,12 @@ struct sel_resource {
     }
   }
 
-  int lb_of_pval(pval_t p) const { return p >= active.val ? r : 0; }
+  // TODO: Think about boundary conditions
+  int lb_of_pval(pval_t p) const {
+    if(p > pval_max)
+      return r+1;
+    return p >= active.val ? r : 0;
+  }
   int ub_of_pval(pval_t p) const { return pval_inv(p) < active.val ? 0 : r; }
 
   int r;
@@ -2372,13 +2377,14 @@ struct sel_resource {
 
 bool cumulative_sel(solver_data* s,
   vec<intvar>& starts, vec<intvar>& duration, vec<int>& resource, vec<patom_t>& sel, int cap) {
+  /* */
   vec<sel_resource> rsel;
   for(int ii : irange(resource.size()))
     rsel.push(sel_resource(resource[ii], sel[ii]));
   return cumul<int>::cumul_var_lw<sel_resource>::post(s, starts, duration, rsel, sel_resource(cap, at_True))
     && cumul<int>::cumul_TL<sel_resource>::post(s, starts, duration, rsel, sel_resource(cap, at_True))
     ;
-    /*
+    /* /
     vec<intvar> rvars;
     for(int ii : irange(resource.size())) {
       intvar r(new_intvar(s, 0, resource[ii]));
@@ -2392,7 +2398,7 @@ bool cumulative_sel(solver_data* s,
     return cumul<int>::cumul_var_lw<intvar>::post(s, starts, duration, rvars, cvar)
       && cumul<int>::cumul_TL<intvar>::post(s, starts, duration, rvars, cvar)
       ;
-      */
+    /  */
 }
 
 
