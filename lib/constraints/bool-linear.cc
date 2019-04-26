@@ -208,17 +208,26 @@ public:
 
     std::sort(xs.begin(), xs.end(),
       [](const term& t, const term& u) { return t.c > u.c; });
+    
+    char z_flags = P::Wt_IDEM;
+    // z is idempotent unless z.p is also appears in xs.
+    for(const term& t : xs) {
+      if(t.x.pid == z.p)
+        z_flags = 0;
+    }
 
     // Now add attachments.
-    z.attach(E_UB, this->template watch<&P::wake_z>(0, P::Wt_IDEM));
+    z.attach(E_UB, this->template watch<&P::wake_z>(0, z_flags));
     for(int ti : irange(xs.size())) {
-      attach(s, xs[ti].x, this->template watch<&P::wake_x>(ti, P::Wt_IDEM));
+      attach(s, xs[ti].x, this->template watch<&P::wake_x>(ti));
     }
 
     if(lb(r)) {
       if(lb(z) < k && !set_lb(z, k, reason()))
         throw RootFail();
     } else {
+      // This should be safe, if something was propagated from here,
+      // r was already fixed.
       attach(s, r, this->template watch<&P::wake_r>(0, P::Wt_IDEM));
     }
   }
