@@ -49,5 +49,54 @@ struct pred_var {
   solver_data* s;
 };
 
+struct atom_var {
+  atom_var(patom_t _at)
+    : at(_at) { }
+
+  typedef int val_t;
+
+  int lb(const ctx_t& ctx) const { return at.lb(ctx); }
+  int ub(const ctx_t& ctx) const { return at.ub(ctx); }
+  int lb(const solver_data* s) const { return lb(s->ctx()); }
+  int ub(const solver_data* s) const { return ub(s->ctx()); }
+  int model_val(const model& m) const { return m.value(at); }
+
+  patom_t operator>=(val_t v) const {
+    if(v <= 0) return at_True;
+    if(v <= 1) return at;
+    return at_False;
+  }
+  patom_t operator<=(val_t v) const {
+    if(v < 0) return at_False;
+    if(v < 1) return ~at;
+    return at_True;
+  }
+  patom_t operator>(val_t v) const { return (*this) >= v+1; }
+  patom_t operator<(val_t v) const { return (*this) <= v-1; }
+  patom_t operator==(val_t v) const {
+    if(v == 0) return ~at;
+    if(v == 1) return at;
+    return at_False;
+  }
+  void attach(solver_data* s, intvar_event e, watch_callback c) {
+    if(e&(E_LB | E_FIX)) {
+      geas::attach(s, at, c);
+    }
+    if(e&(E_UB | E_FIX)) {
+      geas::attach(s, ~at, c);
+    }
+  }
+
+  // TODO: Think about boundary conditions
+  int lb_of_pval(pval_t p) const {
+    if(p > pval_max)
+      return 2;
+    return p >= at.val;
+  }
+  int ub_of_pval(pval_t p) const { return pval_inv(p) >= at.val; } 
+
+  patom_t at;
+};
+
 };
 #endif
