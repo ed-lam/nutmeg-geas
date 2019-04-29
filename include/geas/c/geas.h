@@ -114,6 +114,7 @@ brancher toggle_brancher(brancher*, int);
 limits unlimited(void);
 limits max_time(int s);
 limits max_conflicts(int c);
+int is_consistent(solver);
 result solve(solver, limits);
 void abort_solve(solver);
 
@@ -137,6 +138,8 @@ int atom_value(model, atom);
 pid_t ivar_pid(intvar);
 int ivar_lb(intvar);
 int ivar_ub(intvar);
+int current_ivar_lb(intvar);
+int current_ivar_ub(intvar);
 
 atom ivar_le(intvar, int);
 atom ivar_eq(intvar, int);

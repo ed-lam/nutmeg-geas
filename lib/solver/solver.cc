@@ -528,8 +528,10 @@ INLINE_SATTR bool propagate_assumps(solver_data& s) {
 
   process_initializers(s);
 
-  if(!propagate(s))
+  if(!propagate(s)) {
     s.last_confl = { C_Infer, idx };
+    return false;
+  }
   if(decision_level(s) == 0)
     simplify_at_root(s);
 
@@ -565,6 +567,19 @@ INLINE_SATTR bool propagate_assumps(solver_data& s) {
   }
 
   return true;
+}
+
+bool solver::is_consistent(void) {
+  solver_data& s(*data);
+  if(s.assump_end == s.assumptions.size()) {
+    // Backtrack to the end of assumptions
+    if(s.assump_level.size() > 0 &&
+      s.assump_level.last()+1 < decision_level(s)) {
+      bt_to_level(&s, s.assump_level.last()+1);
+      return s.solver_is_consistent && propagate(s);
+    }
+  }
+  return propagate_assumps(s);
 }
 
 bool solver::assume(patom_t p) {

@@ -34,6 +34,7 @@ public:
 
   // Solving
   // result solve(unsigned int conflict_limit = 0);
+  bool is_consistent(void); // Check if propagation detects inconsistency
   result solve(limits l = no_limit);
   void abort(void);
 
