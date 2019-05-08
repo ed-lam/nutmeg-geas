@@ -530,6 +530,8 @@ INLINE_SATTR bool propagate_assumps(solver_data& s) {
   process_initializers(s);
 
   if(!propagate(s)) {
+    if(idx == 0)
+      s.solver_is_consistent = false;
     s.last_confl = { C_Infer, idx };
     return false;
   }
