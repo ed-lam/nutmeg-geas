@@ -475,6 +475,7 @@ bool solver::post(patom_t p) {
     bt_to_level(data, 0); 
   if(is_inconsistent(*data, p)) {
     data->solver_is_consistent = false;
+    data->last_confl = { C_Infer, 0 };
     return false;
   }
   return enqueue(*data, p, reason());
