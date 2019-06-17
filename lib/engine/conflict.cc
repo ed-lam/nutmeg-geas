@@ -826,10 +826,12 @@ static inline void aconfl_add_reason(solver_data* s, unsigned int pos, pval_t ex
 void retrieve_assumption_nogood(solver_data* s, vec<patom_t>& confl) {
   // Have to use separate structures for data, because
   // s.wake_vals and s.pred_queued get reset during backtracking.
+  confl.clear();
+  if(!s->solver_is_consistent)
+    return;
   s->confl.clevel = 0;
   s->confl.pred_is_assump.growTo(s->wake_vals.size(), false);
   s->confl.pred_assval.growTo(s->wake_vals.size(), 0);
-  confl.clear();
 
   unsigned int end = s->last_confl.assump_idx;
   for(int ai = 0; ai < end; ai++) {

@@ -17,6 +17,7 @@ bool atmost_1(solver_data*, vec<patom_t>& xs, patom_t r = at_True);
 bool atmost_k(solver_data*, vec<patom_t>& xs, int k, patom_t r = at_True);
 bool bool_linear_le(solver_data* s, patom_t r, intvar z, vec<int>& ks, vec<patom_t>& xs, int k);
 bool bool_linear_ge(solver_data* s, patom_t r, intvar z, vec<int>& ks, vec<patom_t>& xs, int k);
+bool bool_linear_ge(solver_data* s, patom_t r, int c_z, intvar z, vec<int>& ks, vec<patom_t>& xs, int k);
 bool bool_linear_ne(solver_data* s, vec<int>& ks, vec<patom_t>& xs, int k, patom_t r = at_True);
 
 // element.cc

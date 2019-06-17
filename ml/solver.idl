@@ -84,6 +84,7 @@ void add_brancher([in] solver s, [in] brancher b);
 brancher get_brancher([in] solver s);
 
 limits unlimited(void);
+boolean is_consistent([in] solver s);
 result solve([in] solver s, limits l);
 [mlname(abort)] void abort_solve([in] solver s);
 
@@ -116,6 +117,8 @@ void set_int_polarity([in] intvar x, [in] boolean pol);
 [int32,mlname(ivar_pred)] pred_t ivar_pid([in] intvar v);
 int ivar_lb([in] intvar v);
 int ivar_ub([in] intvar v);
+int current_ivar_lb([in] intvar v);
+int current_ivar_ub([in] intvar v);
 quote(mlmli, "external get_ivar_activities : solver -> intvar array -> float array = \"ml_get_ivar_activities\"");
 int suggest_ivar_value(solver s, intvar v);
 

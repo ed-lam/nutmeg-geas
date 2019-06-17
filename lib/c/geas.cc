@@ -261,6 +261,10 @@ limits unlimited(void) { return limits { 0, 0 }; }
 limits time_limit(int s) { return limits { (double) s, 0 }; }
 limits conflict_limit(int c) { return limits { 0, c }; }
 
+int is_consistent(solver s) {
+  return get_solver(s)->is_consistent();
+}
+
 result solve(solver s, limits lim) {
   // Currently ignoring conflict limit
   return unget_result(get_solver(s)->solve(lim)); 
@@ -391,6 +395,14 @@ int ivar_lb(intvar v) {
 int ivar_ub(intvar v) {
   geas::solver_data* s = get_intvar(v)->ext->s;
   return get_intvar(v)->ub(s->state.p_root);
+}
+int current_ivar_lb(intvar v) {
+  geas::solver_data* s = get_intvar(v)->ext->s;
+  return get_intvar(v)->lb(s->state.p_vals);
+}
+int current_ivar_ub(intvar v) {
+  geas::solver_data* s = get_intvar(v)->ext->s;
+  return get_intvar(v)->ub(s->state.p_vals);
 }
 
 int atom_value(model m, atom at) {
