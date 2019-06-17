@@ -64,7 +64,8 @@ class iprod_nonneg : public propagator, public prop_inst<iprod_nonneg> {
       int x_ub0 = ub_0(xs[xi]);
       int y_ub = ub(xs[1 - xi]);
       if(x_ub0 * y_ub <= z_ub) {
-        expl.push(xs[1 - xi] > iceil(z_ub,x_ub0));
+        assert(x_ub0 * (1 + (z_ub / x_ub0)) > z_ub);
+        EX_PUSH(expl, xs[1 - xi] > z_ub/x_ub0);
         return;
       }
     }
