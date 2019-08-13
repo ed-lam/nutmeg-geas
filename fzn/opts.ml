@@ -52,7 +52,7 @@ let native = ref false
 let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
   Arg.align
     [(
-      "-verbosity",
+      "--verbosity",
       Arg.Set_int(verbosity),
       "<int> : verbosity level, from 0 to 2 (default:0)"
      ) ;
@@ -79,7 +79,7 @@ let (speclist:(Arg.key * Arg.spec * Arg.doc) list) =
        " : suppress printing of model"
      ) ;
      (
-      "-check",
+      "--check",
       Arg.Unit (fun () -> check := true),
       " : check solutions"
      ) ;
