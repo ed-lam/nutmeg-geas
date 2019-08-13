@@ -28,10 +28,10 @@ LFLAGS   += $(PROF)
 #CXXFLAGS += -DLOG_PROP
 #CXXFLAGS += -DCHECK_STATE
 
-#COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-partition
+COPTIMIZE = -O3 -march=native -ffast-math -funroll-loops # -freorder-blocks-and-partition
 #COPTIMIZE = -O2
 #COPTIMIZE = -O1
-COPTIMIZE = -O0
+#COPTIMIZE = -O0
 #COPTIMIZE += -DNDEBUG
 CXXFLAGS += $(COPTIMIZE)
 #CXXFLAGS += -ggdb -D DEBUG
