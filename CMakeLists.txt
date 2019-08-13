@@ -59,8 +59,6 @@ add_library(geas_core OBJECT
     lib/solver/solver.cc
     lib/solver/solver_debug.cc
     lib/utils/MurmurHash3.cc
-    lib/utils/Options.cc
-    lib/utils/System.cc
     lib/vars/fpvar.cc
     lib/vars/intvar.cc
 )
